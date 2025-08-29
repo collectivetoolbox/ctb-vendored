@@ -1,0 +1,5 @@
+language: rust
+rust: nightly
+
+env:
+  - secure: fwItLzDPQp/KKxgooGrmcjZ8GKFmYx0kbRBG6gWg++blXNBotfv6weYV1IyIN1oIMa2gIf1+k4XH+Sf7OGkqIJ4EH31Wl9caxGBqa6/Rc5aCPaJuNcA20fyBp4BoiZ1R78yudbzvc63fP9wPE7idX0ZaV3k7TybPSTkFNau0Z/g=

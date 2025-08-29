@@ -1,0 +1,30 @@
+#![doc = include_str!("README.md")]
+#![doc(alias = "typography")]
+use crate::prelude::build_plugin::*;
+
+#[derive(Debug)]
+pub(crate) struct PluginDefinition;
+
+impl Plugin for PluginDefinition {
+    fn can_handle(&self, context: ContextCanHandle) -> bool {
+        match context.modifier {
+            Modifier::Builtin { value, .. } => ["disc", "decimal", "none"].contains(&&**value),
+            Modifier::Arbitrary { value, .. } => is_matching_all(value),
+        }
+    }
+
+    fn handle(&self, context: &mut ContextHandle) {
+        match context.modifier {
+            Modifier::Builtin { value, .. } => {
+                context
+                    .buffer
+                    .line(format_args!("list-style-type: {value};"));
+            }
+            Modifier::Arbitrary { value, .. } => {
+                context
+                    .buffer
+                    .line(format_args!("list-style-type: {value};"));
+            }
+        }
+    }
+}

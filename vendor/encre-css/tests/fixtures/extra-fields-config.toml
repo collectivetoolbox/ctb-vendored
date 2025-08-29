@@ -1,0 +1,5 @@
+preflight = { type = "none" }
+
+[extra.emojis]
+tada = "🎉"
+rocket = "🚀"
