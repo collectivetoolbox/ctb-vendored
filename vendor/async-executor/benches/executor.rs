@@ -1,3 +1,6 @@
+#![allow(clippy::incompatible_msrv)] // false positive: https://github.com/rust-lang/rust-clippy/issues/12257#issuecomment-2093667187
+
+use std::hint::black_box;
 use std::mem;
 use std::thread::available_parallelism;
 
@@ -59,7 +62,7 @@ fn running_benches(c: &mut Criterion) {
         for (group_name, multithread) in [("single_thread", false), ("multi_thread", true)].iter() {
             let mut group = c.benchmark_group(group_name.to_string());
 
-            group.bench_function(format!("{}::spawn_one", prefix), |b| {
+            group.bench_function(format!("{prefix}::spawn_one"), |b| {
                 if with_static {
                     run_static(
                         || {
@@ -98,7 +101,7 @@ fn running_benches(c: &mut Criterion) {
                 });
             }
 
-            group.bench_function(format!("{}::spawn_many_local", prefix), |b| {
+            group.bench_function(format!("{prefix}::spawn_many_local"), |b| {
                 if with_static {
                     run_static(
                         || {
@@ -136,7 +139,7 @@ fn running_benches(c: &mut Criterion) {
                 }
             });
 
-            group.bench_function(format!("{}::spawn_recursively", prefix), |b| {
+            group.bench_function(format!("{prefix}::spawn_recursively"), |b| {
                 #[allow(clippy::manual_async_fn)]
                 fn go(i: usize) -> impl Future<Output = ()> + Send + 'static {
                     async move {
@@ -201,7 +204,7 @@ fn running_benches(c: &mut Criterion) {
                 }
             });
 
-            group.bench_function(format!("{}::yield_now", prefix), |b| {
+            group.bench_function(format!("{prefix}::yield_now"), |b| {
                 if with_static {
                     run_static(
                         || {
@@ -247,7 +250,7 @@ fn running_benches(c: &mut Criterion) {
                 }
             });
 
-            group.bench_function(format!("{}::channels", prefix), |b| {
+            group.bench_function(format!("{prefix}::channels"), |b| {
                 if with_static {
                     run_static(
                         || {
@@ -325,7 +328,7 @@ fn running_benches(c: &mut Criterion) {
                 }
             });
 
-            group.bench_function(format!("{}::web_server", prefix), |b| {
+            group.bench_function(format!("{prefix}::web_server"), |b| {
                 if with_static {
                     run_static(
                         || {
@@ -380,9 +383,7 @@ fn running_benches(c: &mut Criterion) {
                                                     let (resp_send, resp_recv) =
                                                         async_channel::bounded(1);
                                                     db_send.send(resp_send).await.unwrap();
-                                                    criterion::black_box(
-                                                        resp_recv.recv().await.unwrap(),
-                                                    );
+                                                    black_box(resp_recv.recv().await.unwrap());
                                                 }
 
                                                 // Send the data back...
@@ -461,9 +462,7 @@ fn running_benches(c: &mut Criterion) {
                                                     let (resp_send, resp_recv) =
                                                         async_channel::bounded(1);
                                                     db_send.send(resp_send).await.unwrap();
-                                                    criterion::black_box(
-                                                        resp_recv.recv().await.unwrap(),
-                                                    );
+                                                    black_box(resp_recv.recv().await.unwrap());
                                                 }
 
                                                 // Send the data back...

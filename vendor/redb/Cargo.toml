@@ -13,7 +13,7 @@
 edition = "2024"
 rust-version = "1.89"
 name = "redb"
-version = "3.0.0"
+version = "3.0.1"
 authors = ["Christopher Berner <me@cberner.com>"]
 build = "build.rs"
 exclude = ["fuzz/"]

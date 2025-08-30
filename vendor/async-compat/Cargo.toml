@@ -12,8 +12,14 @@
 [package]
 edition = "2018"
 name = "async-compat"
-version = "0.2.4"
+version = "0.2.5"
 authors = ["Stjepan Glavina <stjepang@gmail.com>"]
+build = false
+autolib = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
 description = "Compatibility adapter between tokio and futures"
 homepage = "https://github.com/smol-rs/async-compat"
 documentation = "https://docs.rs/async-compat"
@@ -27,6 +33,10 @@ keywords = [
 categories = ["asynchronous"]
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/smol-rs/async-compat"
+
+[lib]
+name = "async_compat"
+path = "src/lib.rs"
 
 [dependencies.futures-core]
 version = "0.3.5"
