@@ -13,7 +13,7 @@
 edition = "2018"
 rust-version = "1.71.1"
 name = "ureq"
-version = "3.1.0"
+version = "3.1.2"
 authors = [
     "Martin Algesten <martin@algesten.se>",
     "Jacob Hoffman-Andrews <ureq@hoffman-andrews.com>",
@@ -164,7 +164,7 @@ optional = true
 version = "0.4.25"
 
 [dependencies.native-tls]
-version = "0.2.14"
+version = "0.2.12"
 optional = true
 default-features = false
 
@@ -215,7 +215,7 @@ version = "0.3.4"
 optional = true
 
 [dependencies.ureq-proto]
-version = "0.5.0"
+version = "0.5.2"
 features = ["client"]
 default-features = false
 

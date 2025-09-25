@@ -1,18 +1,20 @@
-use super::backward_references::{AnyHasher, BrotliEncoderParams, CloneWithAlloc, UnionHasher};
-use super::encode::{
-    BrotliEncoderCompressStream, BrotliEncoderCreateInstance, BrotliEncoderDestroyInstance,
-    BrotliEncoderMaxCompressedSize, BrotliEncoderOperation,
-    BrotliEncoderSetCustomDictionaryWithOptionalPrecomputedHasher, HasherSetup, SanitizeParams,
-};
-use super::BrotliAlloc;
 use alloc::{Allocator, SliceWrapper, SliceWrapperMut};
-use concat::{BroCatli, BroCatliResult};
-use core::any;
 use core::marker::PhantomData;
-use core::mem;
 use core::ops::Range;
+use core::{any, mem};
 #[cfg(feature = "std")]
 use std;
+
+use super::backward_references::{AnyHasher, BrotliEncoderParams, CloneWithAlloc, UnionHasher};
+use super::encode::{
+    hasher_setup, BrotliEncoderDestroyInstance, BrotliEncoderMaxCompressedSize,
+    BrotliEncoderOperation, SanitizeParams,
+};
+use super::BrotliAlloc;
+use crate::concat::{BroCatli, BroCatliResult};
+use crate::enc::combined_alloc::{alloc_default, allocate};
+use crate::enc::encode::BrotliEncoderStateStruct;
+
 pub type PoisonedThreadError = ();
 
 #[cfg(feature = "std")]
@@ -299,11 +301,11 @@ where
     <Alloc as Allocator<u32>>::AllocatedMemory: Send + Sync,
 {
     let input = if let InternalSendAlloc::A(ref mut alloc, ref _extra) = alloc_per_thread[0].0 {
-        let mut input = <Alloc as Allocator<u8>>::alloc_cell(alloc, input_slice.len());
+        let mut input = allocate::<u8, _>(alloc, input_slice.len());
         input.slice_mut().clone_from_slice(input_slice);
         input
     } else {
-        <Alloc as Allocator<u8>>::AllocatedMemory::default()
+        alloc_default::<u8, Alloc>()
     };
     let mut owned_input = Owned::new(input);
     let ret = CompressMulti(
@@ -334,11 +336,11 @@ where
     <Alloc as Allocator<u8>>::AllocatedMemory: Send + 'static,
 {
     let mut range = get_range(thread_index, num_threads, input_and_params.0.len());
-    let mut mem = <Alloc as Allocator<u8>>::alloc_cell(
+    let mut mem = allocate::<u8, _>(
         &mut alloc,
         BrotliEncoderMaxCompressedSize(range.end - range.start),
     );
-    let mut state = BrotliEncoderCreateInstance(alloc);
+    let mut state = BrotliEncoderStateStruct::new(alloc);
     state.params = input_and_params.1.clone();
     if thread_index != 0 {
         state.params.catable = true; // make sure we can concatenate this to the other work results
@@ -346,11 +348,11 @@ where
     }
     state.params.appendable = true; // make sure we are at least appendable, so that future items can be catted in
     if thread_index != 0 {
-        BrotliEncoderSetCustomDictionaryWithOptionalPrecomputedHasher(
-            &mut state,
+        state.set_custom_dictionary_with_optional_precomputed_hasher(
             range.start,
             &input_and_params.0.slice()[..range.start],
             hasher,
+            true,
         );
     }
     let mut out_offset = 0usize;
@@ -359,8 +361,7 @@ where
     loop {
         let mut next_in_offset = 0usize;
         let mut available_in = range.end - range.start;
-        let result = BrotliEncoderCompressStream(
-            &mut state,
+        let result = state.compress_stream(
             BrotliEncoderOperation::BROTLI_OPERATION_FINISH,
             &mut available_in,
             &input_and_params.0.slice()[range.clone()],
@@ -373,7 +374,7 @@ where
         );
         let new_range = range.start + next_in_offset..range.end;
         range = new_range;
-        if result != 0 {
+        if result {
             compression_result = Ok(out_offset);
             break;
         } else if available_out == 0 {
@@ -447,14 +448,15 @@ where
         let mut local_params = params.clone();
         SanitizeParams(&mut local_params);
         let mut hasher = UnionHasher::Uninit;
-        HasherSetup(
+        hasher_setup(
             alloc_per_thread[num_threads - 1].0.unwrap_input().0,
             &mut hasher,
             &mut local_params,
+            None, // No unwrappable custom dict used here.
             &[],
             0,
             0,
-            0,
+            false,
         );
         for thread_index in 1..num_threads {
             let res = spawner_and_input.view(|input_and_params: &(SliceW, BrotliEncoderParams)| {
@@ -463,7 +465,7 @@ where
                 if range.end - range.start > overlap {
                     hasher.BulkStoreRange(
                         input_and_params.0.slice(),
-                        !(0),
+                        usize::MAX,
                         if range.start > overlap {
                             range.start - overlap
                         } else {

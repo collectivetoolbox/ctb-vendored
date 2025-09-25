@@ -1,26 +1,27 @@
 #![cfg(test)]
 #![allow(non_upper_case_globals)]
 #![allow(dead_code)]
+
 extern crate brotli_decompressor;
 extern crate core;
-#[allow(unused_imports)]
-use super::alloc_no_stdlib::{Allocator, SliceWrapper, SliceWrapperMut};
-use super::brotli::BrotliResult;
-use super::brotli::BrotliState;
-#[cfg(feature = "std")]
-use super::brotli::{CompressorReader, CompressorWriter};
-#[cfg(feature = "std")]
-use super::brotli_decompressor::{Decompressor, DecompressorWriter};
-use super::HeapAllocator;
-use super::Rebox;
-use brotli::BrotliDecompressStream;
-use core::cmp;
+
+use core::cmp::min;
 use std::io;
 #[cfg(feature = "std")]
 use std::io::{Read, Write};
 use std::time::Duration;
 #[cfg(not(feature = "disable-timer"))]
 use std::time::SystemTime;
+
+use brotli::BrotliDecompressStream;
+
+use super::alloc_no_stdlib::{Allocator, SliceWrapper, SliceWrapperMut};
+use super::brotli::{BrotliResult, BrotliState};
+#[cfg(feature = "std")]
+use super::brotli::{CompressorReader, CompressorWriter};
+#[cfg(feature = "std")]
+use super::brotli_decompressor::{Decompressor, DecompressorWriter};
+use super::{HeapAllocator, Rebox};
 
 #[cfg(feature = "benchmark")]
 extern crate test;
@@ -32,8 +33,9 @@ pub struct Buffer {
     read_offset: usize,
 }
 
+#[derive(Debug)]
 pub struct UnlimitedBuffer {
-    data: Vec<u8>,
+    pub data: Vec<u8>,
     read_offset: usize,
 }
 
@@ -228,7 +230,7 @@ impl io::Read for Buffer {
         if self.read_offset == self.data.len() {
             self.read_offset = 0;
         }
-        let bytes_to_read = cmp::min(buf.len(), self.data.len() - self.read_offset);
+        let bytes_to_read = min(buf.len(), self.data.len() - self.read_offset);
         if bytes_to_read > 0 {
             buf[0..bytes_to_read]
                 .clone_from_slice(&self.data[self.read_offset..self.read_offset + bytes_to_read]);
@@ -251,7 +253,7 @@ impl io::Write for Buffer {
 }
 impl io::Read for UnlimitedBuffer {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let bytes_to_read = cmp::min(buf.len(), self.data.len() - self.read_offset);
+        let bytes_to_read = min(buf.len(), self.data.len() - self.read_offset);
         if bytes_to_read > 0 {
             buf[0..bytes_to_read]
                 .clone_from_slice(&self.data[self.read_offset..self.read_offset + bytes_to_read]);
@@ -597,7 +599,7 @@ fn writer_helper(mut in_buf: &[u8], buf_size: usize, q: u32, lgwin: u32, do_flus
             {
                 let mut wenc = CompressorWriter::new(wdec, 255, q, lgwin);
                 while !in_buf.is_empty() {
-                    match wenc.write(&in_buf[..cmp::min(in_buf.len(), buf_size)]) {
+                    match wenc.write(&in_buf[..min(in_buf.len(), buf_size)]) {
                         Ok(size) => {
                             if size == 0 {
                                 break;
@@ -615,7 +617,7 @@ fn writer_helper(mut in_buf: &[u8], buf_size: usize, q: u32, lgwin: u32, do_flus
             }
         }
         assert_eq!(output.data.len(), original_buf.len());
-        for i in 0..cmp::min(original_buf.len(), output.data.len()) {
+        for i in 0..min(original_buf.len(), output.data.len()) {
             assert_eq!(output.data[i], original_buf[i]);
         }
         in_buf = original_buf;
@@ -623,7 +625,7 @@ fn writer_helper(mut in_buf: &[u8], buf_size: usize, q: u32, lgwin: u32, do_flus
         {
             let mut wenc = CompressorWriter::new(&mut compressed, 255, q, lgwin);
             while !in_buf.is_empty() {
-                match wenc.write(&in_buf[..cmp::min(in_buf.len(), buf_size)]) {
+                match wenc.write(&in_buf[..min(in_buf.len(), buf_size)]) {
                     Ok(size) => {
                         if size == 0 {
                             break;
@@ -645,7 +647,7 @@ fn into_inner_writer_helper(mut in_buf: &[u8], buf_size: usize, q: u32, lgwin: u
     let mut compressed = UnlimitedBuffer::new(&[]);
     let mut wenc = CompressorWriter::new(&mut compressed, 255, q, lgwin);
     while !in_buf.is_empty() {
-        match wenc.write(&in_buf[..cmp::min(in_buf.len(), buf_size)]) {
+        match wenc.write(&in_buf[..min(in_buf.len(), buf_size)]) {
             Ok(size) => {
                 if size == 0 {
                     break;
@@ -878,7 +880,7 @@ impl<'a> LimitedBuffer<'a> {
 }
 impl<'a> io::Read for LimitedBuffer<'a> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let bytes_to_read = cmp::min(buf.len(), self.data.len() - self.read_offset);
+        let bytes_to_read = min(buf.len(), self.data.len() - self.read_offset);
         if bytes_to_read > 0 {
             buf[0..bytes_to_read]
                 .clone_from_slice(&self.data[self.read_offset..self.read_offset + bytes_to_read]);
@@ -890,7 +892,7 @@ impl<'a> io::Read for LimitedBuffer<'a> {
 
 impl<'a> io::Write for LimitedBuffer<'a> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let bytes_to_write = cmp::min(buf.len(), self.data.len() - self.write_offset);
+        let bytes_to_write = min(buf.len(), self.data.len() - self.write_offset);
         if bytes_to_write > 0 {
             self.data[self.write_offset..self.write_offset + bytes_to_write]
                 .clone_from_slice(&buf[..bytes_to_write]);
@@ -990,7 +992,7 @@ fn expand_test_data(size: usize) -> Vec<u8> {
     let mut count = 0;
     let mut iter = 0usize;
     while count < size {
-        let to_copy = core::cmp::min(size - count, original_data.len());
+        let to_copy = min(size - count, original_data.len());
         let target = &mut ret[count..(count + to_copy)];
         for (dst, src) in target.iter_mut().zip(original_data[..to_copy].iter()) {
             *dst = src.wrapping_add(iter as u8);
@@ -1403,7 +1405,7 @@ impl io::Read for SoonErrorReader {
         let first = self.1;
         self.1 = false;
         if first {
-            let len = core::cmp::min(self.0.len(), data.len());
+            let len = min(self.0.len(), data.len());
             data[..len].clone_from_slice(&self.0[..len]);
             return Ok(len);
         }

@@ -36,7 +36,7 @@
 //! The previous example is equivalent to the following TOML configuration file:
 //!
 //! <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">[theme]</span>
-//! dark_mode = { type = <span class="string">"class"</span>, class = <span class="string">".dark"</span> }
+//! dark_mode = { class = <span class="string">".dark"</span> }
 //! colors = { primary = <span class="string">"#d3198c"</span>, secondary = <span class="string">"#fff"</span> }
 //! screens = { tablet = <span class="string">"640px"</span>, laptop = <span class="string">"1024px"</span>, desktop = <span class="string">"1280px"</span> }
 //! </code></pre></div>
@@ -1087,9 +1087,11 @@ pub const BUILTIN_PLUGINS: &[(Cow<'static, str>, &'static (dyn Plugin + Send + S
 /// Configuration for the [`Theme::dark_mode`] field.
 ///
 /// It defines how the `dark:` variant should behave.
+///
+/// The default value is [`DarkMode::Media`] which enables the automatic detection of the theme based
+/// on  user preference.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
-#[serde(tag = "type", content = "class")]
 pub enum DarkMode {
     /// The `dark:` variant will modify the class of the selector. You'll then need to toggle this
     /// class to enable the dark theme.
@@ -1115,6 +1117,8 @@ pub enum DarkMode {
 
     /// The `dark:` variant will generates a `@media (prefers-color-scheme: dark)` rule to enable
     /// the dark theme following user preference.
+    ///
+    /// This is the default value.
     ///
     /// # Example
     ///
@@ -1313,6 +1317,11 @@ impl Colors {
 ///   background-color: oklch(63.7% .237 25.331);
 /// }"#));
 /// ```
+///
+/// ### Corresponding TOML configuration
+///
+/// <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">[shortcuts]</span>
+/// btn = <span class="string">"border-1 rounded-xl bg-red-500"</span></code></pre></div>
 #[derive(Debug, PartialEq, Eq, Default, Serialize, Deserialize, Clone)]
 pub struct Shortcuts(BTreeMap<Cow<'static, str>, Cow<'static, str>>);
 
@@ -1383,6 +1392,37 @@ impl Default for MaxShortcutDepth {
 /// It should be used when you dynamically create selectors (for example, in Javascript
 /// `text-${ active ? "blue" : "gray" }-400`, in this case, `text-blue-400` and `text-gray-400`
 /// should be added to the safelist).
+///
+/// # Example
+///
+/// ```
+/// use encre_css::Config;
+///
+/// let mut config = Config::default();
+/// config.safelist.add("text-blue-400");
+/// config.safelist.add("text-gray-400");
+///
+/// let generated = encre_css::generate(
+///     [r#"<button class="bg-red-500">Click me</button>"#],
+///     &config,
+/// );
+///
+/// assert!(generated.ends_with(r#".bg-red-500 {
+///   background-color: oklch(63.7% .237 25.331);
+/// }
+///
+/// .text-blue-400 {
+///   color: oklch(70.7% .165 254.624);
+/// }
+///
+/// .text-gray-400 {
+///   color: oklch(70.7% .022 261.325);
+/// }"#));
+/// ```
+///
+/// ### Corresponding TOML configuration
+///
+/// <div class="example-wrap"><pre class="rust rust-example-rendered"><code>safelist = [<span class="string">"text-blue-400"</span>, <span class="string">"text-gray-400"</span>]</code></pre></div>
 #[derive(Debug, PartialEq, Eq, Default, Serialize, Deserialize, Clone)]
 pub struct Safelist(BTreeSet<Cow<'static, str>>);
 
@@ -1437,6 +1477,62 @@ impl Extra {
 /// Configuration for the [`Config::theme`] field.
 ///
 /// It defines some design system specific values like custom colors or screen breakpoints.
+///
+/// # Example
+///
+/// ```
+/// use encre_css::{Config, config::DarkMode};
+///
+/// let mut config = Config::default();
+/// config.theme.dark_mode = DarkMode::new_class("body.dark");
+/// config.theme.colors.add("primary", "#d3198c");
+/// config.theme.screens.add("tablet", "640px");
+/// config.theme.containers.add("medium", "640px");
+/// config.theme.aria.add("current", r#"current="page""#);
+///
+/// let generated = encre_css::generate(
+///     [r#"<div class="bg-primary tablet:block aria-current:text-primary"><button class="bg-white @medium:flex">Click me</button>"#],
+///     &config,
+/// );
+///
+/// assert!(generated.ends_with(r#"
+/// .bg-primary {
+///   background-color: #d3198c;
+/// }
+///
+/// .bg-white {
+///   background-color: #fff;
+/// }
+///
+/// @media (width >= 640px) {
+///   .tablet\:block {
+///     display: block;
+///   }
+/// }
+///
+/// @container (width >= 640px) {
+///   .\@medium\:flex {
+///     display: flex;
+///   }
+/// }
+///
+/// .aria-current\:text-primary[aria-current="page"] {
+///   color: #d3198c;
+/// }"#));
+/// ```
+///
+/// ### Corresponding TOML configuration
+///
+/// <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">[theme]</span>
+/// dark_mode = { class = <span class="string">"body.dark"</span> }<br>
+/// <span class="kw">[theme.colors]</span>
+/// primary = <span class="string">"#d3198c"</span><br>
+/// <span class="kw">[theme.screens]</span>
+/// tablet = <span class="string">"640px"</span><br>
+/// <span class="kw">[theme.containers]</span>
+/// medium = <span class="string">"640px"</span><br>
+/// <span class="kw">[theme.aria]</span>
+/// current = <span class="string">'current="page"'</span></code></pre></div>
 #[derive(Debug, PartialEq, Eq, Default, Serialize, Deserialize, Clone)]
 pub struct Theme {
     /// Dark mode configuration.
@@ -1498,7 +1594,7 @@ pub struct Theme {
 ///
 /// <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment"># encre-css.toml</span>
 /// <span class="kw">[theme]</span>
-/// dark_mode = { type = <span class="string">"class"</span>, class = <span class="string">".dark"</span> }
+/// dark_mode = { class = <span class="string">".dark"</span> }
 /// screens = { 3xl = <span class="string">"1600px"</span>, lg = <span class="string">"2000px"</span> }<br>
 /// <span class="kw">[theme.colors]</span>
 /// primary = <span class="string">"#e5186a"</span>
@@ -1514,7 +1610,7 @@ pub struct Theme {
 /// # }
 /// ```
 ///
-/// Based on [Tailwind's configuration](https://tailwindcss.com/docs/configuration).
+/// Based on [Tailwind v3's configuration](https://v3.tailwindcss.com/docs/configuration).
 ///
 /// [`generate`]: crate::generate
 #[derive(Default, Serialize, Deserialize, Clone)]
@@ -1716,6 +1812,9 @@ impl Config {
 
     /// Returns the order of the last variant which can be used when defining a new variant which
     /// must be generated after all the other variants.
+    ///
+    /// Note that if you are not the maintainer of a crate providing variants, you can ignore this
+    /// function.
     pub fn last_variant_order(&self) -> usize {
         BUILTIN_VARIANTS.len()
             + 2 * self.theme.screens.len()
@@ -2223,5 +2322,136 @@ mod tests {
 
         let expected_config = fs::read_to_string("tests/fixtures/custom-config.toml").unwrap();
         assert_eq!(expected_config, result);
+    }
+
+    #[test]
+    fn toml_doc_tests() {
+        // This function tests all TOML blocks used in the documentation
+        // If a block is changed in this function, it should also be changed in the corresponding
+        // documentation section and vice-versa
+
+        // Shortcuts
+        {
+            let toml_for_shortcuts = r#"
+        [shortcuts]
+        btn = "border-1 rounded-xl bg-red-500"
+        "#;
+            let config: Config = toml::from_str(toml_for_shortcuts).unwrap();
+
+            let generated = generate([r#"<button class="btn">Click me</button>"#], &config);
+
+            assert!(generated.ends_with(
+                r#".btn {
+  border-radius: 0.75rem;
+}
+
+.btn {
+  border-width: 1px;
+}
+
+.btn {
+  background-color: oklch(63.7% .237 25.331);
+}"#
+            ));
+        }
+
+        // Safelist
+        {
+            let toml_for_safelist = r#"safelist = ["text-blue-400", "text-gray-400"]"#;
+            let config: Config = toml::from_str(toml_for_safelist).unwrap();
+
+            let generated = generate([r#"<button class="bg-red-500">Click me</button>"#], &config);
+
+            assert!(generated.ends_with(
+                r#".bg-red-500 {
+  background-color: oklch(63.7% .237 25.331);
+}
+
+.text-blue-400 {
+  color: oklch(70.7% .165 254.624);
+}
+
+.text-gray-400 {
+  color: oklch(70.7% .022 261.325);
+}"#
+            ));
+        }
+
+        // Preflight
+        {
+            let toml_for_preflight = r#"preflight = "none""#;
+            let config: Config = toml::from_str(toml_for_preflight).unwrap();
+            assert!(generate([], &config).is_empty());
+
+            let toml_for_preflight = r#"preflight = { custom = "html, body { width: 100vw; height: 100vh; margin: 0; }" }"#;
+            let config: Config = toml::from_str(toml_for_preflight).unwrap();
+            assert_eq!(
+                generate([], &config),
+                "html, body { width: 100vw; height: 100vh; margin: 0; }"
+            );
+
+            let toml_for_preflight =
+                r#"preflight = { full = { font_family_mono = "'Fira Code'" } }"#;
+            let config: Config = toml::from_str(toml_for_preflight).unwrap();
+            assert!(generate([], &config).contains(
+                "code, kbd, samp, pre {
+  font-family: 'Fira Code';"
+            ));
+        }
+
+        // Theme
+        {
+            let toml_for_theme = r##"
+            [theme]
+            dark_mode = { class = "body.dark" }
+
+            [theme.colors]
+            primary = "#d3198c"
+
+            [theme.screens]
+            tablet = "640px"
+
+            [theme.containers]
+            medium = "640px"
+
+            [theme.aria]
+            current = 'current="page"'
+            "##;
+            let config: Config = toml::from_str(toml_for_theme).unwrap();
+
+            let generated = generate(
+                [
+                    r#"<div class="bg-primary tablet:block aria-current:text-primary"><button class="bg-white @medium:flex">Click me</button>"#,
+                ],
+                &config,
+            );
+
+            assert!(generated.ends_with(
+                r#"
+.bg-primary {
+  background-color: #d3198c;
+}
+
+.bg-white {
+  background-color: #fff;
+}
+
+@media (width >= 640px) {
+  .tablet\:block {
+    display: block;
+  }
+}
+
+@container (width >= 640px) {
+  .\@medium\:flex {
+    display: flex;
+  }
+}
+
+.aria-current\:text-primary[aria-current="page"] {
+  color: #d3198c;
+}"#
+            ));
+        }
     }
 }

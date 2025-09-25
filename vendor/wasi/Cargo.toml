@@ -11,9 +11,9 @@
 
 [package]
 edition = "2021"
+rust-version = "1.82.0"
 name = "wasi"
-version = "0.14.3+wasi-0.2.4"
-authors = ["The Cranelift Project Developers"]
+version = "0.14.7+wasi-0.2.4"
 build = false
 autolib = false
 autobins = false
@@ -35,17 +35,9 @@ license = "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT"
 repository = "https://github.com/bytecodealliance/wasi-rs"
 
 [features]
-bitflags = ["wit-bindgen/bitflags"]
-default = [
-    "std",
-    "bitflags",
-]
-rustc-dep-of-std = [
-    "core",
-    "alloc",
-    "wit-bindgen/rustc-dep-of-std",
-]
-std = []
+bitflags = ["wasip2/bitflags"]
+default = ["wasip2/default"]
+std = ["wasip2/std"]
 
 [lib]
 name = "wasi"
@@ -82,16 +74,6 @@ name = "http-proxy-no_std"
 crate-type = ["cdylib"]
 path = "examples/http-proxy-no_std.rs"
 
-[dependencies.alloc]
-version = "1.0"
-optional = true
-package = "rustc-std-workspace-alloc"
-
-[dependencies.core]
-version = "1.0"
-optional = true
-package = "rustc-std-workspace-core"
-
-[dependencies.wit-bindgen]
-version = "0.45.0"
+[dependencies.wasip2]
+version = "1.0.1"
 default-features = false

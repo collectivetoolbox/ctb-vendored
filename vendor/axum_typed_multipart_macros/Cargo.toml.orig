@@ -1,0 +1,32 @@
+[package]
+name = "axum_typed_multipart_macros"
+
+authors.workspace = true
+categories.workspace = true
+description.workspace = true
+edition.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[lib]
+proc-macro = true
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage,coverage_nightly)'] }
+
+[dependencies]
+darling = "0.20.3"
+heck = "0.5.0"
+proc-macro-error2 = "2.0.1"
+quote = "1.0.37"
+syn = "2.0.87"
+ubyte = "0.10.4"
+
+[dev-dependencies]
+axum = { workspace = true }
+axum_test_helper = { path = "../test_helper" }
+axum_typed_multipart = { path = ".." }
+reqwest = { workspace = true }
+tokio = { workspace = true, features = ["macros"] }

@@ -12,7 +12,7 @@
 [package]
 edition = "2021"
 name = "humantime"
-version = "2.2.0"
+version = "2.3.0"
 build = false
 autolib = false
 autobins = false
@@ -33,6 +33,9 @@ keywords = [
 categories = ["date-and-time"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/chronotope/humantime"
+
+[features]
+mu = []
 
 [lib]
 name = "humantime"

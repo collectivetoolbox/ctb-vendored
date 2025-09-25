@@ -38,7 +38,7 @@
 //!
 //! ```toml
 //! [dependencies.uuid]
-//! version = "1.18.0"
+//! version = "1.18.1"
 //! # Lets you generate random UUIDs
 //! features = [
 //!     "v4",
@@ -139,7 +139,7 @@
 //!
 //! ```toml
 //! [dependencies.uuid]
-//! version = "1.18.0"
+//! version = "1.18.1"
 //! features = [
 //!     "v4",
 //!     "v7",
@@ -154,7 +154,7 @@
 //!
 //! ```toml
 //! [dependencies.uuid]
-//! version = "1.18.0"
+//! version = "1.18.1"
 //! default-features = false
 //! ```
 //!
@@ -212,7 +212,7 @@
 #![doc(
     html_logo_url = "https://www.rust-lang.org/logos/rust-logo-128x128-blk-v2.png",
     html_favicon_url = "https://www.rust-lang.org/favicon.ico",
-    html_root_url = "https://docs.rs/uuid/1.18.0"
+    html_root_url = "https://docs.rs/uuid/1.18.1"
 )]
 
 #[cfg(any(feature = "std", test))]
@@ -222,6 +222,9 @@ extern crate std;
 #[cfg(all(not(feature = "std"), not(test)))]
 #[macro_use]
 extern crate core as std;
+
+#[macro_use]
+mod macros;
 
 mod builder;
 mod error;
@@ -266,9 +269,6 @@ mod rng;
 mod sha1;
 
 mod external;
-
-#[macro_use]
-mod macros;
 
 #[doc(hidden)]
 #[cfg(feature = "macro-diagnostics")]
@@ -439,6 +439,14 @@ pub enum Variant {
 #[repr(transparent)]
 // NOTE: Also check `NonNilUuid` when ading new derives here
 #[cfg_attr(
+    feature = "borsh",
+    derive(borsh_derive::BorshDeserialize, borsh_derive::BorshSerialize)
+)]
+#[cfg_attr(
+    feature = "bytemuck",
+    derive(bytemuck::Zeroable, bytemuck::Pod, bytemuck::TransparentWrapper)
+)]
+#[cfg_attr(
     all(uuid_unstable, feature = "zerocopy"),
     derive(
         zerocopy::IntoBytes,
@@ -447,14 +455,6 @@ pub enum Variant {
         zerocopy::Immutable,
         zerocopy::Unaligned
     )
-)]
-#[cfg_attr(
-    feature = "borsh",
-    derive(borsh_derive::BorshDeserialize, borsh_derive::BorshSerialize)
-)]
-#[cfg_attr(
-    feature = "bytemuck",
-    derive(bytemuck::Zeroable, bytemuck::Pod, bytemuck::TransparentWrapper)
 )]
 pub struct Uuid(Bytes);
 

@@ -12,7 +12,7 @@
 [package]
 edition = "2018"
 name = "uuid-macro-internal"
-version = "1.18.0"
+version = "1.18.1"
 authors = ["QnnOkabayashi"]
 build = false
 autolib = false

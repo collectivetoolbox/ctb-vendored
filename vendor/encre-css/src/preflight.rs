@@ -1,5 +1,9 @@
 //! Define the default set of base CSS styles used to make websites consistent across browsers.
 //!
+//! Based on [Tailwind's default preflight](https://tailwindcss.com/docs/preflight).
+//!
+//! ### Full preflight
+//!
 //! By default, this base CSS is included in the generated CSS and you can customize it
 //! by manually setting the [`Config::preflight`] configuration field to `Preflight::new_full()`
 //! and by using the various associated methods, e.g [`Preflight::font_family_sans`]
@@ -15,6 +19,12 @@
 //! assert!(encre_css::generate([], &config).contains("code, kbd, samp, pre {
 //!   font-family: 'Fira Code';"));
 //! ```
+//!
+//! Using TOML:
+//!
+//! <div class="example-wrap"><pre class="rust rust-example-rendered"><code>preflight = { full = { font_family_mono = <span class="string">"'Fira Code'"</span> } }</code></pre></div>
+//!
+//! ### Custom preflight
 //!
 //! You can also use your own default CSS using [`Preflight::new_custom`].
 //!
@@ -35,6 +45,14 @@
 //! }");
 //! ```
 //!
+//! Using TOML:
+//!
+//! <div class="example-wrap"><pre class="rust rust-example-rendered"><code>preflight = { custom = <span class="string">"html, body { width: 100vw; height: 100vh; margin: 0; }"</span> }</code></pre></div>
+//!
+//! Note that newlines [are not yet supported in TOML](https://github.com/toml-rs/toml/issues/397)
+//! so it might be better to define it in Rust if you have a long custom preflight.
+//!
+//! ### Empty preflight
 //! Finally you can disable it using [`Preflight::new_none`].
 //!
 //! ```
@@ -43,10 +61,12 @@
 //! let mut config = Config::default();
 //! config.preflight = Preflight::new_none();
 //!
-//! assert_eq!(encre_css::generate([], &config), "");
+//! assert!(encre_css::generate([], &config).is_empty());
 //! ```
 //!
-//! Based on [Tailwind's default preflight](https://tailwindcss.com/docs/preflight).
+//! Using TOML:
+//!
+//! <div class="example-wrap"><pre class="rust rust-example-rendered"><code>preflight = <span class="string">"none"</span></code></pre></div>
 //!
 //! [`Config::preflight`]: crate::config::Config::preflight
 use serde::{Deserialize, Serialize};
@@ -399,10 +419,28 @@ const DEFAULT_PREFLIGHT: &str = concat!(
 
 /// The set of default styles.
 ///
+/// The default value is
+///
+/// ```
+/// # use encre_css::Preflight;
+/// # let _ =
+/// Preflight::Full {
+///     font_feature_settings_sans: None,
+///     font_variation_settings_sans: None,
+///     font_feature_settings_mono: None,
+///     font_variation_settings_mono: None,
+///     font_family_sans: None,
+///     font_family_mono: None,
+/// }
+/// # ;
+/// ```
+///
+/// i.e it will include the full preflight with the default values for all fields. Check the methods
+/// to see what they are.
+///
 /// See [`crate::preflight`].
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
-#[serde(tag = "type", content = "css")]
 pub enum Preflight {
     /// No preflight will be generated.
     None,

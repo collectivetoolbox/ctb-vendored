@@ -61,12 +61,12 @@
     html_logo_url = "https://raw.githubusercontent.com/smol-rs/smol/master/assets/images/logo_fullsize_transparent.png"
 )]
 
-use std::future::Future;
+use std::future::{poll_fn, Future};
 use std::io::{self, IoSlice, IoSliceMut, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream, UdpSocket};
-use std::pin::Pin;
+use std::pin::{pin, Pin};
 use std::sync::Arc;
-use std::task::{Context, Poll, Waker};
+use std::task::{ready, Context, Poll, Waker};
 use std::time::{Duration, Instant};
 
 #[cfg(unix)]
@@ -81,7 +81,6 @@ use std::os::windows::io::{AsRawSocket, AsSocket, BorrowedSocket, OwnedSocket, R
 
 use futures_io::{AsyncRead, AsyncWrite};
 use futures_lite::stream::{self, Stream};
-use futures_lite::{future, pin, ready};
 
 use rustix::io as rio;
 use rustix::net as rn;
@@ -139,6 +138,8 @@ pub use reactor::{Readable, ReadableOwned, Writable, WritableOwned};
 ///     .await?;
 /// # std::io::Result::Ok(()) });
 /// ```
+#[doc(alias = "sleep")]
+#[doc(alias = "timeout")]
 #[derive(Debug)]
 pub struct Timer {
     /// This timer's ID and last waker that polled it.
@@ -342,7 +343,6 @@ impl Timer {
             None => {
                 // Overflow to never going off.
                 self.clear();
-                self.when = None;
             }
         }
     }
@@ -405,7 +405,6 @@ impl Timer {
             None => {
                 // Overflow to never going off.
                 self.clear();
-                self.when = None;
             }
         }
     }
@@ -443,12 +442,13 @@ impl Timer {
         }
     }
 
-    /// Helper function to clear the current timer.
-    fn clear(&mut self) {
+    /// Clear any timeouts set on this timer. It will never fire again until a new interval or instant is set.
+    pub fn clear(&mut self) {
         if let (Some(when), Some((id, _))) = (self.when, self.id_and_waker.as_ref()) {
             // Deregister the timer from the reactor.
             Reactor::get().remove_timer(when, *id);
         }
+        self.when = None;
     }
 }
 
@@ -956,14 +956,14 @@ impl<T> Async<T> {
     ///
     /// ```no_run
     /// use async_io::Async;
-    /// use futures_lite::future;
+    /// use std::future::poll_fn;
     /// use std::net::TcpListener;
     ///
     /// # futures_lite::future::block_on(async {
     /// let mut listener = Async::<TcpListener>::bind(([127, 0, 0, 1], 0))?;
     ///
     /// // Wait until a client can be accepted.
-    /// future::poll_fn(|cx| listener.poll_readable(cx)).await?;
+    /// poll_fn(|cx| listener.poll_readable(cx)).await?;
     /// # std::io::Result::Ok(()) });
     /// ```
     pub fn poll_readable(&self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
@@ -987,7 +987,7 @@ impl<T> Async<T> {
     ///
     /// ```
     /// use async_io::Async;
-    /// use futures_lite::future;
+    /// use std::future::poll_fn;
     /// use std::net::{TcpStream, ToSocketAddrs};
     ///
     /// # futures_lite::future::block_on(async {
@@ -995,7 +995,7 @@ impl<T> Async<T> {
     /// let stream = Async::<TcpStream>::connect(addr).await?;
     ///
     /// // Wait until the stream is writable.
-    /// future::poll_fn(|cx| stream.poll_writable(cx)).await?;
+    /// poll_fn(|cx| stream.poll_writable(cx)).await?;
     /// # std::io::Result::Ok(()) });
     /// ```
     pub fn poll_writable(&self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
@@ -1252,6 +1252,13 @@ unsafe impl IoSafe for std::process::ChildStderr {}
 #[cfg(unix)]
 unsafe impl IoSafe for std::os::unix::net::UnixStream {}
 
+// PipeReader & PipeWriter require std >= 1.87, our MSRV is 1.71, hence
+// conditional on cfg()s, generated from build.rs
+#[cfg(not(async_io_no_pipe))]
+unsafe impl IoSafe for std::io::PipeReader {}
+#[cfg(not(async_io_no_pipe))]
+unsafe impl IoSafe for std::io::PipeWriter {}
+
 unsafe impl<T: IoSafe + Read> IoSafe for std::io::BufReader<T> {}
 unsafe impl<T: IoSafe + Write> IoSafe for std::io::BufWriter<T> {}
 unsafe impl<T: IoSafe + Write> IoSafe for std::io::LineWriter<T> {}
@@ -1466,13 +1473,14 @@ impl Async<TcpListener> {
     ///
     /// ```no_run
     /// use async_io::Async;
-    /// use futures_lite::{pin, stream::StreamExt};
+    /// use futures_lite::{stream::StreamExt};
     /// use std::net::TcpListener;
+    /// use std::pin::pin;
     ///
     /// # futures_lite::future::block_on(async {
     /// let listener = Async::<TcpListener>::bind(([127, 0, 0, 1], 8000))?;
     /// let incoming = listener.incoming();
-    /// pin!(incoming);
+    /// let mut incoming = pin!(incoming);
     ///
     /// while let Some(stream) = incoming.next().await {
     ///     let stream = stream?;
@@ -1802,13 +1810,14 @@ impl Async<UnixListener> {
     ///
     /// ```no_run
     /// use async_io::Async;
-    /// use futures_lite::{pin, stream::StreamExt};
+    /// use futures_lite::stream::StreamExt;
     /// use std::os::unix::net::UnixListener;
+    /// use std::pin::pin;
     ///
     /// # futures_lite::future::block_on(async {
     /// let listener = Async::<UnixListener>::bind("/tmp/socket")?;
     /// let incoming = listener.incoming();
-    /// pin!(incoming);
+    /// let mut incoming = pin!(incoming);
     ///
     /// while let Some(stream) = incoming.next().await {
     ///     let stream = stream?;
@@ -2049,9 +2058,9 @@ impl TryFrom<std::os::unix::net::UnixDatagram> for Async<std::os::unix::net::Uni
 /// Polls a future once, waits for a wakeup, and then optimistically assumes the future is ready.
 async fn optimistic(fut: impl Future<Output = io::Result<()>>) -> io::Result<()> {
     let mut polled = false;
-    pin!(fut);
+    let mut fut = pin!(fut);
 
-    future::poll_fn(|cx| {
+    poll_fn(|cx| {
         if !polled {
             polled = true;
             fut.as_mut().poll(cx)

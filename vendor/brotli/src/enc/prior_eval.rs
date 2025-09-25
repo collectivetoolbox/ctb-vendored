@@ -1,15 +1,16 @@
+use core;
+use core::cmp::min;
+#[cfg(feature = "simd")]
+use core::simd::prelude::SimdPartialOrd;
+
 use super::super::alloc;
 use super::super::alloc::{Allocator, SliceWrapper, SliceWrapperMut};
 use super::backward_references::BrotliEncoderParams;
-use super::find_stride;
 use super::input_pair::{InputPair, InputReference, InputReferenceMut};
-use super::interface;
 use super::ir_interpret::{push_base, IRInterpreter};
 use super::util::{floatX, FastLog2u16};
-use super::{s16, v8};
-use core;
-#[cfg(feature = "simd")]
-use core::simd::prelude::SimdPartialOrd;
+use super::{find_stride, interface, s16, v8};
+use crate::enc::combined_alloc::{alloc_default, alloc_if};
 
 // the high nibble, followed by the low nibbles
 pub const CONTEXT_MAP_PRIOR_SIZE: usize = 256 * 17;
@@ -107,7 +108,7 @@ fn stride_lookup_lin(
     high_nibble: Option<u8>,
 ) -> usize {
     if let Some(nibble) = high_nibble {
-        1 + 2 * (actual_context | ((stride_byte as usize & 0xf) << 8) | ((nibble as usize) << 12))
+        1 + 2 * (actual_context | ((stride_byte as usize & 0x0f) << 8) | ((nibble as usize) << 12))
     } else {
         2 * (actual_context | ((stride_byte as usize) << 8))
     }
@@ -432,57 +433,21 @@ impl<'a, Alloc: alloc::Allocator<s16> + alloc::Allocator<u32> + alloc::Allocator
             block_type: 0,
             cur_stride: 1,
             local_byte_offset: 0,
-            _nop: <Alloc as Allocator<u32>>::AllocatedMemory::default(),
-            cm_priors: if do_alloc {
-                <Alloc as Allocator<s16>>::alloc_cell(alloc, CONTEXT_MAP_PRIOR_SIZE)
-            } else {
-                <Alloc as Allocator<s16>>::AllocatedMemory::default()
-            },
-            slow_cm_priors: if do_alloc {
-                <Alloc as Allocator<s16>>::alloc_cell(alloc, CONTEXT_MAP_PRIOR_SIZE)
-            } else {
-                <Alloc as Allocator<s16>>::AllocatedMemory::default()
-            },
-            fast_cm_priors: if do_alloc {
-                <Alloc as Allocator<s16>>::alloc_cell(alloc, CONTEXT_MAP_PRIOR_SIZE)
-            } else {
-                <Alloc as Allocator<s16>>::AllocatedMemory::default()
-            },
+            _nop: alloc_default::<u32, Alloc>(),
+            cm_priors: alloc_if::<s16, _>(do_alloc, alloc, CONTEXT_MAP_PRIOR_SIZE),
+            slow_cm_priors: alloc_if::<s16, _>(do_alloc, alloc, CONTEXT_MAP_PRIOR_SIZE),
+            fast_cm_priors: alloc_if::<s16, _>(do_alloc, alloc, CONTEXT_MAP_PRIOR_SIZE),
             stride_priors: [
-                if do_alloc {
-                    <Alloc as Allocator<s16>>::alloc_cell(alloc, STRIDE_PRIOR_SIZE)
-                } else {
-                    <Alloc as Allocator<s16>>::AllocatedMemory::default()
-                },
-                if do_alloc {
-                    <Alloc as Allocator<s16>>::alloc_cell(alloc, STRIDE_PRIOR_SIZE)
-                } else {
-                    <Alloc as Allocator<s16>>::AllocatedMemory::default()
-                },
-                if do_alloc {
-                    <Alloc as Allocator<s16>>::alloc_cell(alloc, STRIDE_PRIOR_SIZE)
-                } else {
-                    <Alloc as Allocator<s16>>::AllocatedMemory::default()
-                },
-                if do_alloc {
-                    <Alloc as Allocator<s16>>::alloc_cell(alloc, STRIDE_PRIOR_SIZE)
-                } else {
-                    <Alloc as Allocator<s16>>::AllocatedMemory::default()
-                },
+                alloc_if::<s16, _>(do_alloc, alloc, STRIDE_PRIOR_SIZE),
+                alloc_if::<s16, _>(do_alloc, alloc, STRIDE_PRIOR_SIZE),
+                alloc_if::<s16, _>(do_alloc, alloc, STRIDE_PRIOR_SIZE),
+                alloc_if::<s16, _>(do_alloc, alloc, STRIDE_PRIOR_SIZE),
                 /*if do_alloc {m16x16.alloc_cell(STRIDE_PRIOR_SIZE)} else {
                 Alloc16x16::AllocatedMemory::default()},*/
             ],
-            adv_priors: if do_alloc {
-                <Alloc as Allocator<s16>>::alloc_cell(alloc, ADV_PRIOR_SIZE)
-            } else {
-                <Alloc as Allocator<s16>>::AllocatedMemory::default()
-            },
+            adv_priors: alloc_if::<s16, _>(do_alloc, alloc, ADV_PRIOR_SIZE),
             _stride_pyramid_leaves: stride,
-            score: if do_alloc {
-                <Alloc as Allocator<v8>>::alloc_cell(alloc, 8192)
-            } else {
-                <Alloc as Allocator<v8>>::AllocatedMemory::default()
-            },
+            score: alloc_if::<v8, _>(do_alloc, alloc, 8192),
             cm_speed,
             stride_speed,
         };
@@ -514,30 +479,30 @@ impl<'a, Alloc: alloc::Allocator<s16> + alloc::Allocator<u32> + alloc::Allocator
             let stride4_score = score[WhichPrior::STRIDE4 as usize];
             //let stride8_score = score[WhichPrior::STRIDE8] * 1.125 + 16.0;
             let stride8_score = stride4_score + 1.0; // FIXME: never lowest -- ignore stride 8
-            let stride_score = core::cmp::min(
+            let stride_score = min(
                 stride1_score as u64,
-                core::cmp::min(
+                min(
                     stride2_score as u64,
-                    core::cmp::min(
+                    min(
                         stride3_score as u64,
-                        core::cmp::min(stride4_score as u64, stride8_score as u64),
+                        min(stride4_score as u64, stride8_score as u64),
                     ),
                 ),
             );
 
             let adv_score = score[WhichPrior::ADV as usize];
-            if adv_score + epsilon < stride_score as floatX
+            if adv_score + epsilon < (stride_score as floatX)
                 && adv_score + epsilon < cm_score
                 && adv_score + epsilon < slow_cm_score
                 && adv_score + epsilon < fast_cm_score
             {
                 bitmask[i] = 1;
-            } else if slow_cm_score + epsilon < stride_score as floatX
+            } else if slow_cm_score + epsilon < (stride_score as floatX)
                 && slow_cm_score + epsilon < cm_score
                 && slow_cm_score + epsilon < fast_cm_score
             {
                 bitmask[i] = 2;
-            } else if fast_cm_score + epsilon < stride_score as floatX
+            } else if fast_cm_score + epsilon < (stride_score as floatX)
                 && fast_cm_score + epsilon < cm_score
             {
                 bitmask[i] = 3;
@@ -584,7 +549,7 @@ impl<'a, Alloc: alloc::Allocator<s16> + alloc::Allocator<u32> + alloc::Allocator
         <Alloc as Allocator<s16>>::free_cell(alloc, core::mem::take(&mut self.stride_priors[1]));
         <Alloc as Allocator<s16>>::free_cell(alloc, core::mem::take(&mut self.stride_priors[2]));
         <Alloc as Allocator<s16>>::free_cell(alloc, core::mem::take(&mut self.stride_priors[3]));
-        //<Alloc as Allocator<s16>>::free_cell(alloc, core::mem::replace(&mut self.stride_priors[4], <Alloc as Allocator<s16>>::AllocatedMemory::default()));
+        //<Alloc as Allocator<s16>>::free_cell(alloc, core::mem::replace(&mut self.stride_priors[4], alloc_default::<s16, Alloc>()));
         <Alloc as Allocator<s16>>::free_cell(alloc, core::mem::take(&mut self.adv_priors));
     }
 
@@ -856,7 +821,7 @@ impl<'a, Alloc: alloc::Allocator<s16> + alloc::Allocator<u32> + alloc::Allocator
         self.context_map.literal_context_map.slice()
     }
     #[inline]
-    fn prediction_mode(&self) -> ::interface::LiteralPredictionModeNibble {
+    fn prediction_mode(&self) -> crate::interface::LiteralPredictionModeNibble {
         self.context_map.literal_prediction_mode()
     }
     #[inline]

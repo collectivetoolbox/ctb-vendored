@@ -12,7 +12,7 @@
 [package]
 edition = "2021"
 name = "libredox"
-version = "0.1.9"
+version = "0.1.10"
 authors = ["4lDO2 <4lDO2@protonmail.com>"]
 build = false
 exclude = ["target"]

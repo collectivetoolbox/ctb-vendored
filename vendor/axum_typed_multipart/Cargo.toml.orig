@@ -1,0 +1,70 @@
+[workspace]
+members = ["macros", "test_helper"]
+
+[workspace.package]
+authors = ["Lorenzo Murarotto <lnzmrr@gmail.com>"]
+categories = ["web-programming"]
+description = "Type safe multipart/form-data handling for axum."
+edition = "2021"
+keywords = ["axum", "form", "multipart"]
+license = "MIT"
+repository = "https://github.com/murar8/axum_typed_multipart"
+version = "0.16.4"
+
+[workspace.dependencies]
+async-trait = "0.1.84"
+axum = { version = "0.8.1", default-features = false }
+bytes = "1.7.1"
+reqwest = "0.12.12"
+serde = "1.0.193"
+tokio = "1.25.0"
+
+[package]
+name = "axum_typed_multipart"
+
+authors.workspace = true
+categories.workspace = true
+description.workspace = true
+edition.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[features]
+default = ["chrono_0_4", "rust_decimal_1", "tempfile_3", "uuid_1"]
+
+chrono_0_4 = ["dep:chrono_0_4"]
+rust_decimal_1 = ["dep:rust_decimal_1"]
+tempfile_3 = ["dep:tempfile_3", "dep:tokio"]
+uuid_1 = ["dep:uuid_1"]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage,coverage_nightly)'] }
+
+[dependencies]
+anyhow = "1.0.72"
+async-trait = { workspace = true }
+axum = { workspace = true, features = ["multipart"] }
+axum_typed_multipart_macros = { path = "macros", version = "0.16.4" }
+bytes = { workspace = true }
+futures-core = "0.3.31"
+futures-util = "0.3.31"
+thiserror = "2.0.0"
+
+chrono_0_4 = { package = "chrono", version = "0.4.0", optional = true }
+rust_decimal_1 = { package = "rust_decimal", version = "1.20.0", features = [
+    "serde-str",
+], optional = true }
+tempfile_3 = { package = "tempfile", version = "3.1.0", optional = true }
+tokio = { workspace = true, features = ["fs", "io-util"], optional = true }
+uuid_1 = { package = "uuid", version = "1.0.0", optional = true }
+
+[dev-dependencies]
+axum = { workspace = true, default-features = true }
+axum_test_helper = { path = "test_helper" }
+reqwest = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+utoipa = "5.3.1"
+utoipa-rapidoc = { version = "6.0.0", features = ["axum"] }

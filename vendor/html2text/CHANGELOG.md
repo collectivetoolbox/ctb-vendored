@@ -11,6 +11,14 @@ Possible log types:
 
 ### Latest
 
+### 0.15.5
+
+- [fixed] Fix an assertion and some missing styles with rowspan cells in rich mode.
+
+### 0.15.4
+
+- [added] Support handling `rowspan` in tables.
+
 ### 0.15.3
 
 - [fixed] Parse `<noscript>` tags as if scripting is disabled (thanks craigchiang)

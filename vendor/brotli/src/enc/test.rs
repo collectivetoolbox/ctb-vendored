@@ -1,35 +1,38 @@
 #![cfg(test)]
-use super::{s16, v8};
-use core;
+
 extern crate alloc_no_stdlib;
 extern crate brotli_decompressor;
-use super::super::alloc::{
-    bzero, AllocatedStackMemory, Allocator, SliceWrapper, SliceWrapperMut, StackAllocator,
-};
-use super::cluster::HistogramPair;
-use super::encode::{
-    BrotliEncoderCompressStream, BrotliEncoderCreateInstance, BrotliEncoderDestroyInstance,
-    BrotliEncoderIsFinished, BrotliEncoderOperation, BrotliEncoderParameter,
-    BrotliEncoderSetParameter,
-};
-use super::histogram::{ContextType, HistogramCommand, HistogramDistance, HistogramLiteral};
-use super::StaticCommand;
-use super::ZopfliNode;
-use enc::util::brotli_min_size_t;
 extern "C" {
     fn calloc(n_elem: usize, el_size: usize) -> *mut u8;
 }
 extern "C" {
     fn free(ptr: *mut u8);
 }
+
+// FIXME: Remove this after https://github.com/dropbox/rust-alloc-no-stdlib/issues/19 is fixed
+use alloc::{
+    declare_stack_allocator_struct, define_allocator_memory_pool, define_stack_allocator_traits,
+    static_array,
+};
+use core;
+use core::cmp::min;
+use core::ops;
+
+use brotli_decompressor::HuffmanCode;
+
+use super::super::alloc::{
+    bzero, AllocatedStackMemory, Allocator, SliceWrapper, SliceWrapperMut, StackAllocator,
+};
 pub use super::super::{BrotliDecompressStream, BrotliResult, BrotliState};
+use super::cluster::HistogramPair;
 use super::combined_alloc::CombiningAllocator;
 use super::command::Command;
+use super::encode::{BrotliEncoderOperation, BrotliEncoderParameter};
 use super::entropy_encode::HuffmanTree;
-use super::interface;
+use super::histogram::{ContextType, HistogramCommand, HistogramDistance, HistogramLiteral};
 use super::pdf::PDF;
-use brotli_decompressor::HuffmanCode;
-use core::ops;
+use super::{interface, s16, v8, StaticCommand, ZopfliNode};
+use crate::enc::encode::BrotliEncoderStateStruct;
 
 declare_stack_allocator_struct!(MemPool, 128, stack);
 declare_stack_allocator_struct!(CallocatedFreelist4096, 128, calloc);
@@ -45,7 +48,7 @@ fn oneshot_compress(
     magic: bool,
     in_batch_size: usize,
     out_batch_size: usize,
-) -> (i32, usize) {
+) -> (bool, usize) {
     let stack_u8_buffer =
         unsafe { define_allocator_memory_pool!(96, u8, [0; 24 * 1024 * 1024], calloc) };
     let stack_u16_buffer =
@@ -58,9 +61,11 @@ fn oneshot_compress(
         unsafe { define_allocator_memory_pool!(96, u64, [0; 32 * 1024], calloc) };
     let stack_f64_buffer =
         unsafe { define_allocator_memory_pool!(48, super::util::floatX, [0; 128 * 1024], calloc) };
-    let mut stack_global_buffer_v8 = define_allocator_memory_pool!(64, v8, [v8::default(); 1024 * 16], stack);
+    let mut stack_global_buffer_v8 =
+        define_allocator_memory_pool!(64, v8, [v8::default(); 1024 * 16], stack);
     let mf8 = StackAllocatedFreelist64::<v8>::new_allocator(&mut stack_global_buffer_v8, bzero);
-    let mut stack_16x16_buffer = define_allocator_memory_pool!(64, s16, [s16::default(); 1024 * 16], stack);
+    let mut stack_16x16_buffer =
+        define_allocator_memory_pool!(64, s16, [s16::default(); 1024 * 16], stack);
     let m16x16 = StackAllocatedFreelist64::<s16>::new_allocator(&mut stack_16x16_buffer, bzero);
 
     let stack_hl_buffer =
@@ -110,7 +115,7 @@ fn oneshot_compress(
     let mhp = CallocatedFreelist2048::<HistogramPair>::new_allocator(stack_hp_buffer.data, bzero);
     let mct = CallocatedFreelist2048::<ContextType>::new_allocator(stack_ct_buffer.data, bzero);
     let mht = CallocatedFreelist2048::<HuffmanTree>::new_allocator(stack_ht_buffer.data, bzero);
-    let mut s_orig = BrotliEncoderCreateInstance(CombiningAllocator::new(
+    let mut s_orig = BrotliEncoderStateStruct::new(CombiningAllocator::new(
         stack_u8_allocator,
         stack_u16_allocator,
         stack_i32_allocator,
@@ -135,29 +140,25 @@ fn oneshot_compress(
     {
         let s = &mut s_orig;
 
-        BrotliEncoderSetParameter(s, BrotliEncoderParameter::BROTLI_PARAM_QUALITY, quality);
+        s.set_parameter(BrotliEncoderParameter::BROTLI_PARAM_QUALITY, quality);
         if magic {
-            BrotliEncoderSetParameter(
-                s,
+            s.set_parameter(
                 BrotliEncoderParameter::BROTLI_PARAM_MAGIC_NUMBER,
                 magic as u32,
             );
         }
         if quality >= 10 {
-            BrotliEncoderSetParameter(s, BrotliEncoderParameter::BROTLI_PARAM_Q9_5, 1);
+            s.set_parameter(BrotliEncoderParameter::BROTLI_PARAM_Q9_5, 1);
         }
-        BrotliEncoderSetParameter(s, BrotliEncoderParameter::BROTLI_PARAM_LGWIN, lgwin);
-        BrotliEncoderSetParameter(s, BrotliEncoderParameter::BROTLI_PARAM_MODE, 0); // gen, text, font
-        BrotliEncoderSetParameter(
-            s,
+        s.set_parameter(BrotliEncoderParameter::BROTLI_PARAM_LGWIN, lgwin);
+        s.set_parameter(BrotliEncoderParameter::BROTLI_PARAM_MODE, 0); // gen, text, font
+        s.set_parameter(
             BrotliEncoderParameter::BROTLI_PARAM_SIZE_HINT,
             input.len() as u32,
         );
         loop {
-            let mut available_in: usize =
-                brotli_min_size_t(input.len() - next_in_offset, in_batch_size);
-            let mut available_out: usize =
-                brotli_min_size_t(output.len() - next_out_offset, out_batch_size);
+            let mut available_in: usize = min(input.len() - next_in_offset, in_batch_size);
+            let mut available_out: usize = min(output.len() - next_out_offset, out_batch_size);
             if available_out == 0 {
                 panic!("No output buffer space");
             }
@@ -193,8 +194,7 @@ fn oneshot_compress(
                     _,
                 >| ();
 
-            let result = BrotliEncoderCompressStream(
-                s,
+            let result = s.compress_stream(
                 op,
                 &mut available_in,
                 input,
@@ -205,21 +205,49 @@ fn oneshot_compress(
                 &mut total_out,
                 &mut nop_callback,
             );
-            if result <= 0 {
+            if !result {
                 return (result, next_out_offset);
             }
-            if BrotliEncoderIsFinished(s) != 0 {
+            if s.is_finished() {
                 break;
             }
         }
-
-        BrotliEncoderDestroyInstance(s);
     }
 
-    (1, next_out_offset)
+    (true, next_out_offset)
 }
 
-fn oneshot_decompress(compressed: &[u8], output: &mut [u8]) -> (BrotliResult, usize, usize) {
+#[cfg(target_pointer_width = "32")]
+static lock32: core::sync::atomic::AtomicU32 = core::sync::atomic::AtomicU32::new(0);
+
+/// 32bit systems do not have sufficient memory to compress multiple items
+/// at the same time with the current limits and defaults. So we instead spin
+/// until a process has completed compression. We cannot use proper locks
+/// in nostd, so we fall back to this simple spin lock.
+#[cfg(target_pointer_width = "32")]
+fn lock_if_32bit(){
+    use core::sync::atomic::Ordering;
+    loop {
+        let cur = lock32.fetch_add(1, Ordering::SeqCst);
+        if cur == 0 {
+            return;
+        }
+        lock32.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+#[cfg(target_pointer_width = "32")]
+fn unlock_if_32bit(){
+    use core::sync::atomic::Ordering;
+    lock32.fetch_sub(1, Ordering::SeqCst);
+}
+#[cfg(not(target_pointer_width = "32"))]
+fn lock_if_32bit(){
+}
+#[cfg(not(target_pointer_width = "32"))]
+fn unlock_if_32bit(){
+}
+
+pub(crate) fn oneshot_decompress(compressed: &[u8], output: &mut [u8]) -> (BrotliResult, usize, usize) {
     let mut available_in: usize = compressed.len();
     let mut available_out: usize = output.len();
     let mut stack_u8_buffer = define_allocator_memory_pool!(128, u8, [0; 100 * 1024], stack);
@@ -262,6 +290,7 @@ fn oneshot(
     in_buffer_size: usize,
     out_buffer_size: usize,
 ) -> (BrotliResult, usize, usize) {
+    lock_if_32bit();
     let (success, mut available_in) = oneshot_compress(
         input,
         compressed,
@@ -271,11 +300,13 @@ fn oneshot(
         in_buffer_size,
         out_buffer_size,
     );
-    if success == 0 {
+    if !success {
         //return (BrotliResult::ResultFailure, 0, 0);
         available_in = compressed.len();
     }
-    oneshot_decompress(&mut compressed[..available_in], output)
+    let ret = oneshot_decompress(&mut compressed[..available_in], output);
+    unlock_if_32bit();
+    ret
 }
 
 #[test]
@@ -314,8 +345,9 @@ fn test_roundtrip_10x10y() {
 
 macro_rules! test_roundtrip_file {
     ($filedata : expr, $bufsize: expr, $quality: expr, $lgwin: expr, $magic: expr, $in_buf:expr, $out_buf:expr) => {{
-        let stack_u8_buffer =
-            unsafe { define_allocator_memory_pool!(4096, u8, [0; 18 * 1024 * 1024], calloc) };
+        let stack_u8_buffer = unsafe {
+            alloc::define_allocator_memory_pool!(4096, u8, [0; 18 * 1024 * 1024], calloc)
+        };
         let mut stack_u8_allocator =
             CallocatedFreelist4096::<u8>::new_allocator(stack_u8_buffer.data, bzero);
 
@@ -550,6 +582,27 @@ fn test_roundtrip_empty() {
     assert_eq!(output_offset, 0);
     assert_eq!(compressed_offset, compressed.len());
 }
+
+#[cfg(feature="std")]
+#[test]
+fn test_compress_into_short_buffer() {
+    use std::io::{Cursor, Write, ErrorKind};
+
+    // this plaintext should compress to 11 bytes
+    let plaintext = [0u8; 2048];
+
+    // but we only provide space for 10
+    let mut output_buffer = [0u8; 10];
+    let mut output_cursor = Cursor::new(&mut output_buffer[..]);
+
+    let mut w = crate::CompressorWriter::new(&mut output_cursor,
+                                         4096, 4, 22);
+    assert_eq!(w.write(&plaintext).unwrap(), 2048);
+    assert_eq!(w.flush().unwrap_err().kind(), ErrorKind::WriteZero);
+    w.into_inner();
+
+    println!("{output_buffer:?}");
+}
 /*
 
 
@@ -572,7 +625,7 @@ impl Buffer {
 #[cfg(feature="std")]
 impl io::Read for Buffer {
   fn read(self: &mut Self, buf: &mut [u8]) -> io::Result<usize> {
-    let bytes_to_read = ::core::cmp::min(buf.len(), self.data.len() - self.read_offset);
+    let bytes_to_read = min(buf.len(), self.data.len() - self.read_offset);
     if bytes_to_read > 0 {
       buf[0..bytes_to_read]
         .clone_from_slice(&self.data[self.read_offset..self.read_offset + bytes_to_read]);

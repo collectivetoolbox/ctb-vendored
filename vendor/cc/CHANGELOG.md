@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.36](https://github.com/rust-lang/cc-rs/compare/cc-v1.2.35...cc-v1.2.36) - 2025-09-05
+
+### Other
+
+- Regenerate windows sys bindings ([#1548](https://github.com/rust-lang/cc-rs/pull/1548))
+- Update windows-bindgen requirement from 0.62 to 0.63 ([#1547](https://github.com/rust-lang/cc-rs/pull/1547))
+- Add fn get_ucrt_dir for find-msvc-tools ([#1546](https://github.com/rust-lang/cc-rs/pull/1546))
+- Regenerate target info ([#1544](https://github.com/rust-lang/cc-rs/pull/1544))
+- fix publish.yml ([#1543](https://github.com/rust-lang/cc-rs/pull/1543))
+- Replace periods with underscores as well when parsing env variables ([#1541](https://github.com/rust-lang/cc-rs/pull/1541))
+
+## [1.2.35](https://github.com/rust-lang/cc-rs/compare/cc-v1.2.34...cc-v1.2.35) - 2025-09-01
+
+### Fixed
+
+- fix building for aarch64-apple-visionos-sim on nightly ([#1534](https://github.com/rust-lang/cc-rs/pull/1534))
+- fix tests apple_sdkroot_wrong ([#1530](https://github.com/rust-lang/cc-rs/pull/1530))
+
+### Other
+
+- Regenerate target info ([#1536](https://github.com/rust-lang/cc-rs/pull/1536))
+- Optimize Tool::to_command ([#1535](https://github.com/rust-lang/cc-rs/pull/1535))
+- Extract find-msvc-tools ([#1531](https://github.com/rust-lang/cc-rs/pull/1531))
+- Add prefer_clang_cl_over_msvc ([#1516](https://github.com/rust-lang/cc-rs/pull/1516))
+
 ## [1.2.34](https://github.com/rust-lang/cc-rs/compare/cc-v1.2.33...cc-v1.2.34) - 2025-08-22
 
 ### Fixed
@@ -55,6 +80,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [1.2.38](https://github.com/rust-lang/cc-rs/compare/cc-v1.2.37...cc-v1.2.38) - 2025-09-19
+
+### Other
+
+- updated the following local packages: find-msvc-tools
+
+## [1.2.37](https://github.com/rust-lang/cc-rs/compare/cc-v1.2.36...cc-v1.2.37) - 2025-09-12
+
+### Other
+
+- Fix errmsg in RustcCodegenFlags::set_rustc_flag ([#1551](https://github.com/rust-lang/cc-rs/pull/1551))
+- propagate stack protector to Linux C compilers ([#1550](https://github.com/rust-lang/cc-rs/pull/1550))
+- Extract new fn `run_commands_in_parallel` ([#1549](https://github.com/rust-lang/cc-rs/pull/1549))
 
 ## [1.2.30](https://github.com/rust-lang/cc-rs/compare/cc-v1.2.29...cc-v1.2.30) - 2025-07-18
 

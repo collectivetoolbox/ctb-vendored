@@ -13,7 +13,7 @@
 edition = "2024"
 rust-version = "1.89"
 name = "redb"
-version = "3.0.1"
+version = "3.1.0"
 authors = ["Christopher Berner <me@cberner.com>"]
 build = "build.rs"
 exclude = ["fuzz/"]
@@ -104,6 +104,11 @@ features = ["v4"]
 
 [target.'cfg(target_os = "wasi")'.dependencies.libc]
 version = "0.2.174"
+
+[lints.clippy]
+big_endian_bytes = "deny"
+dbg_macro = "deny"
+host_endian_bytes = "deny"
 
 [profile.bench]
 debug = 2

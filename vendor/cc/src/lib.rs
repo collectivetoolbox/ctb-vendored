@@ -114,8 +114,8 @@
 //! Each of these variables can also be supplied with certain prefixes and suffixes,
 //! in the following prioritized order:
 //!
-//!   1. `<var>_<target>` - for example, `CC_x86_64-unknown-linux-gnu`
-//!   2. `<var>_<target_with_underscores>` - for example, `CC_x86_64_unknown_linux_gnu`
+//!   1. `<var>_<target>` - for example, `CC_x86_64-unknown-linux-gnu` or `CC_thumbv8m.main-none-eabi`
+//!   2. `<var>_<target_with_underscores>` - for example, `CC_x86_64_unknown_linux_gnu` or `CC_thumbv8m_main_none_eabi` (both periods and underscores are replaced)
 //!   3. `<build-kind>_<var>` - for example, `HOST_CC` or `TARGET_CFLAGS`
 //!   4. `<var>` - a plain `CC`, `AR` as above.
 //!
@@ -248,8 +248,6 @@ use std::fmt::{self, Display};
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};
-#[cfg(feature = "parallel")]
-use std::process::Child;
 use std::process::{Command, Stdio};
 use std::sync::{
     atomic::{AtomicU8, Ordering::Relaxed},
@@ -260,12 +258,85 @@ use shlex::Shlex;
 
 #[cfg(feature = "parallel")]
 mod parallel;
+
 mod target;
-mod windows;
 use self::target::*;
-// Regardless of whether this should be in this crate's public API,
-// it has been since 2015, so don't break it.
-pub use windows::find_tools as windows_registry;
+
+/// A helper module to looking for windows-specific tools:
+/// 1. On Windows host, probe the Windows Registry if needed;
+/// 2. On non-Windows host, check specified environment variables.
+pub mod windows_registry {
+    // Regardless of whether this should be in this crate's public API,
+    // it has been since 2015, so don't break it.
+
+    /// Attempts to find a tool within an MSVC installation using the Windows
+    /// registry as a point to search from.
+    ///
+    /// The `arch_or_target` argument is the architecture or the Rust target name
+    /// that the tool should work for (e.g. compile or link for). The supported
+    /// architecture names are:
+    /// - `"x64"` or `"x86_64"`
+    /// - `"arm64"` or `"aarch64"`
+    /// - `"arm64ec"`
+    /// - `"x86"`, `"i586"` or `"i686"`
+    /// - `"arm"` or `"thumbv7a"`
+    ///
+    /// The `tool` argument is the tool to find. Supported tools include:
+    /// - MSVC tools: `cl.exe`, `link.exe`, `lib.exe`, etc.
+    /// - `MSBuild`: `msbuild.exe`
+    /// - Visual Studio IDE: `devenv.exe`
+    /// - Clang/LLVM tools: `clang.exe`, `clang++.exe`, `clang-*.exe`, `llvm-*.exe`, `lld.exe`, etc.
+    ///
+    /// This function will return `None` if the tool could not be found, or it will
+    /// return `Some(cmd)` which represents a command that's ready to execute the
+    /// tool with the appropriate environment variables set.
+    ///
+    /// Note that this function always returns `None` for non-MSVC targets (if a
+    /// full target name was specified).
+    pub fn find(arch_or_target: &str, tool: &str) -> Option<std::process::Command> {
+        ::find_msvc_tools::find(arch_or_target, tool)
+    }
+
+    /// A version of Visual Studio
+    #[derive(Debug, PartialEq, Eq, Copy, Clone)]
+    #[non_exhaustive]
+    pub enum VsVers {
+        /// Visual Studio 12 (2013)
+        #[deprecated = "Visual Studio 12 is no longer supported. cc will never return this value."]
+        Vs12,
+        /// Visual Studio 14 (2015)
+        Vs14,
+        /// Visual Studio 15 (2017)
+        Vs15,
+        /// Visual Studio 16 (2019)
+        Vs16,
+        /// Visual Studio 17 (2022)
+        Vs17,
+    }
+
+    /// Find the most recent installed version of Visual Studio
+    ///
+    /// This is used by the cmake crate to figure out the correct
+    /// generator.
+    pub fn find_vs_version() -> Result<VsVers, String> {
+        ::find_msvc_tools::find_vs_version().map(|vers| match vers {
+            #[allow(deprecated)]
+            ::find_msvc_tools::VsVers::Vs12 => VsVers::Vs12,
+            ::find_msvc_tools::VsVers::Vs14 => VsVers::Vs14,
+            ::find_msvc_tools::VsVers::Vs15 => VsVers::Vs15,
+            ::find_msvc_tools::VsVers::Vs16 => VsVers::Vs16,
+            ::find_msvc_tools::VsVers::Vs17 => VsVers::Vs17,
+            _ => unreachable!("unknown VS version"),
+        })
+    }
+
+    /// Similar to the `find` function above, this function will attempt the same
+    /// operation (finding a MSVC tool in a local install) but instead returns a
+    /// [`Tool`](crate::Tool) which may be introspected.
+    pub fn find_tool(arch_or_target: &str, tool: &str) -> Option<crate::Tool> {
+        ::find_msvc_tools::find_tool(arch_or_target, tool).map(crate::Tool::from_find_msvc_tools)
+    }
+}
 
 mod command_helpers;
 use command_helpers::*;
@@ -351,6 +422,7 @@ pub struct Build {
     shell_escaped_flags: Option<bool>,
     build_cache: Arc<BuildCache>,
     inherit_rustflags: bool,
+    prefer_clang_cl_over_msvc: bool,
 }
 
 /// Represents the types of errors that may occur while using cc-rs.
@@ -479,6 +551,7 @@ impl Build {
             shell_escaped_flags: None,
             build_cache: Arc::default(),
             inherit_rustflags: true,
+            prefer_clang_cl_over_msvc: false,
         }
     }
 
@@ -1290,6 +1363,14 @@ impl Build {
         self
     }
 
+    /// Prefer to use clang-cl over msvc.
+    ///
+    /// This option defaults to `false`.
+    pub fn prefer_clang_cl_over_msvc(&mut self, prefer_clang_cl_over_msvc: bool) -> &mut Build {
+        self.prefer_clang_cl_over_msvc = prefer_clang_cl_over_msvc;
+        self
+    }
+
     #[doc(hidden)]
     pub fn __set_env<A, B>(&mut self, a: A, b: B) -> &mut Build
     where
@@ -1674,157 +1755,23 @@ impl Build {
         Ok(objects.into_iter().map(|v| v.dst).collect())
     }
 
-    #[cfg(feature = "parallel")]
     fn compile_objects(&self, objs: &[Object]) -> Result<(), Error> {
-        use std::cell::Cell;
-
-        use parallel::async_executor::{block_on, YieldOnce};
-
         check_disabled()?;
 
-        if objs.len() <= 1 {
-            return self.compile_objects_sequential(objs);
+        #[cfg(feature = "parallel")]
+        if objs.len() > 1 {
+            return parallel::run_commands_in_parallel(
+                &self.cargo_output,
+                &mut objs.iter().map(|obj| self.create_compile_object_cmd(obj)),
+            );
         }
 
-        // Limit our parallelism globally with a jobserver.
-        let mut tokens = parallel::job_token::ActiveJobTokenServer::new();
-
-        // When compiling objects in parallel we do a few dirty tricks to speed
-        // things up:
-        //
-        // * First is that we use the `jobserver` crate to limit the parallelism
-        //   of this build script. The `jobserver` crate will use a jobserver
-        //   configured by Cargo for build scripts to ensure that parallelism is
-        //   coordinated across C compilations and Rust compilations. Before we
-        //   compile anything we make sure to wait until we acquire a token.
-        //
-        //   Note that this jobserver is cached globally so we only used one per
-        //   process and only worry about creating it once.
-        //
-        // * Next we use spawn the process to actually compile objects in
-        //   parallel after we've acquired a token to perform some work
-        //
-        // With all that in mind we compile all objects in a loop here, after we
-        // acquire the appropriate tokens, Once all objects have been compiled
-        // we wait on all the processes and propagate the results of compilation.
-
-        let pendings =
-            Cell::new(Vec::<(Command, KillOnDrop, parallel::job_token::JobToken)>::new());
-        let is_disconnected = Cell::new(false);
-        let has_made_progress = Cell::new(false);
-
-        let wait_future = async {
-            let mut error = None;
-            // Buffer the stdout
-            let mut stdout = io::BufWriter::with_capacity(128, io::stdout());
-
-            loop {
-                // If the other end of the pipe is already disconnected, then we're not gonna get any new jobs,
-                // so it doesn't make sense to reuse the tokens; in fact,
-                // releasing them as soon as possible (once we know that the other end is disconnected) is beneficial.
-                // Imagine that the last file built takes an hour to finish; in this scenario,
-                // by not releasing the tokens before that last file is done we would effectively block other processes from
-                // starting sooner - even though we only need one token for that last file, not N others that were acquired.
-
-                let mut pendings_is_empty = false;
-
-                cell_update(&pendings, |mut pendings| {
-                    // Try waiting on them.
-                    pendings.retain_mut(|(cmd, child, _token)| {
-                        match try_wait_on_child(cmd, &mut child.0, &mut stdout, &mut child.1) {
-                            Ok(Some(())) => {
-                                // Task done, remove the entry
-                                has_made_progress.set(true);
-                                false
-                            }
-                            Ok(None) => true, // Task still not finished, keep the entry
-                            Err(err) => {
-                                // Task fail, remove the entry.
-                                // Since we can only return one error, log the error to make
-                                // sure users always see all the compilation failures.
-                                has_made_progress.set(true);
-
-                                if self.cargo_output.warnings {
-                                    let _ = writeln!(stdout, "cargo:warning={}", err);
-                                }
-                                error = Some(err);
-
-                                false
-                            }
-                        }
-                    });
-                    pendings_is_empty = pendings.is_empty();
-                    pendings
-                });
-
-                if pendings_is_empty && is_disconnected.get() {
-                    break if let Some(err) = error {
-                        Err(err)
-                    } else {
-                        Ok(())
-                    };
-                }
-
-                YieldOnce::default().await;
-            }
-        };
-        let spawn_future = async {
-            for obj in objs {
-                let mut cmd = self.create_compile_object_cmd(obj)?;
-                let token = tokens.acquire().await?;
-                let mut child = spawn(&mut cmd, &self.cargo_output)?;
-                let mut stderr_forwarder = StderrForwarder::new(&mut child);
-                stderr_forwarder.set_non_blocking()?;
-
-                cell_update(&pendings, |mut pendings| {
-                    pendings.push((cmd, KillOnDrop(child, stderr_forwarder), token));
-                    pendings
-                });
-
-                has_made_progress.set(true);
-            }
-            is_disconnected.set(true);
-
-            Ok::<_, Error>(())
-        };
-
-        return block_on(wait_future, spawn_future, &has_made_progress);
-
-        struct KillOnDrop(Child, StderrForwarder);
-
-        impl Drop for KillOnDrop {
-            fn drop(&mut self) {
-                let child = &mut self.0;
-
-                child.kill().ok();
-            }
-        }
-
-        fn cell_update<T, F>(cell: &Cell<T>, f: F)
-        where
-            T: Default,
-            F: FnOnce(T) -> T,
-        {
-            let old = cell.take();
-            let new = f(old);
-            cell.set(new);
-        }
-    }
-
-    fn compile_objects_sequential(&self, objs: &[Object]) -> Result<(), Error> {
         for obj in objs {
             let mut cmd = self.create_compile_object_cmd(obj)?;
             run(&mut cmd, &self.cargo_output)?;
         }
 
         Ok(())
-    }
-
-    #[cfg(not(feature = "parallel"))]
-    fn compile_objects(&self, objs: &[Object]) -> Result<(), Error> {
-        check_disabled()?;
-
-        self.compile_objects_sequential(objs)
     }
 
     fn create_compile_object_cmd(&self, obj: &Object) -> Result<Command, Error> {
@@ -2608,7 +2555,7 @@ impl Build {
             _ => "ml.exe",
         };
         let mut cmd = self
-            .windows_registry_find(&target, tool)
+            .find_msvc_tools_find(&target, tool)
             .unwrap_or_else(|| self.cmd(tool));
         cmd.arg("-nologo"); // undocumented, yet working with armasm[64]
         for directory in self.include_directories.iter() {
@@ -2878,10 +2825,17 @@ impl Build {
         }
         let target = self.get_target()?;
         let raw_target = self.get_raw_target()?;
-        let (env, msvc, gnu, traditional, clang) = if self.cpp {
-            ("CXX", "cl.exe", "g++", "c++", "clang++")
+
+        let msvc = if self.prefer_clang_cl_over_msvc {
+            "clang-cl.exe"
         } else {
-            ("CC", "cl.exe", "gcc", "cc", "clang")
+            "cl.exe"
+        };
+
+        let (env, gnu, traditional, clang) = if self.cpp {
+            ("CXX", "g++", "c++", "clang++")
+        } else {
+            ("CC", "gcc", "cc", "clang")
         };
 
         // On historical Solaris systems, "cc" may have been Sun Studio, which
@@ -2894,7 +2848,7 @@ impl Build {
             traditional
         };
 
-        let cl_exe = self.windows_registry_find_tool(&target, "cl.exe");
+        let cl_exe = self.find_msvc_tools_find_tool(&target, msvc);
 
         let tool_opt: Option<Tool> = self
             .env_tool(env)
@@ -3420,7 +3374,7 @@ impl Build {
 
                     if lib.is_empty() {
                         name = PathBuf::from("lib.exe");
-                        let mut cmd = match self.windows_registry_find(&target, "lib.exe") {
+                        let mut cmd = match self.find_msvc_tools_find(&target, "lib.exe") {
                             Some(t) => t,
                             None => self.cmd("lib.exe"),
                         };
@@ -3785,7 +3739,12 @@ impl Build {
             self.cargo_output
                 .print_metadata(&format_args!("cargo:rerun-if-env-changed={v}"));
         }
-        let r = env::var_os(v).map(Arc::from);
+        let r = self
+            .env
+            .iter()
+            .find(|(k, _)| k.as_ref() == v)
+            .map(|(_, value)| value.clone())
+            .or_else(|| env::var_os(v).map(Arc::from));
         self.cargo_output.print_metadata(&format_args!(
             "{} = {}",
             v,
@@ -3835,7 +3794,7 @@ impl Build {
         } else {
             "HOST"
         };
-        let target_u = target.replace('-', "_");
+        let target_u = target.replace(['-', '.'], "_");
 
         Ok([
             format!("{env}_{target}"),
@@ -4186,17 +4145,17 @@ impl Build {
         None
     }
 
-    fn windows_registry_find(&self, target: &TargetInfo<'_>, tool: &str) -> Option<Command> {
-        self.windows_registry_find_tool(target, tool)
+    fn find_msvc_tools_find(&self, target: &TargetInfo<'_>, tool: &str) -> Option<Command> {
+        self.find_msvc_tools_find_tool(target, tool)
             .map(|c| c.to_command())
     }
 
-    fn windows_registry_find_tool(&self, target: &TargetInfo<'_>, tool: &str) -> Option<Tool> {
+    fn find_msvc_tools_find_tool(&self, target: &TargetInfo<'_>, tool: &str) -> Option<Tool> {
         struct BuildEnvGetter<'s>(&'s Build);
 
-        impl windows_registry::EnvGetter for BuildEnvGetter<'_> {
-            fn get_env(&self, name: &str) -> Option<windows_registry::Env> {
-                self.0.getenv(name).map(windows_registry::Env::Arced)
+        impl ::find_msvc_tools::EnvGetter for BuildEnvGetter<'_> {
+            fn get_env(&self, name: &str) -> Option<::find_msvc_tools::Env> {
+                self.0.getenv(name).map(::find_msvc_tools::Env::Arced)
             }
         }
 
@@ -4204,7 +4163,8 @@ impl Build {
             return None;
         }
 
-        windows_registry::find_tool_inner(target.full_arch, tool, &BuildEnvGetter(self))
+        ::find_msvc_tools::find_tool_with_env(target.full_arch, tool, &BuildEnvGetter(self))
+            .map(Tool::from_find_msvc_tools)
     }
 }
 

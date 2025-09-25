@@ -160,6 +160,10 @@ pub mod flag {
     pub const PROT_READ: u32 = libc::PROT_READ as u32;
     pub const PROT_WRITE: u32 = libc::PROT_WRITE as u32;
     pub const PROT_EXEC: u32 = libc::PROT_EXEC as u32;
+
+    pub const WNOHANG: u32 = libc::WNOHANG as u32;
+    pub const WUNTRACED: u32 = libc::WUNTRACED as u32;
+    pub const WCONTINUED: u32 = libc::WCONTINUED as u32;
 }
 
 pub mod errno {
@@ -253,6 +257,8 @@ extern "C" {
     fn redox_get_ruid_v1() -> RawResult;
     fn redox_get_egid_v1() -> RawResult;
     fn redox_get_rgid_v1() -> RawResult;
+
+    fn redox_get_ens_v0() -> RawResult;
 
     // This function is used to get the credentials, pid, euid, egid etc. of the process with the target pid.
     fn redox_get_proc_credentials_v1(cap_fd: usize, target_pid: usize, buf: &mut [u8])
@@ -586,6 +592,10 @@ pub mod call {
     #[inline]
     pub fn getpid() -> Result<usize> {
         Error::demux(unsafe { redox_get_pid_v1() })
+    }
+    #[inline]
+    pub fn getens() -> Result<usize> {
+        Error::demux(unsafe { redox_get_ens_v0() })
     }
 
     #[inline]

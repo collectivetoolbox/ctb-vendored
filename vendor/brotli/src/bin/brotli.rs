@@ -1,24 +1,27 @@
 #![cfg_attr(feature = "benchmark", feature(test))]
 
+extern crate alloc_no_stdlib;
+extern crate brotli;
+extern crate brotli_decompressor;
+extern crate core;
+#[cfg(feature = "validation")]
+extern crate sha2;
+
 pub mod integration_tests;
 mod test_broccoli;
 mod test_custom_dict;
 mod test_threading;
 mod tests;
 mod util;
+mod validate;
 
-extern crate brotli;
-extern crate brotli_decompressor;
-extern crate core;
-#[cfg(feature = "validation")]
-extern crate sha2;
-#[allow(unused_imports)]
-#[macro_use]
-extern crate alloc_no_stdlib;
-#[allow(unused_imports)]
-use alloc_no_stdlib::{
-    bzero, AllocatedStackMemory, Allocator, SliceWrapper, SliceWrapperMut, StackAllocator,
-};
+use core::cmp::{max, min};
+use core::ops;
+use std::env;
+use std::fs::File;
+use std::io::{self, Error, ErrorKind, Read, Seek, SeekFrom, Write};
+
+use alloc_no_stdlib::{Allocator, SliceWrapper, SliceWrapperMut};
 use brotli::enc::backward_references::BrotliEncoderMode;
 use brotli::enc::threading::{
     BrotliEncoderThreadError, CompressMulti, CompressionThreadResult, Owned, SendAlloc,
@@ -28,14 +31,6 @@ use brotli::enc::{
     UnionHasher, WorkerPool,
 };
 use brotli::CustomRead;
-#[allow(unused_imports)]
-use brotli::HuffmanCode;
-use core::ops;
-mod validate;
-use std::env;
-
-use std::fs::File;
-use std::io::{self, Error, ErrorKind, Read, Seek, SeekFrom, Write};
 
 const MAX_THREADS: usize = 16;
 
@@ -426,7 +421,7 @@ where
             );
             util::write_one(&tmp);
             for cmd in data.iter() {
-                util::write_one(&brotli::thaw_pair(cmd, &mb));
+                util::write_one(&cmd.thaw_pair(&mb));
             }
         };
     if params.log_meta_block {
@@ -506,6 +501,9 @@ fn writeln_time<OutputType: Write>(
     writeln!(strm, "{:} {:} {:}.{:09}", v0, data, v1, v2)
 }
 
+#[allow(non_upper_case_globals)]
+pub const kMaxDictionarySize: usize = 50331660;
+
 fn read_custom_dictionary(filename: &str) -> Vec<u8> {
     let mut dict = match File::open(Path::new(&filename)) {
         Err(why) => panic!("couldn't open custom dictionary {:}\n{:}", filename, why),
@@ -513,6 +511,11 @@ fn read_custom_dictionary(filename: &str) -> Vec<u8> {
     };
     let mut ret = Vec::<u8>::new();
     dict.read_to_end(&mut ret).unwrap();
+    if ret.len() > kMaxDictionarySize {
+        panic!("dictionary [{}] is larger than maximum allowed: {}\n",
+               filename,
+               kMaxDictionarySize);
+    }
     ret
 }
 
@@ -678,8 +681,8 @@ fn main() {
                 continue;
             }
             if argument.starts_with("-j") && !double_dash {
-                num_threads = core::cmp::min(
-                    core::cmp::max(
+                num_threads = min(
+                    max(
                         1,
                         argument
                             .trim_matches('-')

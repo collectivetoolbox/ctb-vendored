@@ -1,24 +1,23 @@
-#![cfg_attr(not(feature = "std"), allow(unused_imports))]
-use super::backward_references::BrotliEncoderParams;
-use super::combined_alloc::BrotliAlloc;
-use super::encode::{
-    BrotliEncoderCompressStream, BrotliEncoderCreateInstance, BrotliEncoderDestroyInstance,
-    BrotliEncoderHasMoreOutput, BrotliEncoderIsFinished, BrotliEncoderOperation,
-    BrotliEncoderParameter, BrotliEncoderSetParameter, BrotliEncoderStateStruct,
-};
-use super::interface;
-pub use alloc::{AllocatedStackMemory, Allocator, SliceWrapper, SliceWrapperMut, StackAllocator};
+use alloc::{Allocator, SliceWrapperMut};
+#[cfg(feature = "std")]
+use std::io;
+#[cfg(feature = "std")]
+use std::io::{Error, ErrorKind, Write};
+
 #[cfg(feature = "std")]
 pub use alloc_stdlib::StandardAlloc;
 use brotli_decompressor::CustomWrite;
 #[cfg(feature = "std")]
 pub use brotli_decompressor::{IntoIoWriter, IoWriterWrapper};
 
-#[cfg(feature = "std")]
-use std::io;
-
-#[cfg(feature = "std")]
-use std::io::{Error, ErrorKind, Write};
+use super::backward_references::BrotliEncoderParams;
+use super::combined_alloc::BrotliAlloc;
+use super::encode::{
+    BrotliEncoderDestroyInstance, BrotliEncoderOperation, BrotliEncoderParameter,
+    BrotliEncoderStateStruct,
+};
+use super::interface;
+use crate::enc::combined_alloc::allocate;
 
 #[cfg(feature = "std")]
 pub struct CompressorWriterCustomAlloc<
@@ -42,6 +41,7 @@ impl<W: Write, BufferType: SliceWrapperMut<u8>, Alloc: BrotliAlloc>
             buffer,
             alloc,
             Error::new(ErrorKind::InvalidData, "Invalid Data"),
+            Error::new(ErrorKind::WriteZero, "No room in output."),
             q,
             lgwin,
         ))
@@ -83,7 +83,7 @@ pub struct CompressorWriter<W: Write>(
 impl<W: Write> CompressorWriter<W> {
     pub fn new(w: W, buffer_size: usize, q: u32, lgwin: u32) -> Self {
         let mut alloc = StandardAlloc::default();
-        let buffer = <StandardAlloc as Allocator<u8>>::alloc_cell(
+        let buffer = allocate::<u8, _>(
             &mut alloc,
             if buffer_size == 0 { 4096 } else { buffer_size },
         );
@@ -128,14 +128,24 @@ pub struct CompressorWriterCustomIo<
     output: Option<W>,
     error_if_invalid_data: Option<ErrType>,
     state: BrotliEncoderStateStruct<Alloc>,
+    error_if_zero_bytes_written: Option<ErrType>,
 }
-pub fn write_all<ErrType, W: CustomWrite<ErrType>>(
+pub fn write_all<ErrType, W: CustomWrite<ErrType>, ErrMaker: FnMut() -> Option<ErrType>>(
     writer: &mut W,
     mut buf: &[u8],
+    mut error_to_return_if_zero_bytes_written: ErrMaker,
 ) -> Result<(), ErrType> {
     while !buf.is_empty() {
         match writer.write(buf) {
-            Ok(bytes_written) => buf = &buf[bytes_written..],
+            Ok(bytes_written) => if bytes_written != 0 {
+                buf = &buf[bytes_written..]
+            } else {
+                if let Some(err) = error_to_return_if_zero_bytes_written() {
+                    return Err(err);
+                } else {
+                    return Ok(());
+                }
+            },
             Err(e) => return Err(e),
         }
     }
@@ -149,6 +159,7 @@ impl<ErrType, W: CustomWrite<ErrType>, BufferType: SliceWrapperMut<u8>, Alloc: B
         buffer: BufferType,
         alloc: Alloc,
         invalid_data_error_type: ErrType,
+        error_if_zero_bytes_written: ErrType,
         q: u32,
         lgwin: u32,
     ) -> Self {
@@ -156,19 +167,14 @@ impl<ErrType, W: CustomWrite<ErrType>, BufferType: SliceWrapperMut<u8>, Alloc: B
             output_buffer: buffer,
             total_out: Some(0),
             output: Some(w),
-            state: BrotliEncoderCreateInstance(alloc),
+            state: BrotliEncoderStateStruct::new(alloc),
             error_if_invalid_data: Some(invalid_data_error_type),
+            error_if_zero_bytes_written: Some(error_if_zero_bytes_written),
         };
-        BrotliEncoderSetParameter(
-            &mut ret.state,
-            BrotliEncoderParameter::BROTLI_PARAM_QUALITY,
-            q,
-        );
-        BrotliEncoderSetParameter(
-            &mut ret.state,
-            BrotliEncoderParameter::BROTLI_PARAM_LGWIN,
-            lgwin,
-        );
+        ret.state
+            .set_parameter(BrotliEncoderParameter::BROTLI_PARAM_QUALITY, q);
+        ret.state
+            .set_parameter(BrotliEncoderParameter::BROTLI_PARAM_LGWIN, lgwin);
 
         ret
     }
@@ -184,8 +190,7 @@ impl<ErrType, W: CustomWrite<ErrType>, BufferType: SliceWrapperMut<u8>, Alloc: B
             let mut input_offset: usize = 0;
             let mut avail_out: usize = self.output_buffer.slice_mut().len();
             let mut output_offset: usize = 0;
-            let ret = BrotliEncoderCompressStream(
-                &mut self.state,
+            let ret = self.state.compress_stream(
                 op,
                 &mut avail_in,
                 &[],
@@ -197,24 +202,32 @@ impl<ErrType, W: CustomWrite<ErrType>, BufferType: SliceWrapperMut<u8>, Alloc: B
                 &mut nop_callback,
             );
             if output_offset > 0 {
+                let zero_err = &mut self.error_if_zero_bytes_written;
+                let fallback = &mut self.error_if_invalid_data;
                 match write_all(
                     self.output.as_mut().unwrap(),
                     &self.output_buffer.slice_mut()[..output_offset],
+                    || {
+                        if let Some(err) = zero_err.take() {
+                            return Some(err);
+                        }
+                        fallback.take()
+                    },
                 ) {
                     Ok(_) => {}
                     Err(e) => return Err(e),
                 }
             }
-            if ret <= 0 {
+            if !ret {
                 return Err(self.error_if_invalid_data.take().unwrap());
             }
             if let BrotliEncoderOperation::BROTLI_OPERATION_FLUSH = op {
-                if BrotliEncoderHasMoreOutput(&mut self.state) != 0 {
+                if self.state.has_more_output() {
                     continue;
                 }
                 return Ok(());
             }
-            if BrotliEncoderIsFinished(&mut self.state) != 0 {
+            if self.state.is_finished() {
                 return Ok(());
             }
         }
@@ -262,8 +275,7 @@ impl<ErrType, W: CustomWrite<ErrType>, BufferType: SliceWrapperMut<u8>, Alloc: B
         while avail_in != 0 {
             let mut output_offset = 0;
             let mut avail_out = self.output_buffer.slice_mut().len();
-            let ret = BrotliEncoderCompressStream(
-                &mut self.state,
+            let ret = self.state.compress_stream(
                 BrotliEncoderOperation::BROTLI_OPERATION_PROCESS,
                 &mut avail_in,
                 buf,
@@ -275,15 +287,26 @@ impl<ErrType, W: CustomWrite<ErrType>, BufferType: SliceWrapperMut<u8>, Alloc: B
                 &mut nop_callback,
             );
             if output_offset > 0 {
+                let zero_err = &mut self.error_if_zero_bytes_written;
+                let fallback = &mut self.error_if_invalid_data;
                 match write_all(
                     self.output.as_mut().unwrap(),
                     &self.output_buffer.slice_mut()[..output_offset],
+                    || {
+                        if let Some(err) = zero_err.take() {
+                            return Some(err);
+                        }
+                        fallback.take()
+                    },
+
                 ) {
                     Ok(_) => {}
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e)
+                    },
                 }
             }
-            if ret <= 0 {
+            if !ret {
                 return Err(self.error_if_invalid_data.take().unwrap());
             }
         }

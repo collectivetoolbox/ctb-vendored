@@ -1,19 +1,22 @@
 #![cfg(not(feature = "safe"))]
 
+use core;
 #[cfg(feature = "std")]
 use std::io::Write;
 #[cfg(feature = "std")]
 use std::{io, panic, thread};
 
-use super::alloc_util::BrotliSubclassableAllocator;
-use brotli_decompressor::ffi::alloc_util;
 use brotli_decompressor::ffi::alloc_util::SubclassableAllocator;
 use brotli_decompressor::ffi::interface::{
     brotli_alloc_func, brotli_free_func, c_void, CAllocator,
 };
-use brotli_decompressor::ffi::{slice_from_raw_parts_or_nil, slice_from_raw_parts_or_nil_mut};
-use core;
-use enc::encode::BrotliEncoderStateStruct;
+use brotli_decompressor::ffi::{
+    alloc_util, slice_from_raw_parts_or_nil, slice_from_raw_parts_or_nil_mut,
+};
+
+use super::alloc_util::BrotliSubclassableAllocator;
+use crate::enc::encode::BrotliEncoderDestroyInstance as InternalBrotliEncoderDestroyInstance;
+use crate::enc::encode::BrotliEncoderStateStruct;
 
 #[repr(C)]
 pub enum BrotliEncoderOperation {
@@ -79,9 +82,9 @@ pub unsafe extern "C" fn BrotliEncoderCreateInstance(
         };
         let to_box = BrotliEncoderState {
             custom_allocator: allocators.clone(),
-            compressor: ::enc::encode::BrotliEncoderCreateInstance(
-                BrotliSubclassableAllocator::new(SubclassableAllocator::new(allocators.clone())),
-            ),
+            compressor: BrotliEncoderStateStruct::new(BrotliSubclassableAllocator::new(
+                SubclassableAllocator::new(allocators.clone()),
+            )),
         };
         if let Some(alloc) = alloc_func {
             if free_func.is_none() {
@@ -111,7 +114,11 @@ pub unsafe extern "C" fn BrotliEncoderSetParameter(
     param: ::enc::encode::BrotliEncoderParameter,
     value: u32,
 ) -> i32 {
-    ::enc::encode::BrotliEncoderSetParameter(&mut (*state_ptr).compressor, param, value)
+    if (*state_ptr).compressor.set_parameter(param, value) {
+        1
+    } else {
+        0
+    }
 }
 
 #[no_mangle]
@@ -119,7 +126,7 @@ pub unsafe extern "C" fn BrotliEncoderDestroyInstance(state_ptr: *mut BrotliEnco
     if state_ptr.is_null() {
         return;
     }
-    ::enc::encode::BrotliEncoderDestroyInstance(&mut (*state_ptr).compressor);
+    InternalBrotliEncoderDestroyInstance(&mut (*state_ptr).compressor);
     if (*state_ptr).custom_allocator.alloc_func.is_some() {
         if let Some(free_fn) = (*state_ptr).custom_allocator.free_func {
             let _to_free = core::ptr::read(state_ptr);
@@ -132,12 +139,20 @@ pub unsafe extern "C" fn BrotliEncoderDestroyInstance(state_ptr: *mut BrotliEnco
 }
 #[no_mangle]
 pub unsafe extern "C" fn BrotliEncoderIsFinished(state_ptr: *mut BrotliEncoderState) -> i32 {
-    ::enc::encode::BrotliEncoderIsFinished(&mut (*state_ptr).compressor)
+    if (*state_ptr).compressor.is_finished() {
+        1
+    } else {
+        0
+    }
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn BrotliEncoderHasMoreOutput(state_ptr: *mut BrotliEncoderState) -> i32 {
-    ::enc::encode::BrotliEncoderHasMoreOutput(&mut (*state_ptr).compressor)
+    if (*state_ptr).compressor.has_more_output() {
+        1
+    } else {
+        0
+    }
 }
 
 #[no_mangle]
@@ -148,11 +163,9 @@ pub unsafe extern "C" fn BrotliEncoderSetCustomDictionary(
 ) {
     if let Err(panic_err) = catch_panic(|| {
         let dict_slice = slice_from_raw_parts_or_nil(dict, size);
-        ::enc::encode::BrotliEncoderSetCustomDictionary(
-            &mut (*state_ptr).compressor,
-            size,
-            dict_slice,
-        );
+        (*state_ptr)
+            .compressor
+            .set_custom_dictionary(size, dict_slice);
         0
     }) {
         error_print(panic_err);
@@ -164,7 +177,7 @@ pub unsafe extern "C" fn BrotliEncoderTakeOutput(
     state_ptr: *mut BrotliEncoderState,
     size: *mut usize,
 ) -> *const u8 {
-    ::enc::encode::BrotliEncoderTakeOutput(&mut (*state_ptr).compressor, &mut *size).as_ptr()
+    (*state_ptr).compressor.take_output(&mut *size).as_ptr()
 }
 #[no_mangle]
 pub extern "C" fn BrotliEncoderVersion() -> u32 {
@@ -220,7 +233,7 @@ pub unsafe extern "C" fn BrotliEncoderCompress(
         let empty_m8 =
             BrotliSubclassableAllocator::new(SubclassableAllocator::new(allocators.clone()));
 
-        ::enc::encode::BrotliEncoderCompress(
+        crate::enc::encode::encoder_compress(
             empty_m8,
             &mut m8,
             quality,
@@ -232,6 +245,7 @@ pub unsafe extern "C" fn BrotliEncoderCompress(
             encoded_buf,
             &mut |_a, _b, _c, _d| (),
         )
+        .into()
     })
     .unwrap_or_else(|panic_err| {
         error_print(panic_err);
@@ -305,8 +319,7 @@ pub unsafe extern "C" fn BrotliEncoderCompressStream(
                 (&mut [], false)
             };
             let mut to = Some(0);
-            result = ::enc::encode::BrotliEncoderCompressStream(
-                &mut (*state_ptr).compressor,
+            result = (*state_ptr).compressor.compress_stream(
                 translated_op,
                 &mut *available_in,
                 input_buf,
@@ -327,7 +340,11 @@ pub unsafe extern "C" fn BrotliEncoderCompressStream(
                 *output_buf_ptr = (*output_buf_ptr).add(output_offset);
             }
         }
-        result
+        if result {
+            1
+        } else {
+            0
+        }
     })
     .unwrap_or_else(|panic_err| {
         error_print(panic_err);

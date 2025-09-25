@@ -7,9 +7,12 @@ keywords = ["time", "human", "human-friendly", "parser", "duration"]
 homepage = "https://github.com/chronotope/humantime"
 repository = "https://github.com/chronotope/humantime"
 documentation = "https://docs.rs/humantime"
-version = "2.2.0"
+version = "2.3.0"
 edition = "2021"
 categories = ["date-and-time"]
+
+[features]
+mu = []
 
 [dev-dependencies]
 bencher = "0.1.5"
