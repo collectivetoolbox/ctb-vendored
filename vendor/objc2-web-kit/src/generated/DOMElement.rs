@@ -160,6 +160,8 @@ impl DOMElement {
         pub unsafe fn innerHTML(&self) -> Retained<NSString>;
 
         /// Setter for [`innerHTML`][Self::innerHTML].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[deprecated]
         #[unsafe(method(setInnerHTML:))]
         #[unsafe(method_family = none)]
@@ -171,6 +173,8 @@ impl DOMElement {
         pub unsafe fn outerHTML(&self) -> Retained<NSString>;
 
         /// Setter for [`outerHTML`][Self::outerHTML].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[deprecated]
         #[unsafe(method(setOuterHTML:))]
         #[unsafe(method_family = none)]
@@ -182,6 +186,8 @@ impl DOMElement {
         pub unsafe fn className(&self) -> Retained<NSString>;
 
         /// Setter for [`className`][Self::className].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[deprecated]
         #[unsafe(method(setClassName:))]
         #[unsafe(method_family = none)]
@@ -211,21 +217,34 @@ impl DOMElement {
         #[unsafe(method_family = none)]
         pub unsafe fn childElementCount(&self) -> c_uint;
 
+        /// # Safety
+        ///
+        /// `name` might not allow `None`.
         #[deprecated]
         #[unsafe(method(getAttribute:))]
         #[unsafe(method_family = none)]
         pub unsafe fn getAttribute(&self, name: Option<&NSString>) -> Option<Retained<NSString>>;
 
+        /// # Safety
+        ///
+        /// - `name` might not allow `None`.
+        /// - `value` might not allow `None`.
         #[unsafe(method(setAttribute:value:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setAttribute_value(&self, name: Option<&NSString>, value: Option<&NSString>);
 
+        /// # Safety
+        ///
+        /// `name` might not allow `None`.
         #[deprecated]
         #[unsafe(method(removeAttribute:))]
         #[unsafe(method_family = none)]
         pub unsafe fn removeAttribute(&self, name: Option<&NSString>);
 
         #[cfg(feature = "DOMAttr")]
+        /// # Safety
+        ///
+        /// `name` might not allow `None`.
         #[deprecated]
         #[unsafe(method(getAttributeNode:))]
         #[unsafe(method_family = none)]
@@ -233,6 +252,9 @@ impl DOMElement {
             -> Option<Retained<DOMAttr>>;
 
         #[cfg(feature = "DOMAttr")]
+        /// # Safety
+        ///
+        /// `new_attr` might not allow `None`.
         #[deprecated]
         #[unsafe(method(setAttributeNode:))]
         #[unsafe(method_family = none)]
@@ -242,6 +264,9 @@ impl DOMElement {
         ) -> Option<Retained<DOMAttr>>;
 
         #[cfg(feature = "DOMAttr")]
+        /// # Safety
+        ///
+        /// `old_attr` might not allow `None`.
         #[deprecated]
         #[unsafe(method(removeAttributeNode:))]
         #[unsafe(method_family = none)]
@@ -251,6 +276,9 @@ impl DOMElement {
         ) -> Option<Retained<DOMAttr>>;
 
         #[cfg(feature = "DOMNodeList")]
+        /// # Safety
+        ///
+        /// `name` might not allow `None`.
         #[deprecated]
         #[unsafe(method(getElementsByTagName:))]
         #[unsafe(method_family = none)]
@@ -259,6 +287,10 @@ impl DOMElement {
             name: Option<&NSString>,
         ) -> Option<Retained<DOMNodeList>>;
 
+        /// # Safety
+        ///
+        /// - `namespace_uri` might not allow `None`.
+        /// - `local_name` might not allow `None`.
         #[unsafe(method(getAttributeNS:localName:))]
         #[unsafe(method_family = none)]
         pub unsafe fn getAttributeNS_localName(
@@ -267,6 +299,11 @@ impl DOMElement {
             local_name: Option<&NSString>,
         ) -> Option<Retained<NSString>>;
 
+        /// # Safety
+        ///
+        /// - `namespace_uri` might not allow `None`.
+        /// - `qualified_name` might not allow `None`.
+        /// - `value` might not allow `None`.
         #[unsafe(method(setAttributeNS:qualifiedName:value:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setAttributeNS_qualifiedName_value(
@@ -276,6 +313,10 @@ impl DOMElement {
             value: Option<&NSString>,
         );
 
+        /// # Safety
+        ///
+        /// - `namespace_uri` might not allow `None`.
+        /// - `local_name` might not allow `None`.
         #[unsafe(method(removeAttributeNS:localName:))]
         #[unsafe(method_family = none)]
         pub unsafe fn removeAttributeNS_localName(
@@ -285,6 +326,10 @@ impl DOMElement {
         );
 
         #[cfg(feature = "DOMNodeList")]
+        /// # Safety
+        ///
+        /// - `namespace_uri` might not allow `None`.
+        /// - `local_name` might not allow `None`.
         #[unsafe(method(getElementsByTagNameNS:localName:))]
         #[unsafe(method_family = none)]
         pub unsafe fn getElementsByTagNameNS_localName(
@@ -294,6 +339,10 @@ impl DOMElement {
         ) -> Option<Retained<DOMNodeList>>;
 
         #[cfg(feature = "DOMAttr")]
+        /// # Safety
+        ///
+        /// - `namespace_uri` might not allow `None`.
+        /// - `local_name` might not allow `None`.
         #[unsafe(method(getAttributeNodeNS:localName:))]
         #[unsafe(method_family = none)]
         pub unsafe fn getAttributeNodeNS_localName(
@@ -303,6 +352,9 @@ impl DOMElement {
         ) -> Option<Retained<DOMAttr>>;
 
         #[cfg(feature = "DOMAttr")]
+        /// # Safety
+        ///
+        /// `new_attr` might not allow `None`.
         #[deprecated]
         #[unsafe(method(setAttributeNodeNS:))]
         #[unsafe(method_family = none)]
@@ -311,11 +363,18 @@ impl DOMElement {
             new_attr: Option<&DOMAttr>,
         ) -> Option<Retained<DOMAttr>>;
 
+        /// # Safety
+        ///
+        /// `name` might not allow `None`.
         #[deprecated]
         #[unsafe(method(hasAttribute:))]
         #[unsafe(method_family = none)]
         pub unsafe fn hasAttribute(&self, name: Option<&NSString>) -> bool;
 
+        /// # Safety
+        ///
+        /// - `namespace_uri` might not allow `None`.
+        /// - `local_name` might not allow `None`.
         #[unsafe(method(hasAttributeNS:localName:))]
         #[unsafe(method_family = none)]
         pub unsafe fn hasAttributeNS_localName(
@@ -341,6 +400,9 @@ impl DOMElement {
         pub unsafe fn scrollIntoViewIfNeeded(&self, center_if_needed: bool);
 
         #[cfg(feature = "DOMNodeList")]
+        /// # Safety
+        ///
+        /// `name` might not allow `None`.
         #[unsafe(method(getElementsByClassName:))]
         #[unsafe(method_family = none)]
         pub unsafe fn getElementsByClassName(
@@ -352,6 +414,9 @@ impl DOMElement {
         #[unsafe(method_family = none)]
         pub unsafe fn webkitRequestFullScreen(&self, flags: c_ushort);
 
+        /// # Safety
+        ///
+        /// `selectors` might not allow `None`.
         #[unsafe(method(querySelector:))]
         #[unsafe(method_family = none)]
         pub unsafe fn querySelector(
@@ -360,6 +425,9 @@ impl DOMElement {
         ) -> Option<Retained<DOMElement>>;
 
         #[cfg(feature = "DOMNodeList")]
+        /// # Safety
+        ///
+        /// `selectors` might not allow `None`.
         #[unsafe(method(querySelectorAll:))]
         #[unsafe(method_family = none)]
         pub unsafe fn querySelectorAll(
@@ -399,6 +467,7 @@ impl DOMElement {
 }
 
 /// DOMElementDeprecated.
+#[deprecated]
 #[cfg(all(
     feature = "DOMNode",
     feature = "DOMObject",
@@ -406,11 +475,19 @@ impl DOMElement {
 ))]
 impl DOMElement {
     extern_methods!(
+        /// # Safety
+        ///
+        /// - `name` might not allow `None`.
+        /// - `value` might not allow `None`.
         #[deprecated]
         #[unsafe(method(setAttribute::))]
         #[unsafe(method_family = none)]
         pub unsafe fn setAttribute(&self, name: Option<&NSString>, value: Option<&NSString>);
 
+        /// # Safety
+        ///
+        /// - `namespace_uri` might not allow `None`.
+        /// - `local_name` might not allow `None`.
         #[deprecated]
         #[unsafe(method(getAttributeNS::))]
         #[unsafe(method_family = none)]
@@ -420,6 +497,11 @@ impl DOMElement {
             local_name: Option<&NSString>,
         ) -> Option<Retained<NSString>>;
 
+        /// # Safety
+        ///
+        /// - `namespace_uri` might not allow `None`.
+        /// - `qualified_name` might not allow `None`.
+        /// - `value` might not allow `None`.
         #[deprecated]
         #[unsafe(method(setAttributeNS:::))]
         #[unsafe(method_family = none)]
@@ -430,6 +512,10 @@ impl DOMElement {
             value: Option<&NSString>,
         );
 
+        /// # Safety
+        ///
+        /// - `namespace_uri` might not allow `None`.
+        /// - `local_name` might not allow `None`.
         #[deprecated]
         #[unsafe(method(removeAttributeNS::))]
         #[unsafe(method_family = none)]
@@ -440,6 +526,10 @@ impl DOMElement {
         );
 
         #[cfg(feature = "DOMNodeList")]
+        /// # Safety
+        ///
+        /// - `namespace_uri` might not allow `None`.
+        /// - `local_name` might not allow `None`.
         #[deprecated]
         #[unsafe(method(getElementsByTagNameNS::))]
         #[unsafe(method_family = none)]
@@ -450,6 +540,10 @@ impl DOMElement {
         ) -> Option<Retained<DOMNodeList>>;
 
         #[cfg(feature = "DOMAttr")]
+        /// # Safety
+        ///
+        /// - `namespace_uri` might not allow `None`.
+        /// - `local_name` might not allow `None`.
         #[deprecated]
         #[unsafe(method(getAttributeNodeNS::))]
         #[unsafe(method_family = none)]
@@ -459,6 +553,10 @@ impl DOMElement {
             local_name: Option<&NSString>,
         ) -> Option<Retained<DOMAttr>>;
 
+        /// # Safety
+        ///
+        /// - `namespace_uri` might not allow `None`.
+        /// - `local_name` might not allow `None`.
         #[deprecated]
         #[unsafe(method(hasAttributeNS::))]
         #[unsafe(method_family = none)]

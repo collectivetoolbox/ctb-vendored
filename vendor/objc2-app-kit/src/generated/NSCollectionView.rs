@@ -103,22 +103,19 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(prepareForReuse))]
         #[unsafe(method_family = none)]
-        unsafe fn prepareForReuse(&self);
+        fn prepareForReuse(&self);
 
         #[cfg(feature = "NSCollectionViewLayout")]
         #[optional]
         #[unsafe(method(applyLayoutAttributes:))]
         #[unsafe(method_family = none)]
-        unsafe fn applyLayoutAttributes(
-            &self,
-            layout_attributes: &NSCollectionViewLayoutAttributes,
-        );
+        fn applyLayoutAttributes(&self, layout_attributes: &NSCollectionViewLayoutAttributes);
 
         #[cfg(feature = "NSCollectionViewLayout")]
         #[optional]
         #[unsafe(method(willTransitionFromLayout:toLayout:))]
         #[unsafe(method_family = none)]
-        unsafe fn willTransitionFromLayout_toLayout(
+        fn willTransitionFromLayout_toLayout(
             &self,
             old_layout: &NSCollectionViewLayout,
             new_layout: &NSCollectionViewLayout,
@@ -128,7 +125,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(didTransitionFromLayout:toLayout:))]
         #[unsafe(method_family = none)]
-        unsafe fn didTransitionFromLayout_toLayout(
+        fn didTransitionFromLayout_toLayout(
             &self,
             old_layout: &NSCollectionViewLayout,
             new_layout: &NSCollectionViewLayout,
@@ -138,7 +135,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(preferredLayoutAttributesFittingAttributes:))]
         #[unsafe(method_family = none)]
-        unsafe fn preferredLayoutAttributesFittingAttributes(
+        fn preferredLayoutAttributesFittingAttributes(
             &self,
             layout_attributes: &NSCollectionViewLayoutAttributes,
         ) -> Retained<NSCollectionViewLayoutAttributes>;
@@ -160,7 +157,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(sectionCollapseButton))]
         #[unsafe(method_family = none)]
-        unsafe fn sectionCollapseButton(&self) -> Option<Retained<NSButton>>;
+        fn sectionCollapseButton(&self) -> Option<Retained<NSButton>>;
 
         #[cfg(all(
             feature = "NSButton",
@@ -168,12 +165,13 @@ extern_protocol!(
             feature = "NSResponder",
             feature = "NSView"
         ))]
-        /// This is a [weak property][objc2::topics::weak_property].
         /// Setter for [`sectionCollapseButton`][Self::sectionCollapseButton].
+        ///
+        /// This is a [weak property][objc2::topics::weak_property].
         #[optional]
         #[unsafe(method(setSectionCollapseButton:))]
         #[unsafe(method_family = none)]
-        unsafe fn setSectionCollapseButton(&self, section_collapse_button: Option<&NSButton>);
+        fn setSectionCollapseButton(&self, section_collapse_button: Option<&NSButton>);
     }
 );
 
@@ -247,55 +245,56 @@ impl NSCollectionViewItem {
         #[cfg(feature = "NSView")]
         #[unsafe(method(collectionView))]
         #[unsafe(method_family = none)]
-        pub unsafe fn collectionView(&self) -> Option<Retained<NSCollectionView>>;
+        pub fn collectionView(&self) -> Option<Retained<NSCollectionView>>;
 
         #[unsafe(method(isSelected))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isSelected(&self) -> bool;
+        pub fn isSelected(&self) -> bool;
 
         /// Setter for [`isSelected`][Self::isSelected].
         #[unsafe(method(setSelected:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setSelected(&self, selected: bool);
+        pub fn setSelected(&self, selected: bool);
 
         #[unsafe(method(highlightState))]
         #[unsafe(method_family = none)]
-        pub unsafe fn highlightState(&self) -> NSCollectionViewItemHighlightState;
+        pub fn highlightState(&self) -> NSCollectionViewItemHighlightState;
 
         /// Setter for [`highlightState`][Self::highlightState].
         #[unsafe(method(setHighlightState:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setHighlightState(&self, highlight_state: NSCollectionViewItemHighlightState);
+        pub fn setHighlightState(&self, highlight_state: NSCollectionViewItemHighlightState);
 
         #[cfg(all(feature = "NSControl", feature = "NSImageView", feature = "NSView"))]
         #[unsafe(method(imageView))]
         #[unsafe(method_family = none)]
-        pub unsafe fn imageView(&self) -> Option<Retained<NSImageView>>;
+        pub fn imageView(&self) -> Option<Retained<NSImageView>>;
 
         #[cfg(all(feature = "NSControl", feature = "NSImageView", feature = "NSView"))]
-        /// This is a [weak property][objc2::topics::weak_property].
         /// Setter for [`imageView`][Self::imageView].
+        ///
+        /// This is a [weak property][objc2::topics::weak_property].
         #[unsafe(method(setImageView:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setImageView(&self, image_view: Option<&NSImageView>);
+        pub fn setImageView(&self, image_view: Option<&NSImageView>);
 
         #[cfg(all(feature = "NSControl", feature = "NSTextField", feature = "NSView"))]
         #[unsafe(method(textField))]
         #[unsafe(method_family = none)]
-        pub unsafe fn textField(&self) -> Option<Retained<NSTextField>>;
+        pub fn textField(&self) -> Option<Retained<NSTextField>>;
 
         #[cfg(all(feature = "NSControl", feature = "NSTextField", feature = "NSView"))]
-        /// This is a [weak property][objc2::topics::weak_property].
         /// Setter for [`textField`][Self::textField].
+        ///
+        /// This is a [weak property][objc2::topics::weak_property].
         #[unsafe(method(setTextField:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setTextField(&self, text_field: Option<&NSTextField>);
+        pub fn setTextField(&self, text_field: Option<&NSTextField>);
 
         #[cfg(feature = "NSDraggingItem")]
         #[unsafe(method(draggingImageComponents))]
         #[unsafe(method_family = none)]
-        pub unsafe fn draggingImageComponents(&self)
-            -> Retained<NSArray<NSDraggingImageComponent>>;
+        pub fn draggingImageComponents(&self) -> Retained<NSArray<NSDraggingImageComponent>>;
     );
 }
 
@@ -306,12 +305,15 @@ impl NSCollectionViewItem {
         #[cfg(feature = "NSNib")]
         #[unsafe(method(initWithNibName:bundle:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithNibName_bundle(
+        pub fn initWithNibName_bundle(
             this: Allocated<Self>,
             nib_name_or_nil: Option<&NSNibName>,
             nib_bundle_or_nil: Option<&NSBundle>,
         ) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -327,7 +329,7 @@ impl NSCollectionViewItem {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
     );
 }
 
@@ -337,7 +339,7 @@ impl NSCollectionViewItem {
     extern_methods!(
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }
 
@@ -411,79 +413,83 @@ impl NSCollectionView {
     extern_methods!(
         #[unsafe(method(dataSource))]
         #[unsafe(method_family = none)]
-        pub unsafe fn dataSource(
+        pub fn dataSource(
             &self,
         ) -> Option<Retained<ProtocolObject<dyn NSCollectionViewDataSource>>>;
 
-        /// This is a [weak property][objc2::topics::weak_property].
         /// Setter for [`dataSource`][Self::dataSource].
+        ///
+        /// This is a [weak property][objc2::topics::weak_property].
         #[unsafe(method(setDataSource:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setDataSource(
+        pub fn setDataSource(
             &self,
             data_source: Option<&ProtocolObject<dyn NSCollectionViewDataSource>>,
         );
 
         #[unsafe(method(prefetchDataSource))]
         #[unsafe(method_family = none)]
-        pub unsafe fn prefetchDataSource(
+        pub fn prefetchDataSource(
             &self,
         ) -> Option<Retained<ProtocolObject<dyn NSCollectionViewPrefetching>>>;
 
-        /// This is a [weak property][objc2::topics::weak_property].
         /// Setter for [`prefetchDataSource`][Self::prefetchDataSource].
+        ///
+        /// This is a [weak property][objc2::topics::weak_property].
         #[unsafe(method(setPrefetchDataSource:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setPrefetchDataSource(
+        pub fn setPrefetchDataSource(
             &self,
             prefetch_data_source: Option<&ProtocolObject<dyn NSCollectionViewPrefetching>>,
         );
 
         #[unsafe(method(content))]
         #[unsafe(method_family = none)]
-        pub unsafe fn content(&self) -> Retained<NSArray<AnyObject>>;
+        pub fn content(&self) -> Retained<NSArray<AnyObject>>;
 
         /// Setter for [`content`][Self::content].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
+        ///
+        /// # Safety
+        ///
+        /// `content` generic should be of the correct type.
         #[unsafe(method(setContent:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setContent(&self, content: &NSArray<AnyObject>);
 
         #[unsafe(method(reloadData))]
         #[unsafe(method_family = none)]
-        pub unsafe fn reloadData(&self);
+        pub fn reloadData(&self);
 
         #[unsafe(method(delegate))]
         #[unsafe(method_family = none)]
-        pub unsafe fn delegate(
-            &self,
-        ) -> Option<Retained<ProtocolObject<dyn NSCollectionViewDelegate>>>;
+        pub fn delegate(&self) -> Option<Retained<ProtocolObject<dyn NSCollectionViewDelegate>>>;
 
-        /// This is a [weak property][objc2::topics::weak_property].
         /// Setter for [`delegate`][Self::delegate].
+        ///
+        /// This is a [weak property][objc2::topics::weak_property].
         #[unsafe(method(setDelegate:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setDelegate(
-            &self,
-            delegate: Option<&ProtocolObject<dyn NSCollectionViewDelegate>>,
-        );
+        pub fn setDelegate(&self, delegate: Option<&ProtocolObject<dyn NSCollectionViewDelegate>>);
 
         #[unsafe(method(backgroundView))]
         #[unsafe(method_family = none)]
-        pub unsafe fn backgroundView(&self) -> Option<Retained<NSView>>;
+        pub fn backgroundView(&self) -> Option<Retained<NSView>>;
 
         /// Setter for [`backgroundView`][Self::backgroundView].
         #[unsafe(method(setBackgroundView:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setBackgroundView(&self, background_view: Option<&NSView>);
+        pub fn setBackgroundView(&self, background_view: Option<&NSView>);
 
         #[unsafe(method(backgroundViewScrollsWithContent))]
         #[unsafe(method_family = none)]
-        pub unsafe fn backgroundViewScrollsWithContent(&self) -> bool;
+        pub fn backgroundViewScrollsWithContent(&self) -> bool;
 
         /// Setter for [`backgroundViewScrollsWithContent`][Self::backgroundViewScrollsWithContent].
         #[unsafe(method(setBackgroundViewScrollsWithContent:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setBackgroundViewScrollsWithContent(
+        pub fn setBackgroundViewScrollsWithContent(
             &self,
             background_view_scrolls_with_content: bool,
         );
@@ -491,13 +497,13 @@ impl NSCollectionView {
         #[cfg(feature = "NSCollectionViewLayout")]
         #[unsafe(method(collectionViewLayout))]
         #[unsafe(method_family = none)]
-        pub unsafe fn collectionViewLayout(&self) -> Option<Retained<NSCollectionViewLayout>>;
+        pub fn collectionViewLayout(&self) -> Option<Retained<NSCollectionViewLayout>>;
 
         #[cfg(feature = "NSCollectionViewLayout")]
         /// Setter for [`collectionViewLayout`][Self::collectionViewLayout].
         #[unsafe(method(setCollectionViewLayout:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setCollectionViewLayout(
+        pub fn setCollectionViewLayout(
             &self,
             collection_view_layout: Option<&NSCollectionViewLayout>,
         );
@@ -505,7 +511,7 @@ impl NSCollectionView {
         #[cfg(feature = "NSCollectionViewLayout")]
         #[unsafe(method(layoutAttributesForItemAtIndexPath:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn layoutAttributesForItemAtIndexPath(
+        pub fn layoutAttributesForItemAtIndexPath(
             &self,
             index_path: &NSIndexPath,
         ) -> Option<Retained<NSCollectionViewLayoutAttributes>>;
@@ -513,7 +519,7 @@ impl NSCollectionView {
         #[cfg(feature = "NSCollectionViewLayout")]
         #[unsafe(method(layoutAttributesForSupplementaryElementOfKind:atIndexPath:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn layoutAttributesForSupplementaryElementOfKind_atIndexPath(
+        pub fn layoutAttributesForSupplementaryElementOfKind_atIndexPath(
             &self,
             kind: &NSCollectionViewSupplementaryElementKind,
             index_path: &NSIndexPath,
@@ -521,11 +527,11 @@ impl NSCollectionView {
 
         #[unsafe(method(frameForItemAtIndex:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn frameForItemAtIndex(&self, index: NSUInteger) -> NSRect;
+        pub fn frameForItemAtIndex(&self, index: NSUInteger) -> NSRect;
 
         #[unsafe(method(frameForItemAtIndex:withNumberOfItems:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn frameForItemAtIndex_withNumberOfItems(
+        pub fn frameForItemAtIndex_withNumberOfItems(
             &self,
             index: NSUInteger,
             number_of_items: NSUInteger,
@@ -534,74 +540,80 @@ impl NSCollectionView {
         #[cfg(feature = "NSColor")]
         #[unsafe(method(backgroundColors))]
         #[unsafe(method_family = none)]
-        pub unsafe fn backgroundColors(&self) -> Retained<NSArray<NSColor>>;
+        pub fn backgroundColors(&self) -> Retained<NSArray<NSColor>>;
 
         #[cfg(feature = "NSColor")]
         /// Setter for [`backgroundColors`][Self::backgroundColors].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setBackgroundColors:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setBackgroundColors(&self, background_colors: Option<&NSArray<NSColor>>);
+        pub fn setBackgroundColors(&self, background_colors: Option<&NSArray<NSColor>>);
 
         #[unsafe(method(numberOfSections))]
         #[unsafe(method_family = none)]
-        pub unsafe fn numberOfSections(&self) -> NSInteger;
+        pub fn numberOfSections(&self) -> NSInteger;
 
         #[unsafe(method(numberOfItemsInSection:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn numberOfItemsInSection(&self, section: NSInteger) -> NSInteger;
+        pub fn numberOfItemsInSection(&self, section: NSInteger) -> NSInteger;
 
         #[unsafe(method(isFirstResponder))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isFirstResponder(&self) -> bool;
+        pub fn isFirstResponder(&self) -> bool;
 
         #[unsafe(method(isSelectable))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isSelectable(&self) -> bool;
+        pub fn isSelectable(&self) -> bool;
 
         /// Setter for [`isSelectable`][Self::isSelectable].
         #[unsafe(method(setSelectable:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setSelectable(&self, selectable: bool);
+        pub fn setSelectable(&self, selectable: bool);
 
         #[unsafe(method(allowsEmptySelection))]
         #[unsafe(method_family = none)]
-        pub unsafe fn allowsEmptySelection(&self) -> bool;
+        pub fn allowsEmptySelection(&self) -> bool;
 
         /// Setter for [`allowsEmptySelection`][Self::allowsEmptySelection].
         #[unsafe(method(setAllowsEmptySelection:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setAllowsEmptySelection(&self, allows_empty_selection: bool);
+        pub fn setAllowsEmptySelection(&self, allows_empty_selection: bool);
 
         #[unsafe(method(allowsMultipleSelection))]
         #[unsafe(method_family = none)]
-        pub unsafe fn allowsMultipleSelection(&self) -> bool;
+        pub fn allowsMultipleSelection(&self) -> bool;
 
         /// Setter for [`allowsMultipleSelection`][Self::allowsMultipleSelection].
         #[unsafe(method(setAllowsMultipleSelection:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setAllowsMultipleSelection(&self, allows_multiple_selection: bool);
+        pub fn setAllowsMultipleSelection(&self, allows_multiple_selection: bool);
 
         #[unsafe(method(selectionIndexes))]
         #[unsafe(method_family = none)]
-        pub unsafe fn selectionIndexes(&self) -> Retained<NSIndexSet>;
+        pub fn selectionIndexes(&self) -> Retained<NSIndexSet>;
 
         /// Setter for [`selectionIndexes`][Self::selectionIndexes].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setSelectionIndexes:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setSelectionIndexes(&self, selection_indexes: &NSIndexSet);
+        pub fn setSelectionIndexes(&self, selection_indexes: &NSIndexSet);
 
         #[unsafe(method(selectionIndexPaths))]
         #[unsafe(method_family = none)]
-        pub unsafe fn selectionIndexPaths(&self) -> Retained<NSSet<NSIndexPath>>;
+        pub fn selectionIndexPaths(&self) -> Retained<NSSet<NSIndexPath>>;
 
         /// Setter for [`selectionIndexPaths`][Self::selectionIndexPaths].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setSelectionIndexPaths:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setSelectionIndexPaths(&self, selection_index_paths: &NSSet<NSIndexPath>);
+        pub fn setSelectionIndexPaths(&self, selection_index_paths: &NSSet<NSIndexPath>);
 
         #[unsafe(method(selectItemsAtIndexPaths:scrollPosition:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn selectItemsAtIndexPaths_scrollPosition(
+        pub fn selectItemsAtIndexPaths_scrollPosition(
             &self,
             index_paths: &NSSet<NSIndexPath>,
             scroll_position: NSCollectionViewScrollPosition,
@@ -609,17 +621,26 @@ impl NSCollectionView {
 
         #[unsafe(method(deselectItemsAtIndexPaths:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn deselectItemsAtIndexPaths(&self, index_paths: &NSSet<NSIndexPath>);
+        pub fn deselectItemsAtIndexPaths(&self, index_paths: &NSSet<NSIndexPath>);
 
+        /// # Safety
+        ///
+        /// `sender` should be of the correct type.
         #[unsafe(method(selectAll:))]
         #[unsafe(method_family = none)]
         pub unsafe fn selectAll(&self, sender: Option<&AnyObject>);
 
+        /// # Safety
+        ///
+        /// `sender` should be of the correct type.
         #[unsafe(method(deselectAll:))]
         #[unsafe(method_family = none)]
         pub unsafe fn deselectAll(&self, sender: Option<&AnyObject>);
 
         #[cfg(feature = "NSUserInterfaceItemIdentification")]
+        /// # Safety
+        ///
+        /// `item_class` probably has further requirements.
         #[unsafe(method(registerClass:forItemWithIdentifier:))]
         #[unsafe(method_family = none)]
         pub unsafe fn registerClass_forItemWithIdentifier(
@@ -631,13 +652,16 @@ impl NSCollectionView {
         #[cfg(all(feature = "NSNib", feature = "NSUserInterfaceItemIdentification"))]
         #[unsafe(method(registerNib:forItemWithIdentifier:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn registerNib_forItemWithIdentifier(
+        pub fn registerNib_forItemWithIdentifier(
             &self,
             nib: Option<&NSNib>,
             identifier: &NSUserInterfaceItemIdentifier,
         );
 
         #[cfg(feature = "NSUserInterfaceItemIdentification")]
+        /// # Safety
+        ///
+        /// `view_class` probably has further requirements.
         #[unsafe(method(registerClass:forSupplementaryViewOfKind:withIdentifier:))]
         #[unsafe(method_family = none)]
         pub unsafe fn registerClass_forSupplementaryViewOfKind_withIdentifier(
@@ -650,7 +674,7 @@ impl NSCollectionView {
         #[cfg(all(feature = "NSNib", feature = "NSUserInterfaceItemIdentification"))]
         #[unsafe(method(registerNib:forSupplementaryViewOfKind:withIdentifier:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn registerNib_forSupplementaryViewOfKind_withIdentifier(
+        pub fn registerNib_forSupplementaryViewOfKind_withIdentifier(
             &self,
             nib: Option<&NSNib>,
             kind: &NSCollectionViewSupplementaryElementKind,
@@ -663,7 +687,7 @@ impl NSCollectionView {
         ))]
         #[unsafe(method(makeItemWithIdentifier:forIndexPath:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn makeItemWithIdentifier_forIndexPath(
+        pub fn makeItemWithIdentifier_forIndexPath(
             &self,
             identifier: &NSUserInterfaceItemIdentifier,
             index_path: &NSIndexPath,
@@ -672,7 +696,7 @@ impl NSCollectionView {
         #[cfg(feature = "NSUserInterfaceItemIdentification")]
         #[unsafe(method(makeSupplementaryViewOfKind:withIdentifier:forIndexPath:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn makeSupplementaryViewOfKind_withIdentifier_forIndexPath(
+        pub fn makeSupplementaryViewOfKind_withIdentifier_forIndexPath(
             &self,
             element_kind: &NSCollectionViewSupplementaryElementKind,
             identifier: &NSUserInterfaceItemIdentifier,
@@ -682,15 +706,12 @@ impl NSCollectionView {
         #[cfg(feature = "NSViewController")]
         #[unsafe(method(itemAtIndex:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn itemAtIndex(
-            &self,
-            index: NSUInteger,
-        ) -> Option<Retained<NSCollectionViewItem>>;
+        pub fn itemAtIndex(&self, index: NSUInteger) -> Option<Retained<NSCollectionViewItem>>;
 
         #[cfg(feature = "NSViewController")]
         #[unsafe(method(itemAtIndexPath:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn itemAtIndexPath(
+        pub fn itemAtIndexPath(
             &self,
             index_path: &NSIndexPath,
         ) -> Option<Retained<NSCollectionViewItem>>;
@@ -698,31 +719,28 @@ impl NSCollectionView {
         #[cfg(feature = "NSViewController")]
         #[unsafe(method(visibleItems))]
         #[unsafe(method_family = none)]
-        pub unsafe fn visibleItems(&self) -> Retained<NSArray<NSCollectionViewItem>>;
+        pub fn visibleItems(&self) -> Retained<NSArray<NSCollectionViewItem>>;
 
         #[unsafe(method(indexPathsForVisibleItems))]
         #[unsafe(method_family = none)]
-        pub unsafe fn indexPathsForVisibleItems(&self) -> Retained<NSSet<NSIndexPath>>;
+        pub fn indexPathsForVisibleItems(&self) -> Retained<NSSet<NSIndexPath>>;
 
         #[cfg(feature = "NSViewController")]
         #[unsafe(method(indexPathForItem:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn indexPathForItem(
+        pub fn indexPathForItem(
             &self,
             item: &NSCollectionViewItem,
         ) -> Option<Retained<NSIndexPath>>;
 
         #[unsafe(method(indexPathForItemAtPoint:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn indexPathForItemAtPoint(
-            &self,
-            point: NSPoint,
-        ) -> Option<Retained<NSIndexPath>>;
+        pub fn indexPathForItemAtPoint(&self, point: NSPoint) -> Option<Retained<NSIndexPath>>;
 
         #[cfg(feature = "NSUserInterfaceItemIdentification")]
         #[unsafe(method(supplementaryViewForElementKind:atIndexPath:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn supplementaryViewForElementKind_atIndexPath(
+        pub fn supplementaryViewForElementKind_atIndexPath(
             &self,
             element_kind: &NSCollectionViewSupplementaryElementKind,
             index_path: &NSIndexPath,
@@ -731,49 +749,49 @@ impl NSCollectionView {
         #[cfg(feature = "NSUserInterfaceItemIdentification")]
         #[unsafe(method(visibleSupplementaryViewsOfKind:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn visibleSupplementaryViewsOfKind(
+        pub fn visibleSupplementaryViewsOfKind(
             &self,
             element_kind: &NSCollectionViewSupplementaryElementKind,
         ) -> Retained<NSArray<NSView>>;
 
         #[unsafe(method(indexPathsForVisibleSupplementaryElementsOfKind:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn indexPathsForVisibleSupplementaryElementsOfKind(
+        pub fn indexPathsForVisibleSupplementaryElementsOfKind(
             &self,
             element_kind: &NSCollectionViewSupplementaryElementKind,
         ) -> Retained<NSSet<NSIndexPath>>;
 
         #[unsafe(method(insertSections:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn insertSections(&self, sections: &NSIndexSet);
+        pub fn insertSections(&self, sections: &NSIndexSet);
 
         #[unsafe(method(deleteSections:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn deleteSections(&self, sections: &NSIndexSet);
+        pub fn deleteSections(&self, sections: &NSIndexSet);
 
         #[unsafe(method(reloadSections:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn reloadSections(&self, sections: &NSIndexSet);
+        pub fn reloadSections(&self, sections: &NSIndexSet);
 
         #[unsafe(method(moveSection:toSection:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn moveSection_toSection(&self, section: NSInteger, new_section: NSInteger);
+        pub fn moveSection_toSection(&self, section: NSInteger, new_section: NSInteger);
 
         #[unsafe(method(insertItemsAtIndexPaths:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn insertItemsAtIndexPaths(&self, index_paths: &NSSet<NSIndexPath>);
+        pub fn insertItemsAtIndexPaths(&self, index_paths: &NSSet<NSIndexPath>);
 
         #[unsafe(method(deleteItemsAtIndexPaths:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn deleteItemsAtIndexPaths(&self, index_paths: &NSSet<NSIndexPath>);
+        pub fn deleteItemsAtIndexPaths(&self, index_paths: &NSSet<NSIndexPath>);
 
         #[unsafe(method(reloadItemsAtIndexPaths:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn reloadItemsAtIndexPaths(&self, index_paths: &NSSet<NSIndexPath>);
+        pub fn reloadItemsAtIndexPaths(&self, index_paths: &NSSet<NSIndexPath>);
 
         #[unsafe(method(moveItemAtIndexPath:toIndexPath:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn moveItemAtIndexPath_toIndexPath(
+        pub fn moveItemAtIndexPath_toIndexPath(
             &self,
             index_path: &NSIndexPath,
             new_index_path: &NSIndexPath,
@@ -782,19 +800,22 @@ impl NSCollectionView {
         #[cfg(feature = "block2")]
         #[unsafe(method(performBatchUpdates:completionHandler:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn performBatchUpdates_completionHandler(
+        pub fn performBatchUpdates_completionHandler(
             &self,
             updates: Option<&block2::DynBlock<dyn Fn() + '_>>,
             completion_handler: Option<&block2::DynBlock<dyn Fn(Bool)>>,
         );
 
+        /// # Safety
+        ///
+        /// `sender` should be of the correct type.
         #[unsafe(method(toggleSectionCollapse:))]
         #[unsafe(method_family = none)]
         pub unsafe fn toggleSectionCollapse(&self, sender: &AnyObject);
 
         #[unsafe(method(scrollToItemsAtIndexPaths:scrollPosition:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn scrollToItemsAtIndexPaths_scrollPosition(
+        pub fn scrollToItemsAtIndexPaths_scrollPosition(
             &self,
             index_paths: &NSSet<NSIndexPath>,
             scroll_position: NSCollectionViewScrollPosition,
@@ -803,13 +824,16 @@ impl NSCollectionView {
         #[cfg(feature = "NSDragging")]
         #[unsafe(method(setDraggingSourceOperationMask:forLocal:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setDraggingSourceOperationMask_forLocal(
+        pub fn setDraggingSourceOperationMask_forLocal(
             &self,
             drag_operation_mask: NSDragOperation,
             local_destination: bool,
         );
 
         #[cfg(all(feature = "NSEvent", feature = "NSImage"))]
+        /// # Safety
+        ///
+        /// `drag_image_offset` must be a valid pointer.
         #[unsafe(method(draggingImageForItemsAtIndexPaths:withEvent:offset:))]
         #[unsafe(method_family = none)]
         pub unsafe fn draggingImageForItemsAtIndexPaths_withEvent_offset(
@@ -820,6 +844,9 @@ impl NSCollectionView {
         ) -> Retained<NSImage>;
 
         #[cfg(all(feature = "NSEvent", feature = "NSImage"))]
+        /// # Safety
+        ///
+        /// `drag_image_offset` must be a valid pointer.
         #[unsafe(method(draggingImageForItemsAtIndexes:withEvent:offset:))]
         #[unsafe(method_family = none)]
         pub unsafe fn draggingImageForItemsAtIndexes_withEvent_offset(
@@ -837,8 +864,11 @@ impl NSCollectionView {
     extern_methods!(
         #[unsafe(method(initWithFrame:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithFrame(this: Allocated<Self>, frame_rect: NSRect) -> Retained<Self>;
+        pub fn initWithFrame(this: Allocated<Self>, frame_rect: NSRect) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -854,7 +884,7 @@ impl NSCollectionView {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
     );
 }
 
@@ -864,7 +894,7 @@ impl NSCollectionView {
     extern_methods!(
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }
 
@@ -874,7 +904,7 @@ extern_protocol!(
         #[cfg(all(feature = "NSResponder", feature = "NSView"))]
         #[unsafe(method(collectionView:numberOfItemsInSection:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_numberOfItemsInSection(
+        fn collectionView_numberOfItemsInSection(
             &self,
             collection_view: &NSCollectionView,
             section: NSInteger,
@@ -887,7 +917,7 @@ extern_protocol!(
         ))]
         #[unsafe(method(collectionView:itemForRepresentedObjectAtIndexPath:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_itemForRepresentedObjectAtIndexPath(
+        fn collectionView_itemForRepresentedObjectAtIndexPath(
             &self,
             collection_view: &NSCollectionView,
             index_path: &NSIndexPath,
@@ -897,16 +927,14 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(numberOfSectionsInCollectionView:))]
         #[unsafe(method_family = none)]
-        unsafe fn numberOfSectionsInCollectionView(
-            &self,
-            collection_view: &NSCollectionView,
-        ) -> NSInteger;
+        fn numberOfSectionsInCollectionView(&self, collection_view: &NSCollectionView)
+            -> NSInteger;
 
         #[cfg(all(feature = "NSResponder", feature = "NSView"))]
         #[optional]
         #[unsafe(method(collectionView:viewForSupplementaryElementOfKind:atIndexPath:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_viewForSupplementaryElementOfKind_atIndexPath(
+        fn collectionView_viewForSupplementaryElementOfKind_atIndexPath(
             &self,
             collection_view: &NSCollectionView,
             kind: &NSCollectionViewSupplementaryElementKind,
@@ -921,7 +949,7 @@ extern_protocol!(
         #[cfg(all(feature = "NSResponder", feature = "NSView"))]
         #[unsafe(method(collectionView:prefetchItemsAtIndexPaths:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_prefetchItemsAtIndexPaths(
+        fn collectionView_prefetchItemsAtIndexPaths(
             &self,
             collection_view: &NSCollectionView,
             index_paths: &NSArray<NSIndexPath>,
@@ -931,7 +959,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:cancelPrefetchingForItemsAtIndexPaths:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_cancelPrefetchingForItemsAtIndexPaths(
+        fn collectionView_cancelPrefetchingForItemsAtIndexPaths(
             &self,
             collection_view: &NSCollectionView,
             index_paths: &NSArray<NSIndexPath>,
@@ -946,7 +974,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:canDragItemsAtIndexPaths:withEvent:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_canDragItemsAtIndexPaths_withEvent(
+        fn collectionView_canDragItemsAtIndexPaths_withEvent(
             &self,
             collection_view: &NSCollectionView,
             index_paths: &NSSet<NSIndexPath>,
@@ -957,7 +985,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:canDragItemsAtIndexes:withEvent:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_canDragItemsAtIndexes_withEvent(
+        fn collectionView_canDragItemsAtIndexes_withEvent(
             &self,
             collection_view: &NSCollectionView,
             indexes: &NSIndexSet,
@@ -969,7 +997,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:writeItemsAtIndexPaths:toPasteboard:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_writeItemsAtIndexPaths_toPasteboard(
+        fn collectionView_writeItemsAtIndexPaths_toPasteboard(
             &self,
             collection_view: &NSCollectionView,
             index_paths: &NSSet<NSIndexPath>,
@@ -981,7 +1009,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:writeItemsAtIndexes:toPasteboard:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_writeItemsAtIndexes_toPasteboard(
+        fn collectionView_writeItemsAtIndexes_toPasteboard(
             &self,
             collection_view: &NSCollectionView,
             indexes: &NSIndexSet,
@@ -993,7 +1021,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:namesOfPromisedFilesDroppedAtDestination:forDraggedItemsAtIndexPaths:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_namesOfPromisedFilesDroppedAtDestination_forDraggedItemsAtIndexPaths(
+        fn collectionView_namesOfPromisedFilesDroppedAtDestination_forDraggedItemsAtIndexPaths(
             &self,
             collection_view: &NSCollectionView,
             drop_url: &NSURL,
@@ -1005,7 +1033,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:namesOfPromisedFilesDroppedAtDestination:forDraggedItemsAtIndexes:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_namesOfPromisedFilesDroppedAtDestination_forDraggedItemsAtIndexes(
+        fn collectionView_namesOfPromisedFilesDroppedAtDestination_forDraggedItemsAtIndexes(
             &self,
             collection_view: &NSCollectionView,
             drop_url: &NSURL,
@@ -1018,6 +1046,9 @@ extern_protocol!(
             feature = "NSResponder",
             feature = "NSView"
         ))]
+        /// # Safety
+        ///
+        /// `drag_image_offset` must be a valid pointer.
         #[optional]
         #[unsafe(method(collectionView:draggingImageForItemsAtIndexPaths:withEvent:offset:))]
         #[unsafe(method_family = none)]
@@ -1035,6 +1066,9 @@ extern_protocol!(
             feature = "NSResponder",
             feature = "NSView"
         ))]
+        /// # Safety
+        ///
+        /// `drag_image_offset` must be a valid pointer.
         #[optional]
         #[unsafe(method(collectionView:draggingImageForItemsAtIndexes:withEvent:offset:))]
         #[unsafe(method_family = none)]
@@ -1047,6 +1081,9 @@ extern_protocol!(
         ) -> Retained<NSImage>;
 
         #[cfg(all(feature = "NSDragging", feature = "NSResponder", feature = "NSView"))]
+        /// # Safety
+        ///
+        /// `proposed_drop_operation` must be a valid pointer.
         #[optional]
         #[unsafe(method(collectionView:validateDrop:proposedIndexPath:dropOperation:))]
         #[unsafe(method_family = none)]
@@ -1059,6 +1096,10 @@ extern_protocol!(
         ) -> NSDragOperation;
 
         #[cfg(all(feature = "NSDragging", feature = "NSResponder", feature = "NSView"))]
+        /// # Safety
+        ///
+        /// - `proposed_drop_index` must be a valid pointer.
+        /// - `proposed_drop_operation` must be a valid pointer.
         #[optional]
         #[unsafe(method(collectionView:validateDrop:proposedIndex:dropOperation:))]
         #[unsafe(method_family = none)]
@@ -1074,7 +1115,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:acceptDrop:indexPath:dropOperation:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_acceptDrop_indexPath_dropOperation(
+        fn collectionView_acceptDrop_indexPath_dropOperation(
             &self,
             collection_view: &NSCollectionView,
             dragging_info: &ProtocolObject<dyn NSDraggingInfo>,
@@ -1086,7 +1127,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:acceptDrop:index:dropOperation:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_acceptDrop_index_dropOperation(
+        fn collectionView_acceptDrop_index_dropOperation(
             &self,
             collection_view: &NSCollectionView,
             dragging_info: &ProtocolObject<dyn NSDraggingInfo>,
@@ -1098,7 +1139,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:pasteboardWriterForItemAtIndexPath:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_pasteboardWriterForItemAtIndexPath(
+        fn collectionView_pasteboardWriterForItemAtIndexPath(
             &self,
             collection_view: &NSCollectionView,
             index_path: &NSIndexPath,
@@ -1108,7 +1149,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:pasteboardWriterForItemAtIndex:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_pasteboardWriterForItemAtIndex(
+        fn collectionView_pasteboardWriterForItemAtIndex(
             &self,
             collection_view: &NSCollectionView,
             index: NSUInteger,
@@ -1122,7 +1163,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:draggingSession:willBeginAtPoint:forItemsAtIndexPaths:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_draggingSession_willBeginAtPoint_forItemsAtIndexPaths(
+        fn collectionView_draggingSession_willBeginAtPoint_forItemsAtIndexPaths(
             &self,
             collection_view: &NSCollectionView,
             session: &NSDraggingSession,
@@ -1138,7 +1179,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:draggingSession:willBeginAtPoint:forItemsAtIndexes:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_draggingSession_willBeginAtPoint_forItemsAtIndexes(
+        fn collectionView_draggingSession_willBeginAtPoint_forItemsAtIndexes(
             &self,
             collection_view: &NSCollectionView,
             session: &NSDraggingSession,
@@ -1155,7 +1196,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:draggingSession:endedAtPoint:dragOperation:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_draggingSession_endedAtPoint_dragOperation(
+        fn collectionView_draggingSession_endedAtPoint_dragOperation(
             &self,
             collection_view: &NSCollectionView,
             session: &NSDraggingSession,
@@ -1167,7 +1208,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:updateDraggingItemsForDrag:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_updateDraggingItemsForDrag(
+        fn collectionView_updateDraggingItemsForDrag(
             &self,
             collection_view: &NSCollectionView,
             dragging_info: &ProtocolObject<dyn NSDraggingInfo>,
@@ -1177,7 +1218,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:shouldChangeItemsAtIndexPaths:toHighlightState:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_shouldChangeItemsAtIndexPaths_toHighlightState(
+        fn collectionView_shouldChangeItemsAtIndexPaths_toHighlightState(
             &self,
             collection_view: &NSCollectionView,
             index_paths: &NSSet<NSIndexPath>,
@@ -1188,7 +1229,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:didChangeItemsAtIndexPaths:toHighlightState:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_didChangeItemsAtIndexPaths_toHighlightState(
+        fn collectionView_didChangeItemsAtIndexPaths_toHighlightState(
             &self,
             collection_view: &NSCollectionView,
             index_paths: &NSSet<NSIndexPath>,
@@ -1199,7 +1240,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:shouldSelectItemsAtIndexPaths:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_shouldSelectItemsAtIndexPaths(
+        fn collectionView_shouldSelectItemsAtIndexPaths(
             &self,
             collection_view: &NSCollectionView,
             index_paths: &NSSet<NSIndexPath>,
@@ -1209,7 +1250,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:shouldDeselectItemsAtIndexPaths:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_shouldDeselectItemsAtIndexPaths(
+        fn collectionView_shouldDeselectItemsAtIndexPaths(
             &self,
             collection_view: &NSCollectionView,
             index_paths: &NSSet<NSIndexPath>,
@@ -1219,7 +1260,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:didSelectItemsAtIndexPaths:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_didSelectItemsAtIndexPaths(
+        fn collectionView_didSelectItemsAtIndexPaths(
             &self,
             collection_view: &NSCollectionView,
             index_paths: &NSSet<NSIndexPath>,
@@ -1229,7 +1270,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:didDeselectItemsAtIndexPaths:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_didDeselectItemsAtIndexPaths(
+        fn collectionView_didDeselectItemsAtIndexPaths(
             &self,
             collection_view: &NSCollectionView,
             index_paths: &NSSet<NSIndexPath>,
@@ -1243,7 +1284,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:willDisplayItem:forRepresentedObjectAtIndexPath:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_willDisplayItem_forRepresentedObjectAtIndexPath(
+        fn collectionView_willDisplayItem_forRepresentedObjectAtIndexPath(
             &self,
             collection_view: &NSCollectionView,
             item: &NSCollectionViewItem,
@@ -1254,7 +1295,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:willDisplaySupplementaryView:forElementKind:atIndexPath:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_willDisplaySupplementaryView_forElementKind_atIndexPath(
+        fn collectionView_willDisplaySupplementaryView_forElementKind_atIndexPath(
             &self,
             collection_view: &NSCollectionView,
             view: &NSView,
@@ -1270,7 +1311,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:didEndDisplayingItem:forRepresentedObjectAtIndexPath:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_didEndDisplayingItem_forRepresentedObjectAtIndexPath(
+        fn collectionView_didEndDisplayingItem_forRepresentedObjectAtIndexPath(
             &self,
             collection_view: &NSCollectionView,
             item: &NSCollectionViewItem,
@@ -1281,7 +1322,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:didEndDisplayingSupplementaryView:forElementOfKind:atIndexPath:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_didEndDisplayingSupplementaryView_forElementOfKind_atIndexPath(
+        fn collectionView_didEndDisplayingSupplementaryView_forElementOfKind_atIndexPath(
             &self,
             collection_view: &NSCollectionView,
             view: &NSView,
@@ -1298,7 +1339,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(collectionView:transitionLayoutForOldLayout:newLayout:))]
         #[unsafe(method_family = none)]
-        unsafe fn collectionView_transitionLayoutForOldLayout_newLayout(
+        fn collectionView_transitionLayoutForOldLayout_newLayout(
             &self,
             collection_view: &NSCollectionView,
             from_layout: &NSCollectionViewLayout,
@@ -1319,18 +1360,16 @@ pub unsafe trait NSIndexPathNSCollectionViewAdditions:
     extern_methods!(
         #[unsafe(method(indexPathForItem:inSection:))]
         #[unsafe(method_family = none)]
-        unsafe fn indexPathForItem_inSection(
-            item: NSInteger,
-            section: NSInteger,
-        ) -> Retained<NSIndexPath>;
+        fn indexPathForItem_inSection(item: NSInteger, section: NSInteger)
+            -> Retained<NSIndexPath>;
 
         #[unsafe(method(item))]
         #[unsafe(method_family = none)]
-        unsafe fn item(&self) -> NSInteger;
+        fn item(&self) -> NSInteger;
 
         #[unsafe(method(section))]
         #[unsafe(method_family = none)]
-        unsafe fn section(&self) -> NSInteger;
+        fn section(&self) -> NSInteger;
     );
 }
 
@@ -1349,18 +1388,16 @@ pub unsafe trait NSSetNSCollectionViewAdditions:
     extern_methods!(
         #[unsafe(method(setWithCollectionViewIndexPath:))]
         #[unsafe(method_family = none)]
-        unsafe fn setWithCollectionViewIndexPath(index_path: &NSIndexPath) -> Retained<Self>;
+        fn setWithCollectionViewIndexPath(index_path: &NSIndexPath) -> Retained<Self>;
 
         #[unsafe(method(setWithCollectionViewIndexPaths:))]
         #[unsafe(method_family = none)]
-        unsafe fn setWithCollectionViewIndexPaths(
-            index_paths: &NSArray<NSIndexPath>,
-        ) -> Retained<Self>;
+        fn setWithCollectionViewIndexPaths(index_paths: &NSArray<NSIndexPath>) -> Retained<Self>;
 
         #[cfg(feature = "block2")]
         #[unsafe(method(enumerateIndexPathsWithOptions:usingBlock:))]
         #[unsafe(method_family = none)]
-        unsafe fn enumerateIndexPathsWithOptions_usingBlock(
+        fn enumerateIndexPathsWithOptions_usingBlock(
             &self,
             opts: NSEnumerationOptions,
             block: &block2::DynBlock<dyn Fn(NonNull<NSIndexPath>, NonNull<Bool>) + '_>,
@@ -1376,6 +1413,9 @@ unsafe impl NSSetNSCollectionViewAdditions for NSSet {}
 impl NSCollectionView {
     extern_methods!(
         #[cfg(feature = "NSViewController")]
+        /// # Safety
+        ///
+        /// `object` should be of the correct type.
         #[deprecated = "Use -[NSCollectionViewDataSource collectionView:itemForRepresentedObjectAtIndexPath:] instead"]
         #[unsafe(method(newItemForRepresentedObject:))]
         #[unsafe(method_family = new)]
@@ -1388,57 +1428,57 @@ impl NSCollectionView {
         #[deprecated = "Use -registerNib:forItemWithIdentifier: or -registerClass:forItemWithIdentifier: instead."]
         #[unsafe(method(itemPrototype))]
         #[unsafe(method_family = none)]
-        pub unsafe fn itemPrototype(&self) -> Option<Retained<NSCollectionViewItem>>;
+        pub fn itemPrototype(&self) -> Option<Retained<NSCollectionViewItem>>;
 
         #[cfg(feature = "NSViewController")]
         /// Setter for [`itemPrototype`][Self::itemPrototype].
         #[deprecated = "Use -registerNib:forItemWithIdentifier: or -registerClass:forItemWithIdentifier: instead."]
         #[unsafe(method(setItemPrototype:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setItemPrototype(&self, item_prototype: Option<&NSCollectionViewItem>);
+        pub fn setItemPrototype(&self, item_prototype: Option<&NSCollectionViewItem>);
 
         #[deprecated = "Use NSCollectionViewGridLayout as the receiver's collectionViewLayout, setting its maximumNumberOfRows instead"]
         #[unsafe(method(maxNumberOfRows))]
         #[unsafe(method_family = none)]
-        pub unsafe fn maxNumberOfRows(&self) -> NSUInteger;
+        pub fn maxNumberOfRows(&self) -> NSUInteger;
 
         /// Setter for [`maxNumberOfRows`][Self::maxNumberOfRows].
         #[deprecated = "Use NSCollectionViewGridLayout as the receiver's collectionViewLayout, setting its maximumNumberOfRows instead"]
         #[unsafe(method(setMaxNumberOfRows:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setMaxNumberOfRows(&self, max_number_of_rows: NSUInteger);
+        pub fn setMaxNumberOfRows(&self, max_number_of_rows: NSUInteger);
 
         #[deprecated = "Use NSCollectionViewGridLayout as the receiver's collectionViewLayout, setting its maximumNumberOfColumns instead"]
         #[unsafe(method(maxNumberOfColumns))]
         #[unsafe(method_family = none)]
-        pub unsafe fn maxNumberOfColumns(&self) -> NSUInteger;
+        pub fn maxNumberOfColumns(&self) -> NSUInteger;
 
         /// Setter for [`maxNumberOfColumns`][Self::maxNumberOfColumns].
         #[deprecated = "Use NSCollectionViewGridLayout as the receiver's collectionViewLayout, setting its maximumNumberOfColumns instead"]
         #[unsafe(method(setMaxNumberOfColumns:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setMaxNumberOfColumns(&self, max_number_of_columns: NSUInteger);
+        pub fn setMaxNumberOfColumns(&self, max_number_of_columns: NSUInteger);
 
         #[deprecated = "Use NSCollectionViewGridLayout as the receiver's collectionViewLayout, setting its minimumItemSize instead"]
         #[unsafe(method(minItemSize))]
         #[unsafe(method_family = none)]
-        pub unsafe fn minItemSize(&self) -> NSSize;
+        pub fn minItemSize(&self) -> NSSize;
 
         /// Setter for [`minItemSize`][Self::minItemSize].
         #[deprecated = "Use NSCollectionViewGridLayout as the receiver's collectionViewLayout, setting its minimumItemSize instead"]
         #[unsafe(method(setMinItemSize:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setMinItemSize(&self, min_item_size: NSSize);
+        pub fn setMinItemSize(&self, min_item_size: NSSize);
 
         #[deprecated = "Use NSCollectionViewGridLayout as the receiver's collectionViewLayout, setting its maximumItemSize instead"]
         #[unsafe(method(maxItemSize))]
         #[unsafe(method_family = none)]
-        pub unsafe fn maxItemSize(&self) -> NSSize;
+        pub fn maxItemSize(&self) -> NSSize;
 
         /// Setter for [`maxItemSize`][Self::maxItemSize].
         #[deprecated = "Use NSCollectionViewGridLayout as the receiver's collectionViewLayout, setting its maximumItemSize instead"]
         #[unsafe(method(setMaxItemSize:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setMaxItemSize(&self, max_item_size: NSSize);
+        pub fn setMaxItemSize(&self, max_item_size: NSSize);
     );
 }

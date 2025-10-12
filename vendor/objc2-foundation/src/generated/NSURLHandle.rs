@@ -9,66 +9,77 @@ use crate::*;
 extern "C" {
     /// [Apple's documentation](https://developer.apple.com/documentation/foundation/nshttppropertystatuscodekey?language=objc)
     #[cfg(feature = "NSString")]
+    #[deprecated]
     pub static NSHTTPPropertyStatusCodeKey: Option<&'static NSString>;
 }
 
 extern "C" {
     /// [Apple's documentation](https://developer.apple.com/documentation/foundation/nshttppropertystatusreasonkey?language=objc)
     #[cfg(feature = "NSString")]
+    #[deprecated]
     pub static NSHTTPPropertyStatusReasonKey: Option<&'static NSString>;
 }
 
 extern "C" {
     /// [Apple's documentation](https://developer.apple.com/documentation/foundation/nshttppropertyserverhttpversionkey?language=objc)
     #[cfg(feature = "NSString")]
+    #[deprecated]
     pub static NSHTTPPropertyServerHTTPVersionKey: Option<&'static NSString>;
 }
 
 extern "C" {
     /// [Apple's documentation](https://developer.apple.com/documentation/foundation/nshttppropertyredirectionheaderskey?language=objc)
     #[cfg(feature = "NSString")]
+    #[deprecated]
     pub static NSHTTPPropertyRedirectionHeadersKey: Option<&'static NSString>;
 }
 
 extern "C" {
     /// [Apple's documentation](https://developer.apple.com/documentation/foundation/nshttppropertyerrorpagedatakey?language=objc)
     #[cfg(feature = "NSString")]
+    #[deprecated]
     pub static NSHTTPPropertyErrorPageDataKey: Option<&'static NSString>;
 }
 
 extern "C" {
     /// [Apple's documentation](https://developer.apple.com/documentation/foundation/nshttppropertyhttpproxy?language=objc)
     #[cfg(feature = "NSString")]
+    #[deprecated]
     pub static NSHTTPPropertyHTTPProxy: Option<&'static NSString>;
 }
 
 extern "C" {
     /// [Apple's documentation](https://developer.apple.com/documentation/foundation/nsftppropertyuserloginkey?language=objc)
     #[cfg(feature = "NSString")]
+    #[deprecated]
     pub static NSFTPPropertyUserLoginKey: Option<&'static NSString>;
 }
 
 extern "C" {
     /// [Apple's documentation](https://developer.apple.com/documentation/foundation/nsftppropertyuserpasswordkey?language=objc)
     #[cfg(feature = "NSString")]
+    #[deprecated]
     pub static NSFTPPropertyUserPasswordKey: Option<&'static NSString>;
 }
 
 extern "C" {
     /// [Apple's documentation](https://developer.apple.com/documentation/foundation/nsftppropertyactivetransfermodekey?language=objc)
     #[cfg(feature = "NSString")]
+    #[deprecated]
     pub static NSFTPPropertyActiveTransferModeKey: Option<&'static NSString>;
 }
 
 extern "C" {
     /// [Apple's documentation](https://developer.apple.com/documentation/foundation/nsftppropertyfileoffsetkey?language=objc)
     #[cfg(feature = "NSString")]
+    #[deprecated]
     pub static NSFTPPropertyFileOffsetKey: Option<&'static NSString>;
 }
 
 extern "C" {
     /// [Apple's documentation](https://developer.apple.com/documentation/foundation/nsftppropertyftpproxy?language=objc)
     #[cfg(feature = "NSString")]
+    #[deprecated]
     pub static NSFTPPropertyFTPProxy: Option<&'static NSString>;
 }
 
@@ -101,6 +112,10 @@ extern_protocol!(
     #[deprecated]
     pub unsafe trait NSURLHandleClient {
         #[cfg(feature = "NSData")]
+        /// # Safety
+        ///
+        /// - `sender` might not allow `None`.
+        /// - `new_bytes` might not allow `None`.
         #[deprecated]
         #[unsafe(method(URLHandle:resourceDataDidBecomeAvailable:))]
         #[unsafe(method_family = none)]
@@ -110,22 +125,35 @@ extern_protocol!(
             new_bytes: Option<&NSData>,
         );
 
+        /// # Safety
+        ///
+        /// `sender` might not allow `None`.
         #[deprecated]
         #[unsafe(method(URLHandleResourceDidBeginLoading:))]
         #[unsafe(method_family = none)]
         unsafe fn URLHandleResourceDidBeginLoading(&self, sender: Option<&NSURLHandle>);
 
+        /// # Safety
+        ///
+        /// `sender` might not allow `None`.
         #[deprecated]
         #[unsafe(method(URLHandleResourceDidFinishLoading:))]
         #[unsafe(method_family = none)]
         unsafe fn URLHandleResourceDidFinishLoading(&self, sender: Option<&NSURLHandle>);
 
+        /// # Safety
+        ///
+        /// `sender` might not allow `None`.
         #[deprecated]
         #[unsafe(method(URLHandleResourceDidCancelLoading:))]
         #[unsafe(method_family = none)]
         unsafe fn URLHandleResourceDidCancelLoading(&self, sender: Option<&NSURLHandle>);
 
         #[cfg(feature = "NSString")]
+        /// # Safety
+        ///
+        /// - `sender` might not allow `None`.
+        /// - `reason` might not allow `None`.
         #[deprecated]
         #[unsafe(method(URLHandle:resourceDidFailLoadingWithReason:))]
         #[unsafe(method_family = none)]
@@ -150,12 +178,19 @@ extern_conformance!(
 
 impl NSURLHandle {
     extern_methods!(
+        /// # Safety
+        ///
+        /// - `an_url_handle_subclass` probably has further requirements.
+        /// - `an_url_handle_subclass` might not allow `None`.
         #[deprecated]
         #[unsafe(method(registerURLHandleClass:))]
         #[unsafe(method_family = none)]
         pub unsafe fn registerURLHandleClass(an_url_handle_subclass: Option<&AnyClass>);
 
         #[cfg(feature = "NSURL")]
+        /// # Safety
+        ///
+        /// `an_url` might not allow `None`.
         #[deprecated]
         #[unsafe(method(URLHandleClassForURL:))]
         #[unsafe(method_family = none)]
@@ -164,19 +199,25 @@ impl NSURLHandle {
         #[deprecated]
         #[unsafe(method(status))]
         #[unsafe(method_family = none)]
-        pub unsafe fn status(&self) -> NSURLHandleStatus;
+        pub fn status(&self) -> NSURLHandleStatus;
 
         #[cfg(feature = "NSString")]
         #[deprecated]
         #[unsafe(method(failureReason))]
         #[unsafe(method_family = none)]
-        pub unsafe fn failureReason(&self) -> Option<Retained<NSString>>;
+        pub fn failureReason(&self) -> Option<Retained<NSString>>;
 
+        /// # Safety
+        ///
+        /// `client` might not allow `None`.
         #[deprecated]
         #[unsafe(method(addClient:))]
         #[unsafe(method_family = none)]
         pub unsafe fn addClient(&self, client: Option<&ProtocolObject<dyn NSURLHandleClient>>);
 
+        /// # Safety
+        ///
+        /// `client` might not allow `None`.
         #[deprecated]
         #[unsafe(method(removeClient:))]
         #[unsafe(method_family = none)]
@@ -185,60 +226,75 @@ impl NSURLHandle {
         #[deprecated]
         #[unsafe(method(loadInBackground))]
         #[unsafe(method_family = none)]
-        pub unsafe fn loadInBackground(&self);
+        pub fn loadInBackground(&self);
 
         #[deprecated]
         #[unsafe(method(cancelLoadInBackground))]
         #[unsafe(method_family = none)]
-        pub unsafe fn cancelLoadInBackground(&self);
+        pub fn cancelLoadInBackground(&self);
 
         #[cfg(feature = "NSData")]
         #[deprecated]
         #[unsafe(method(resourceData))]
         #[unsafe(method_family = none)]
-        pub unsafe fn resourceData(&self) -> Option<Retained<NSData>>;
+        pub fn resourceData(&self) -> Option<Retained<NSData>>;
 
         #[cfg(feature = "NSData")]
         #[deprecated]
         #[unsafe(method(availableResourceData))]
         #[unsafe(method_family = none)]
-        pub unsafe fn availableResourceData(&self) -> Option<Retained<NSData>>;
+        pub fn availableResourceData(&self) -> Option<Retained<NSData>>;
 
         #[deprecated]
         #[unsafe(method(expectedResourceDataSize))]
         #[unsafe(method_family = none)]
-        pub unsafe fn expectedResourceDataSize(&self) -> c_longlong;
+        pub fn expectedResourceDataSize(&self) -> c_longlong;
 
         #[deprecated]
         #[unsafe(method(flushCachedData))]
         #[unsafe(method_family = none)]
-        pub unsafe fn flushCachedData(&self);
+        pub fn flushCachedData(&self);
 
         #[cfg(feature = "NSString")]
+        /// # Safety
+        ///
+        /// `reason` might not allow `None`.
         #[deprecated]
         #[unsafe(method(backgroundLoadDidFailWithReason:))]
         #[unsafe(method_family = none)]
         pub unsafe fn backgroundLoadDidFailWithReason(&self, reason: Option<&NSString>);
 
         #[cfg(feature = "NSData")]
+        /// # Safety
+        ///
+        /// `new_bytes` might not allow `None`.
         #[deprecated]
         #[unsafe(method(didLoadBytes:loadComplete:))]
         #[unsafe(method_family = none)]
         pub unsafe fn didLoadBytes_loadComplete(&self, new_bytes: Option<&NSData>, yorn: bool);
 
         #[cfg(feature = "NSURL")]
+        /// # Safety
+        ///
+        /// `an_url` might not allow `None`.
         #[deprecated]
         #[unsafe(method(canInitWithURL:))]
         #[unsafe(method_family = none)]
         pub unsafe fn canInitWithURL(an_url: Option<&NSURL>) -> bool;
 
         #[cfg(feature = "NSURL")]
+        /// # Safety
+        ///
+        /// `an_url` might not allow `None`.
         #[deprecated]
         #[unsafe(method(cachedHandleForURL:))]
         #[unsafe(method_family = none)]
         pub unsafe fn cachedHandleForURL(an_url: Option<&NSURL>) -> Option<Retained<NSURLHandle>>;
 
         #[cfg(feature = "NSURL")]
+        /// # Safety
+        ///
+        /// `an_url` might not allow `None`.
         #[deprecated]
         #[unsafe(method(initWithURL:cached:))]
         #[unsafe(method_family = init)]
@@ -249,6 +305,9 @@ impl NSURLHandle {
         ) -> Option<Retained<Self>>;
 
         #[cfg(feature = "NSString")]
+        /// # Safety
+        ///
+        /// `property_key` might not allow `None`.
         #[deprecated]
         #[unsafe(method(propertyForKey:))]
         #[unsafe(method_family = none)]
@@ -258,6 +317,9 @@ impl NSURLHandle {
         ) -> Option<Retained<AnyObject>>;
 
         #[cfg(feature = "NSString")]
+        /// # Safety
+        ///
+        /// `property_key` might not allow `None`.
         #[deprecated]
         #[unsafe(method(propertyForKeyIfAvailable:))]
         #[unsafe(method_family = none)]
@@ -267,6 +329,11 @@ impl NSURLHandle {
         ) -> Option<Retained<AnyObject>>;
 
         #[cfg(feature = "NSString")]
+        /// # Safety
+        ///
+        /// - `property_value` should be of the correct type.
+        /// - `property_value` might not allow `None`.
+        /// - `property_key` might not allow `None`.
         #[deprecated]
         #[unsafe(method(writeProperty:forKey:))]
         #[unsafe(method_family = none)]
@@ -277,6 +344,9 @@ impl NSURLHandle {
         ) -> bool;
 
         #[cfg(feature = "NSData")]
+        /// # Safety
+        ///
+        /// `data` might not allow `None`.
         #[deprecated]
         #[unsafe(method(writeData:))]
         #[unsafe(method_family = none)]
@@ -286,17 +356,17 @@ impl NSURLHandle {
         #[deprecated]
         #[unsafe(method(loadInForeground))]
         #[unsafe(method_family = none)]
-        pub unsafe fn loadInForeground(&self) -> Option<Retained<NSData>>;
+        pub fn loadInForeground(&self) -> Option<Retained<NSData>>;
 
         #[deprecated]
         #[unsafe(method(beginLoadInBackground))]
         #[unsafe(method_family = none)]
-        pub unsafe fn beginLoadInBackground(&self);
+        pub fn beginLoadInBackground(&self);
 
         #[deprecated]
         #[unsafe(method(endLoadInBackground))]
         #[unsafe(method_family = none)]
-        pub unsafe fn endLoadInBackground(&self);
+        pub fn endLoadInBackground(&self);
     );
 }
 
@@ -305,10 +375,17 @@ impl NSURLHandle {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl DefaultRetained for NSURLHandle {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }

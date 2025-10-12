@@ -1,3 +1,6 @@
+# 3.0.6
+ - switch from serde to serde_core
+
 # 3.0.5
  - updated base version in the docs
 

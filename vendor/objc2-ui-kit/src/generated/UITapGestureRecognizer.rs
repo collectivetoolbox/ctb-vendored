@@ -59,6 +59,10 @@ impl UITapGestureRecognizer {
 #[cfg(feature = "UIGestureRecognizer")]
 impl UITapGestureRecognizer {
     extern_methods!(
+        /// # Safety
+        ///
+        /// - `target` should be of the correct type.
+        /// - `action` must be a valid selector.
         #[unsafe(method(initWithTarget:action:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithTarget_action(
@@ -69,8 +73,11 @@ impl UITapGestureRecognizer {
 
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -86,6 +93,6 @@ impl UITapGestureRecognizer {
     extern_methods!(
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }

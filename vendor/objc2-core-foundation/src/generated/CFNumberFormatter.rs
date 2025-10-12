@@ -14,6 +14,7 @@ use crate::*;
 pub type CFNumberFormatterKey = CFString;
 
 /// [Apple's documentation](https://developer.apple.com/documentation/corefoundation/cfnumberformatter?language=objc)
+#[doc(alias = "CFNumberFormatterRef")]
 #[repr(C)]
 pub struct CFNumberFormatter {
     inner: [u8; 0],
@@ -78,6 +79,10 @@ unsafe impl RefEncode for CFNumberFormatterStyle {
 }
 
 impl CFNumberFormatter {
+    /// # Safety
+    ///
+    /// - `allocator` might not allow `None`.
+    /// - `locale` might not allow `None`.
     #[doc(alias = "CFNumberFormatterCreate")]
     #[cfg(feature = "CFLocale")]
     #[inline]
@@ -100,7 +105,7 @@ impl CFNumberFormatter {
     #[doc(alias = "CFNumberFormatterGetLocale")]
     #[cfg(feature = "CFLocale")]
     #[inline]
-    pub unsafe fn locale(self: &CFNumberFormatter) -> Option<CFRetained<CFLocale>> {
+    pub fn locale(&self) -> Option<CFRetained<CFLocale>> {
         extern "C-unwind" {
             fn CFNumberFormatterGetLocale(
                 formatter: &CFNumberFormatter,
@@ -112,7 +117,7 @@ impl CFNumberFormatter {
 
     #[doc(alias = "CFNumberFormatterGetStyle")]
     #[inline]
-    pub unsafe fn style(self: &CFNumberFormatter) -> CFNumberFormatterStyle {
+    pub fn style(&self) -> CFNumberFormatterStyle {
         extern "C-unwind" {
             fn CFNumberFormatterGetStyle(formatter: &CFNumberFormatter) -> CFNumberFormatterStyle;
         }
@@ -121,7 +126,7 @@ impl CFNumberFormatter {
 
     #[doc(alias = "CFNumberFormatterGetFormat")]
     #[inline]
-    pub unsafe fn format(self: &CFNumberFormatter) -> Option<CFRetained<CFString>> {
+    pub fn format(&self) -> Option<CFRetained<CFString>> {
         extern "C-unwind" {
             fn CFNumberFormatterGetFormat(
                 formatter: &CFNumberFormatter,
@@ -131,9 +136,12 @@ impl CFNumberFormatter {
         ret.map(|ret| unsafe { CFRetained::retain(ret) })
     }
 
+    /// # Safety
+    ///
+    /// `format_string` might not allow `None`.
     #[doc(alias = "CFNumberFormatterSetFormat")]
     #[inline]
-    pub unsafe fn set_format(self: &CFNumberFormatter, format_string: Option<&CFString>) {
+    pub unsafe fn set_format(&self, format_string: Option<&CFString>) {
         extern "C-unwind" {
             fn CFNumberFormatterSetFormat(
                 formatter: &CFNumberFormatter,
@@ -143,6 +151,11 @@ impl CFNumberFormatter {
         unsafe { CFNumberFormatterSetFormat(self, format_string) }
     }
 
+    /// # Safety
+    ///
+    /// - `allocator` might not allow `None`.
+    /// - `formatter` might not allow `None`.
+    /// - `number` might not allow `None`.
     #[doc(alias = "CFNumberFormatterCreateStringWithNumber")]
     #[cfg(feature = "CFNumber")]
     #[inline]
@@ -162,6 +175,11 @@ impl CFNumberFormatter {
         ret.map(|ret| unsafe { CFRetained::from_raw(ret) })
     }
 
+    /// # Safety
+    ///
+    /// - `allocator` might not allow `None`.
+    /// - `formatter` might not allow `None`.
+    /// - `value_ptr` must be a valid pointer.
     #[doc(alias = "CFNumberFormatterCreateStringWithValue")]
     #[cfg(feature = "CFNumber")]
     #[inline]
@@ -209,6 +227,12 @@ unsafe impl RefEncode for CFNumberFormatterOptionFlags {
 }
 
 impl CFNumberFormatter {
+    /// # Safety
+    ///
+    /// - `allocator` might not allow `None`.
+    /// - `formatter` might not allow `None`.
+    /// - `string` might not allow `None`.
+    /// - `rangep` must be a valid pointer.
     #[doc(alias = "CFNumberFormatterCreateNumberFromString")]
     #[cfg(feature = "CFNumber")]
     #[inline]
@@ -234,11 +258,16 @@ impl CFNumberFormatter {
         ret.map(|ret| unsafe { CFRetained::from_raw(ret) })
     }
 
+    /// # Safety
+    ///
+    /// - `string` might not allow `None`.
+    /// - `rangep` must be a valid pointer.
+    /// - `value_ptr` must be a valid pointer.
     #[doc(alias = "CFNumberFormatterGetValueFromString")]
     #[cfg(feature = "CFNumber")]
     #[inline]
     pub unsafe fn value_from_string(
-        self: &CFNumberFormatter,
+        &self,
         string: Option<&CFString>,
         rangep: *mut CFRange,
         number_type: CFNumberType,
@@ -259,13 +288,14 @@ impl CFNumberFormatter {
         ret != 0
     }
 
+    /// # Safety
+    ///
+    /// - `key` might not allow `None`.
+    /// - `value` should be of the correct type.
+    /// - `value` might not allow `None`.
     #[doc(alias = "CFNumberFormatterSetProperty")]
     #[inline]
-    pub unsafe fn set_property(
-        self: &CFNumberFormatter,
-        key: Option<&CFNumberFormatterKey>,
-        value: Option<&CFType>,
-    ) {
+    pub unsafe fn set_property(&self, key: Option<&CFNumberFormatterKey>, value: Option<&CFType>) {
         extern "C-unwind" {
             fn CFNumberFormatterSetProperty(
                 formatter: &CFNumberFormatter,
@@ -276,10 +306,13 @@ impl CFNumberFormatter {
         unsafe { CFNumberFormatterSetProperty(self, key, value) }
     }
 
+    /// # Safety
+    ///
+    /// `key` might not allow `None`.
     #[doc(alias = "CFNumberFormatterCopyProperty")]
     #[inline]
     pub unsafe fn property(
-        self: &CFNumberFormatter,
+        &self,
         key: Option<&CFNumberFormatterKey>,
     ) -> Option<CFRetained<CFType>> {
         extern "C-unwind" {
@@ -547,6 +580,11 @@ unsafe impl RefEncode for CFNumberFormatterPadPosition {
 }
 
 impl CFNumberFormatter {
+    /// # Safety
+    ///
+    /// - `currency_code` might not allow `None`.
+    /// - `default_fraction_digits` must be a valid pointer.
+    /// - `rounding_increment` must be a valid pointer.
     #[doc(alias = "CFNumberFormatterGetDecimalInfoForCurrencyCode")]
     #[inline]
     pub unsafe fn decimal_info_for_currency_code(
@@ -594,7 +632,7 @@ pub unsafe extern "C-unwind" fn CFNumberFormatterCreate(
 #[cfg(feature = "CFLocale")]
 #[deprecated = "renamed to `CFNumberFormatter::locale`"]
 #[inline]
-pub unsafe extern "C-unwind" fn CFNumberFormatterGetLocale(
+pub extern "C-unwind" fn CFNumberFormatterGetLocale(
     formatter: &CFNumberFormatter,
 ) -> Option<CFRetained<CFLocale>> {
     extern "C-unwind" {
@@ -604,14 +642,20 @@ pub unsafe extern "C-unwind" fn CFNumberFormatterGetLocale(
     ret.map(|ret| unsafe { CFRetained::retain(ret) })
 }
 
-extern "C-unwind" {
-    #[deprecated = "renamed to `CFNumberFormatter::style`"]
-    pub fn CFNumberFormatterGetStyle(formatter: &CFNumberFormatter) -> CFNumberFormatterStyle;
+#[deprecated = "renamed to `CFNumberFormatter::style`"]
+#[inline]
+pub extern "C-unwind" fn CFNumberFormatterGetStyle(
+    formatter: &CFNumberFormatter,
+) -> CFNumberFormatterStyle {
+    extern "C-unwind" {
+        fn CFNumberFormatterGetStyle(formatter: &CFNumberFormatter) -> CFNumberFormatterStyle;
+    }
+    unsafe { CFNumberFormatterGetStyle(formatter) }
 }
 
 #[deprecated = "renamed to `CFNumberFormatter::format`"]
 #[inline]
-pub unsafe extern "C-unwind" fn CFNumberFormatterGetFormat(
+pub extern "C-unwind" fn CFNumberFormatterGetFormat(
     formatter: &CFNumberFormatter,
 ) -> Option<CFRetained<CFString>> {
     extern "C-unwind" {

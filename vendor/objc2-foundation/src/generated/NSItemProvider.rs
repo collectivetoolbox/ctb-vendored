@@ -56,19 +56,19 @@ extern_protocol!(
         #[cfg(all(feature = "NSArray", feature = "NSString"))]
         #[unsafe(method(writableTypeIdentifiersForItemProvider))]
         #[unsafe(method_family = none)]
-        unsafe fn writableTypeIdentifiersForItemProvider_class() -> Retained<NSArray<NSString>>;
+        fn writableTypeIdentifiersForItemProvider_class() -> Retained<NSArray<NSString>>;
 
         #[cfg(all(feature = "NSArray", feature = "NSString"))]
         #[optional]
         #[unsafe(method(writableTypeIdentifiersForItemProvider))]
         #[unsafe(method_family = none)]
-        unsafe fn writableTypeIdentifiersForItemProvider(&self) -> Retained<NSArray<NSString>>;
+        fn writableTypeIdentifiersForItemProvider(&self) -> Retained<NSArray<NSString>>;
 
         #[cfg(feature = "NSString")]
         #[optional]
         #[unsafe(method(itemProviderVisibilityForRepresentationWithTypeIdentifier:))]
         #[unsafe(method_family = none)]
-        unsafe fn itemProviderVisibilityForRepresentationWithTypeIdentifier_class(
+        fn itemProviderVisibilityForRepresentationWithTypeIdentifier_class(
             type_identifier: &NSString,
         ) -> NSItemProviderRepresentationVisibility;
 
@@ -76,7 +76,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(itemProviderVisibilityForRepresentationWithTypeIdentifier:))]
         #[unsafe(method_family = none)]
-        unsafe fn itemProviderVisibilityForRepresentationWithTypeIdentifier(
+        fn itemProviderVisibilityForRepresentationWithTypeIdentifier(
             &self,
             type_identifier: &NSString,
         ) -> NSItemProviderRepresentationVisibility;
@@ -88,6 +88,9 @@ extern_protocol!(
             feature = "NSString",
             feature = "block2"
         ))]
+        /// # Safety
+        ///
+        /// `completion_handler` block must be sendable.
         #[unsafe(method(loadDataWithTypeIdentifier:forItemProviderCompletionHandler:))]
         #[unsafe(method_family = none)]
         unsafe fn loadDataWithTypeIdentifier_forItemProviderCompletionHandler(
@@ -104,12 +107,12 @@ extern_protocol!(
         #[cfg(all(feature = "NSArray", feature = "NSString"))]
         #[unsafe(method(readableTypeIdentifiersForItemProvider))]
         #[unsafe(method_family = none)]
-        unsafe fn readableTypeIdentifiersForItemProvider() -> Retained<NSArray<NSString>>;
+        fn readableTypeIdentifiersForItemProvider() -> Retained<NSArray<NSString>>;
 
         #[cfg(all(feature = "NSData", feature = "NSError", feature = "NSString"))]
         #[unsafe(method(objectWithItemProviderData:typeIdentifier:error:_))]
         #[unsafe(method_family = none)]
-        unsafe fn objectWithItemProviderData_typeIdentifier_error(
+        fn objectWithItemProviderData_typeIdentifier_error(
             data: &NSData,
             type_identifier: &NSString,
         ) -> Result<Retained<Self>, Retained<NSError>>;
@@ -157,7 +160,7 @@ impl NSItemProvider {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[cfg(all(
             feature = "NSData",
@@ -166,6 +169,9 @@ impl NSItemProvider {
             feature = "NSString",
             feature = "block2"
         ))]
+        /// # Safety
+        ///
+        /// `load_handler` block must be sendable.
         #[unsafe(method(registerDataRepresentationForTypeIdentifier:visibility:loadHandler:))]
         #[unsafe(method_family = none)]
         pub unsafe fn registerDataRepresentationForTypeIdentifier_visibility_loadHandler(
@@ -186,6 +192,9 @@ impl NSItemProvider {
             feature = "NSURL",
             feature = "block2"
         ))]
+        /// # Safety
+        ///
+        /// `load_handler` block must be sendable.
         #[unsafe(method(registerFileRepresentationForTypeIdentifier:fileOptions:visibility:loadHandler:))]
         #[unsafe(method_family = none)]
         pub unsafe fn registerFileRepresentationForTypeIdentifier_fileOptions_visibility_loadHandler(
@@ -203,12 +212,12 @@ impl NSItemProvider {
         #[cfg(all(feature = "NSArray", feature = "NSString"))]
         #[unsafe(method(registeredTypeIdentifiers))]
         #[unsafe(method_family = none)]
-        pub unsafe fn registeredTypeIdentifiers(&self) -> Retained<NSArray<NSString>>;
+        pub fn registeredTypeIdentifiers(&self) -> Retained<NSArray<NSString>>;
 
         #[cfg(all(feature = "NSArray", feature = "NSString"))]
         #[unsafe(method(registeredTypeIdentifiersWithFileOptions:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn registeredTypeIdentifiersWithFileOptions(
+        pub fn registeredTypeIdentifiersWithFileOptions(
             &self,
             file_options: NSItemProviderFileOptions,
         ) -> Retained<NSArray<NSString>>;
@@ -216,12 +225,12 @@ impl NSItemProvider {
         #[cfg(feature = "NSString")]
         #[unsafe(method(hasItemConformingToTypeIdentifier:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn hasItemConformingToTypeIdentifier(&self, type_identifier: &NSString) -> bool;
+        pub fn hasItemConformingToTypeIdentifier(&self, type_identifier: &NSString) -> bool;
 
         #[cfg(feature = "NSString")]
         #[unsafe(method(hasRepresentationConformingToTypeIdentifier:fileOptions:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn hasRepresentationConformingToTypeIdentifier_fileOptions(
+        pub fn hasRepresentationConformingToTypeIdentifier_fileOptions(
             &self,
             type_identifier: &NSString,
             file_options: NSItemProviderFileOptions,
@@ -234,6 +243,9 @@ impl NSItemProvider {
             feature = "NSString",
             feature = "block2"
         ))]
+        /// # Safety
+        ///
+        /// `completion_handler` block must be sendable.
         #[unsafe(method(loadDataRepresentationForTypeIdentifier:completionHandler:))]
         #[unsafe(method_family = none)]
         pub unsafe fn loadDataRepresentationForTypeIdentifier_completionHandler(
@@ -249,6 +261,9 @@ impl NSItemProvider {
             feature = "NSURL",
             feature = "block2"
         ))]
+        /// # Safety
+        ///
+        /// `completion_handler` block must be sendable.
         #[unsafe(method(loadFileRepresentationForTypeIdentifier:completionHandler:))]
         #[unsafe(method_family = none)]
         pub unsafe fn loadFileRepresentationForTypeIdentifier_completionHandler(
@@ -264,6 +279,9 @@ impl NSItemProvider {
             feature = "NSURL",
             feature = "block2"
         ))]
+        /// # Safety
+        ///
+        /// `completion_handler` block must be sendable.
         #[unsafe(method(loadInPlaceFileRepresentationForTypeIdentifier:completionHandler:))]
         #[unsafe(method_family = none)]
         pub unsafe fn loadInPlaceFileRepresentationForTypeIdentifier_completionHandler(
@@ -275,30 +293,35 @@ impl NSItemProvider {
         #[cfg(feature = "NSString")]
         #[unsafe(method(suggestedName))]
         #[unsafe(method_family = none)]
-        pub unsafe fn suggestedName(&self) -> Option<Retained<NSString>>;
+        pub fn suggestedName(&self) -> Option<Retained<NSString>>;
 
         #[cfg(feature = "NSString")]
         /// Setter for [`suggestedName`][Self::suggestedName].
+        ///
+        /// This is [copied][crate::NSCopying::copy] when set.
         #[unsafe(method(setSuggestedName:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setSuggestedName(&self, suggested_name: Option<&NSString>);
+        pub fn setSuggestedName(&self, suggested_name: Option<&NSString>);
 
         #[unsafe(method(initWithObject:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithObject(
+        pub fn initWithObject(
             this: Allocated<Self>,
             object: &ProtocolObject<dyn NSItemProviderWriting>,
         ) -> Retained<Self>;
 
         #[unsafe(method(registerObject:visibility:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn registerObject_visibility(
+        pub fn registerObject_visibility(
             &self,
             object: &ProtocolObject<dyn NSItemProviderWriting>,
             visibility: NSItemProviderRepresentationVisibility,
         );
 
         #[cfg(all(feature = "NSObject", feature = "NSString"))]
+        /// # Safety
+        ///
+        /// `item` should be of the correct type.
         #[unsafe(method(initWithItem:typeIdentifier:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithItem_typeIdentifier(
@@ -308,6 +331,9 @@ impl NSItemProvider {
         ) -> Retained<Self>;
 
         #[cfg(feature = "NSURL")]
+        /// # Safety
+        ///
+        /// `file_url` might not allow `None`.
         #[unsafe(method(initWithContentsOfURL:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithContentsOfURL(
@@ -322,6 +348,9 @@ impl NSItemProvider {
             feature = "NSString",
             feature = "block2"
         ))]
+        /// # Safety
+        ///
+        /// `load_handler` must be a valid pointer.
         #[unsafe(method(registerItemForTypeIdentifier:loadHandler:))]
         #[unsafe(method_family = none)]
         pub unsafe fn registerItemForTypeIdentifier_loadHandler(
@@ -337,6 +366,10 @@ impl NSItemProvider {
             feature = "NSString",
             feature = "block2"
         ))]
+        /// # Safety
+        ///
+        /// - `options` generic should be of the correct type.
+        /// - `completion_handler` must be a valid pointer or null.
         #[unsafe(method(loadItemForTypeIdentifier:options:completionHandler:))]
         #[unsafe(method_family = none)]
         pub unsafe fn loadItemForTypeIdentifier_options_completionHandler(
@@ -353,8 +386,15 @@ impl NSItemProvider {
     extern_methods!(
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl DefaultRetained for NSItemProvider {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }
 
 extern "C" {
@@ -372,6 +412,9 @@ impl NSItemProvider {
             feature = "NSObject",
             feature = "block2"
         ))]
+        /// # Safety
+        ///
+        /// The returned block must be sendable.
         #[unsafe(method(previewImageHandler))]
         #[unsafe(method_family = none)]
         pub unsafe fn previewImageHandler(&self) -> NSItemProviderLoadHandler;
@@ -383,6 +426,12 @@ impl NSItemProvider {
             feature = "block2"
         ))]
         /// Setter for [`previewImageHandler`][Self::previewImageHandler].
+        ///
+        /// This is [copied][crate::NSCopying::copy] when set.
+        ///
+        /// # Safety
+        ///
+        /// `preview_image_handler` must be a valid pointer or null.
         #[unsafe(method(setPreviewImageHandler:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setPreviewImageHandler(
@@ -396,6 +445,11 @@ impl NSItemProvider {
             feature = "NSObject",
             feature = "block2"
         ))]
+        /// # Safety
+        ///
+        /// - `options` generic should be of the correct type.
+        /// - `options` might not allow `None`.
+        /// - `completion_handler` must be a valid pointer.
         #[unsafe(method(loadPreviewImageWithOptions:completionHandler:))]
         #[unsafe(method_family = none)]
         pub unsafe fn loadPreviewImageWithOptions_completionHandler(

@@ -28,6 +28,10 @@ extern_conformance!(
 #[cfg(feature = "NSTouchBarItem")]
 impl NSButtonTouchBarItem {
     extern_methods!(
+        /// # Safety
+        ///
+        /// - `target` should be of the correct type.
+        /// - `action` must be a valid selector.
         #[unsafe(method(buttonTouchBarItemWithIdentifier:title:target:action:))]
         #[unsafe(method_family = none)]
         pub unsafe fn buttonTouchBarItemWithIdentifier_title_target_action(
@@ -39,6 +43,10 @@ impl NSButtonTouchBarItem {
         ) -> Retained<Self>;
 
         #[cfg(feature = "NSImage")]
+        /// # Safety
+        ///
+        /// - `target` should be of the correct type.
+        /// - `action` must be a valid selector.
         #[unsafe(method(buttonTouchBarItemWithIdentifier:image:target:action:))]
         #[unsafe(method_family = none)]
         pub unsafe fn buttonTouchBarItemWithIdentifier_image_target_action(
@@ -50,6 +58,10 @@ impl NSButtonTouchBarItem {
         ) -> Retained<Self>;
 
         #[cfg(feature = "NSImage")]
+        /// # Safety
+        ///
+        /// - `target` should be of the correct type.
+        /// - `action` must be a valid selector.
         #[unsafe(method(buttonTouchBarItemWithIdentifier:title:image:target:action:))]
         #[unsafe(method_family = none)]
         pub unsafe fn buttonTouchBarItemWithIdentifier_title_image_target_action(
@@ -63,72 +75,87 @@ impl NSButtonTouchBarItem {
 
         #[unsafe(method(title))]
         #[unsafe(method_family = none)]
-        pub unsafe fn title(&self) -> Retained<NSString>;
+        pub fn title(&self) -> Retained<NSString>;
 
         /// Setter for [`title`][Self::title].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setTitle:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setTitle(&self, title: &NSString);
+        pub fn setTitle(&self, title: &NSString);
 
         #[cfg(feature = "NSImage")]
         #[unsafe(method(image))]
         #[unsafe(method_family = none)]
-        pub unsafe fn image(&self) -> Option<Retained<NSImage>>;
+        pub fn image(&self) -> Option<Retained<NSImage>>;
 
         #[cfg(feature = "NSImage")]
         /// Setter for [`image`][Self::image].
         #[unsafe(method(setImage:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setImage(&self, image: Option<&NSImage>);
+        pub fn setImage(&self, image: Option<&NSImage>);
 
         #[cfg(feature = "NSColor")]
         #[unsafe(method(bezelColor))]
         #[unsafe(method_family = none)]
-        pub unsafe fn bezelColor(&self) -> Option<Retained<NSColor>>;
+        pub fn bezelColor(&self) -> Option<Retained<NSColor>>;
 
         #[cfg(feature = "NSColor")]
         /// Setter for [`bezelColor`][Self::bezelColor].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setBezelColor:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setBezelColor(&self, bezel_color: Option<&NSColor>);
+        pub fn setBezelColor(&self, bezel_color: Option<&NSColor>);
 
         #[unsafe(method(target))]
         #[unsafe(method_family = none)]
-        pub unsafe fn target(&self) -> Option<Retained<AnyObject>>;
+        pub fn target(&self) -> Option<Retained<AnyObject>>;
 
-        /// This is a [weak property][objc2::topics::weak_property].
         /// Setter for [`target`][Self::target].
+        ///
+        /// This is a [weak property][objc2::topics::weak_property].
+        ///
+        /// # Safety
+        ///
+        /// `target` should be of the correct type.
         #[unsafe(method(setTarget:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setTarget(&self, target: Option<&AnyObject>);
 
         #[unsafe(method(action))]
         #[unsafe(method_family = none)]
-        pub unsafe fn action(&self) -> Option<Sel>;
+        pub fn action(&self) -> Option<Sel>;
 
         /// Setter for [`action`][Self::action].
+        ///
+        /// # Safety
+        ///
+        /// `action` must be a valid selector.
         #[unsafe(method(setAction:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setAction(&self, action: Option<Sel>);
 
         #[unsafe(method(isEnabled))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isEnabled(&self) -> bool;
+        pub fn isEnabled(&self) -> bool;
 
         /// Setter for [`isEnabled`][Self::isEnabled].
         #[unsafe(method(setEnabled:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setEnabled(&self, enabled: bool);
+        pub fn setEnabled(&self, enabled: bool);
 
         /// The localized string labelling this item during user customization. The default value is empty string.
         #[unsafe(method(customizationLabel))]
         #[unsafe(method_family = none)]
-        pub unsafe fn customizationLabel(&self) -> Retained<NSString>;
+        pub fn customizationLabel(&self) -> Retained<NSString>;
 
         /// Setter for [`customizationLabel`][Self::customizationLabel].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setCustomizationLabel:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setCustomizationLabel(&self, customization_label: Option<&NSString>);
+        pub fn setCustomizationLabel(&self, customization_label: Option<&NSString>);
     );
 }
 
@@ -138,11 +165,14 @@ impl NSButtonTouchBarItem {
     extern_methods!(
         #[unsafe(method(initWithIdentifier:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithIdentifier(
+        pub fn initWithIdentifier(
             this: Allocated<Self>,
             identifier: &NSTouchBarItemIdentifier,
         ) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(

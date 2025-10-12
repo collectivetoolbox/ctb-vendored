@@ -66,6 +66,9 @@ impl DOMCSSMediaRule {
         #[unsafe(method_family = none)]
         pub unsafe fn cssRules(&self) -> Option<Retained<DOMCSSRuleList>>;
 
+        /// # Safety
+        ///
+        /// `rule` might not allow `None`.
         #[unsafe(method(insertRule:index:))]
         #[unsafe(method_family = none)]
         pub unsafe fn insertRule_index(&self, rule: Option<&NSString>, index: c_uint) -> c_uint;
@@ -107,6 +110,7 @@ impl DOMCSSMediaRule {
 }
 
 /// DOMCSSMediaRuleDeprecated.
+#[deprecated]
 #[cfg(all(
     feature = "DOMCSSRule",
     feature = "DOMObject",
@@ -114,6 +118,9 @@ impl DOMCSSMediaRule {
 ))]
 impl DOMCSSMediaRule {
     extern_methods!(
+        /// # Safety
+        ///
+        /// `rule` might not allow `None`.
         #[deprecated]
         #[unsafe(method(insertRule::))]
         #[unsafe(method_family = none)]

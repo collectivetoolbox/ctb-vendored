@@ -40,36 +40,44 @@ impl NSListFormatter {
         #[cfg(feature = "NSLocale")]
         #[unsafe(method(locale))]
         #[unsafe(method_family = none)]
-        pub unsafe fn locale(&self) -> Retained<NSLocale>;
+        pub fn locale(&self) -> Retained<NSLocale>;
 
         #[cfg(feature = "NSLocale")]
         /// Setter for [`locale`][Self::locale].
+        ///
+        /// This is [copied][crate::NSCopying::copy] when set.
         #[unsafe(method(setLocale:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setLocale(&self, locale: Option<&NSLocale>);
+        pub fn setLocale(&self, locale: Option<&NSLocale>);
 
         #[unsafe(method(itemFormatter))]
         #[unsafe(method_family = none)]
-        pub unsafe fn itemFormatter(&self) -> Option<Retained<NSFormatter>>;
+        pub fn itemFormatter(&self) -> Option<Retained<NSFormatter>>;
 
         /// Setter for [`itemFormatter`][Self::itemFormatter].
+        ///
+        /// This is [copied][crate::NSCopying::copy] when set.
         #[unsafe(method(setItemFormatter:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setItemFormatter(&self, item_formatter: Option<&NSFormatter>);
+        pub fn setItemFormatter(&self, item_formatter: Option<&NSFormatter>);
 
         #[cfg(all(feature = "NSArray", feature = "NSString"))]
         #[unsafe(method(localizedStringByJoiningStrings:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn localizedStringByJoiningStrings(
-            strings: &NSArray<NSString>,
-        ) -> Retained<NSString>;
+        pub fn localizedStringByJoiningStrings(strings: &NSArray<NSString>) -> Retained<NSString>;
 
         #[cfg(all(feature = "NSArray", feature = "NSString"))]
+        /// # Safety
+        ///
+        /// `items` generic should be of the correct type.
         #[unsafe(method(stringFromItems:))]
         #[unsafe(method_family = none)]
         pub unsafe fn stringFromItems(&self, items: &NSArray) -> Option<Retained<NSString>>;
 
         #[cfg(feature = "NSString")]
+        /// # Safety
+        ///
+        /// `obj` should be of the correct type.
         #[unsafe(method(stringForObjectValue:))]
         #[unsafe(method_family = none)]
         pub unsafe fn stringForObjectValue(
@@ -85,10 +93,18 @@ impl NSListFormatter {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+#[cfg(feature = "NSFormatter")]
+impl DefaultRetained for NSListFormatter {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }

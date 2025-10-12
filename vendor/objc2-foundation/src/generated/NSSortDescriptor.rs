@@ -42,12 +42,15 @@ impl NSSortDescriptor {
         #[cfg(feature = "NSString")]
         #[unsafe(method(sortDescriptorWithKey:ascending:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn sortDescriptorWithKey_ascending(
+        pub fn sortDescriptorWithKey_ascending(
             key: Option<&NSString>,
             ascending: bool,
         ) -> Retained<Self>;
 
         #[cfg(feature = "NSString")]
+        /// # Safety
+        ///
+        /// `selector` must be a valid selector.
         #[unsafe(method(sortDescriptorWithKey:ascending:selector:))]
         #[unsafe(method_family = none)]
         pub unsafe fn sortDescriptorWithKey_ascending_selector(
@@ -59,13 +62,16 @@ impl NSSortDescriptor {
         #[cfg(feature = "NSString")]
         #[unsafe(method(initWithKey:ascending:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithKey_ascending(
+        pub fn initWithKey_ascending(
             this: Allocated<Self>,
             key: Option<&NSString>,
             ascending: bool,
         ) -> Retained<Self>;
 
         #[cfg(feature = "NSString")]
+        /// # Safety
+        ///
+        /// `selector` must be a valid selector.
         #[unsafe(method(initWithKey:ascending:selector:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithKey_ascending_selector(
@@ -76,6 +82,9 @@ impl NSSortDescriptor {
         ) -> Retained<Self>;
 
         #[cfg(feature = "NSCoder")]
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -86,21 +95,24 @@ impl NSSortDescriptor {
         #[cfg(feature = "NSString")]
         #[unsafe(method(key))]
         #[unsafe(method_family = none)]
-        pub unsafe fn key(&self) -> Option<Retained<NSString>>;
+        pub fn key(&self) -> Option<Retained<NSString>>;
 
         #[unsafe(method(ascending))]
         #[unsafe(method_family = none)]
-        pub unsafe fn ascending(&self) -> bool;
+        pub fn ascending(&self) -> bool;
 
         #[unsafe(method(selector))]
         #[unsafe(method_family = none)]
-        pub unsafe fn selector(&self) -> Option<Sel>;
+        pub fn selector(&self) -> Option<Sel>;
 
         #[unsafe(method(allowEvaluation))]
         #[unsafe(method_family = none)]
-        pub unsafe fn allowEvaluation(&self);
+        pub fn allowEvaluation(&self);
 
         #[cfg(all(feature = "NSObjCRuntime", feature = "NSString", feature = "block2"))]
+        /// # Safety
+        ///
+        /// `cmptr` must be a valid pointer.
         #[unsafe(method(sortDescriptorWithKey:ascending:comparator:))]
         #[unsafe(method_family = none)]
         pub unsafe fn sortDescriptorWithKey_ascending_comparator(
@@ -110,6 +122,9 @@ impl NSSortDescriptor {
         ) -> Retained<Self>;
 
         #[cfg(all(feature = "NSObjCRuntime", feature = "NSString", feature = "block2"))]
+        /// # Safety
+        ///
+        /// `cmptr` must be a valid pointer.
         #[unsafe(method(initWithKey:ascending:comparator:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithKey_ascending_comparator(
@@ -120,11 +135,19 @@ impl NSSortDescriptor {
         ) -> Retained<Self>;
 
         #[cfg(all(feature = "NSObjCRuntime", feature = "block2"))]
+        /// # Safety
+        ///
+        /// - The returned block's argument 1 must be a valid pointer.
+        /// - The returned block's argument 2 must be a valid pointer.
         #[unsafe(method(comparator))]
         #[unsafe(method_family = none)]
         pub unsafe fn comparator(&self) -> NSComparator;
 
         #[cfg(feature = "NSObjCRuntime")]
+        /// # Safety
+        ///
+        /// - `object1` should be of the correct type.
+        /// - `object2` should be of the correct type.
         #[unsafe(method(compareObject:toObject:))]
         #[unsafe(method_family = none)]
         pub unsafe fn compareObject_toObject(
@@ -135,7 +158,7 @@ impl NSSortDescriptor {
 
         #[unsafe(method(reversedSortDescriptor))]
         #[unsafe(method_family = none)]
-        pub unsafe fn reversedSortDescriptor(&self) -> Retained<AnyObject>;
+        pub fn reversedSortDescriptor(&self) -> Retained<AnyObject>;
     );
 }
 
@@ -144,12 +167,19 @@ impl NSSortDescriptor {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl DefaultRetained for NSSortDescriptor {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }
 
 /// NSSortDescriptorSorting.
@@ -159,7 +189,7 @@ impl<ObjectType: Message> NSSet<ObjectType> {
         #[cfg(feature = "NSArray")]
         #[unsafe(method(sortedArrayUsingDescriptors:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn sortedArrayUsingDescriptors(
+        pub fn sortedArrayUsingDescriptors(
             &self,
             sort_descriptors: &NSArray<NSSortDescriptor>,
         ) -> Retained<NSArray<ObjectType>>;
@@ -172,7 +202,7 @@ impl<ObjectType: Message> NSArray<ObjectType> {
     extern_methods!(
         #[unsafe(method(sortedArrayUsingDescriptors:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn sortedArrayUsingDescriptors(
+        pub fn sortedArrayUsingDescriptors(
             &self,
             sort_descriptors: &NSArray<NSSortDescriptor>,
         ) -> Retained<NSArray<ObjectType>>;
@@ -185,7 +215,7 @@ impl<ObjectType: Message> NSMutableArray<ObjectType> {
     extern_methods!(
         #[unsafe(method(sortUsingDescriptors:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn sortUsingDescriptors(&self, sort_descriptors: &NSArray<NSSortDescriptor>);
+        pub fn sortUsingDescriptors(&self, sort_descriptors: &NSArray<NSSortDescriptor>);
     );
 }
 
@@ -196,7 +226,7 @@ impl<ObjectType: Message> NSOrderedSet<ObjectType> {
         #[cfg(feature = "NSArray")]
         #[unsafe(method(sortedArrayUsingDescriptors:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn sortedArrayUsingDescriptors(
+        pub fn sortedArrayUsingDescriptors(
             &self,
             sort_descriptors: &NSArray<NSSortDescriptor>,
         ) -> Retained<NSArray<ObjectType>>;
@@ -210,6 +240,6 @@ impl<ObjectType: Message> NSMutableOrderedSet<ObjectType> {
         #[cfg(feature = "NSArray")]
         #[unsafe(method(sortUsingDescriptors:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn sortUsingDescriptors(&self, sort_descriptors: &NSArray<NSSortDescriptor>);
+        pub fn sortUsingDescriptors(&self, sort_descriptors: &NSArray<NSSortDescriptor>);
     );
 }

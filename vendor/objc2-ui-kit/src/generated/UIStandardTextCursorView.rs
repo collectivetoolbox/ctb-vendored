@@ -117,14 +117,21 @@ impl UIStandardTextCursorView {
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(initWithFrame:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithFrame(this: Allocated<Self>, frame: CGRect) -> Retained<Self>;
+        pub fn initWithFrame(this: Allocated<Self>, frame: CGRect) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
             this: Allocated<Self>,
             coder: &NSCoder,
         ) -> Option<Retained<Self>>;
+
+        #[unsafe(method(init))]
+        #[unsafe(method_family = init)]
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
     );
 }
 
@@ -132,12 +139,8 @@ impl UIStandardTextCursorView {
 #[cfg(all(feature = "UIResponder", feature = "UIView"))]
 impl UIStandardTextCursorView {
     extern_methods!(
-        #[unsafe(method(init))]
-        #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
-
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }

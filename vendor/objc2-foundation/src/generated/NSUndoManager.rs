@@ -25,6 +25,7 @@ extern "C" {
 extern_class!(
     /// [Apple's documentation](https://developer.apple.com/documentation/foundation/nsundomanager?language=objc)
     #[unsafe(super(NSObject))]
+    #[thread_kind = MainThreadOnly]
     #[derive(Debug, PartialEq, Eq, Hash)]
     pub struct NSUndoManager;
 );
@@ -42,7 +43,7 @@ impl NSUndoManager {
         /// This method posts an ``NSUndoManagerCheckpointNotification`` unless a top-level undo is in progress. It posts an ``NSUndoManagerDidOpenUndoGroupNotification`` if a new group was successfully created.
         #[unsafe(method(beginUndoGrouping))]
         #[unsafe(method_family = none)]
-        pub unsafe fn beginUndoGrouping(&self);
+        pub fn beginUndoGrouping(&self);
 
         /// Marks the end of an undo group.
         ///
@@ -51,21 +52,21 @@ impl NSUndoManager {
         /// This method posts an ``NSUndoManagerCheckpointNotification`` and an ``NSUndoManagerDidCloseUndoGroupNotification`` just before the group is closed.
         #[unsafe(method(endUndoGrouping))]
         #[unsafe(method_family = none)]
-        pub unsafe fn endUndoGrouping(&self);
+        pub fn endUndoGrouping(&self);
 
         /// The number of nested undo groups (or redo groups, if Redo was invoked last) in the current event loop.
         ///
         /// An integer indicating the number of nested groups. If `0` is returned, there is no open undo or redo group.
         #[unsafe(method(groupingLevel))]
         #[unsafe(method_family = none)]
-        pub unsafe fn groupingLevel(&self) -> NSInteger;
+        pub fn groupingLevel(&self) -> NSInteger;
 
         /// Disables the recording of undo operations, whether by ``registerUndoWithTarget:selector:object:`` or by invocation-based undo.
         ///
         /// This method can be invoked multiple times by multiple clients. The ``enableUndoRegistration`` method must be invoked an equal number of times to re-enable undo registration.
         #[unsafe(method(disableUndoRegistration))]
         #[unsafe(method_family = none)]
-        pub unsafe fn disableUndoRegistration(&self);
+        pub fn disableUndoRegistration(&self);
 
         /// Enables the recording of undo operations.
         ///
@@ -73,12 +74,12 @@ impl NSUndoManager {
         /// Raises an NSInternalInconsistencyException if invoked while no disableUndoRegistration() message is in effect.
         #[unsafe(method(enableUndoRegistration))]
         #[unsafe(method_family = none)]
-        pub unsafe fn enableUndoRegistration(&self);
+        pub fn enableUndoRegistration(&self);
 
         /// Whether the recording of undo operations is enabled.
         #[unsafe(method(isUndoRegistrationEnabled))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isUndoRegistrationEnabled(&self) -> bool;
+        pub fn isUndoRegistrationEnabled(&self) -> bool;
 
         /// A Boolean value that indicates whether the receiver automatically creates undo groups around each pass of the run loop.
         ///
@@ -86,12 +87,12 @@ impl NSUndoManager {
         /// The default is `true`. If you turn automatic grouping off, you must close groups explicitly before invoking either ``undo`` or ``undoNestedGroup``.
         #[unsafe(method(groupsByEvent))]
         #[unsafe(method_family = none)]
-        pub unsafe fn groupsByEvent(&self) -> bool;
+        pub fn groupsByEvent(&self) -> bool;
 
         /// Setter for [`groupsByEvent`][Self::groupsByEvent].
         #[unsafe(method(setGroupsByEvent:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setGroupsByEvent(&self, groups_by_event: bool);
+        pub fn setGroupsByEvent(&self, groups_by_event: bool);
 
         /// The maximum number of top-level undo groups the receiver holds.
         ///
@@ -100,12 +101,12 @@ impl NSUndoManager {
         /// If you change the limit to a level below the prior limit, old undo groups are immediately dropped.
         #[unsafe(method(levelsOfUndo))]
         #[unsafe(method_family = none)]
-        pub unsafe fn levelsOfUndo(&self) -> NSUInteger;
+        pub fn levelsOfUndo(&self) -> NSUInteger;
 
         /// Setter for [`levelsOfUndo`][Self::levelsOfUndo].
         #[unsafe(method(setLevelsOfUndo:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setLevelsOfUndo(&self, levels_of_undo: NSUInteger);
+        pub fn setLevelsOfUndo(&self, levels_of_undo: NSUInteger);
 
         #[cfg(all(feature = "NSArray", feature = "NSObjCRuntime", feature = "NSString"))]
         /// The modes governing the types of input handled during a cycle of the run loop.
@@ -114,13 +115,15 @@ impl NSUndoManager {
         /// By default, the sole run-loop mode is ``NSDefaultRunLoopMode`` (which excludes data from ``NSConnection`` objects). Some examples of other uses are to limit the input to data received during a mouse-tracking session by setting the mode to ``NSEventTrackingRunLoopMode``, or limit it to data received from a modal panel with ``NSModalPanelRunLoopMode``.
         #[unsafe(method(runLoopModes))]
         #[unsafe(method_family = none)]
-        pub unsafe fn runLoopModes(&self) -> Retained<NSArray<NSRunLoopMode>>;
+        pub fn runLoopModes(&self) -> Retained<NSArray<NSRunLoopMode>>;
 
         #[cfg(all(feature = "NSArray", feature = "NSObjCRuntime", feature = "NSString"))]
         /// Setter for [`runLoopModes`][Self::runLoopModes].
+        ///
+        /// This is [copied][crate::NSCopying::copy] when set.
         #[unsafe(method(setRunLoopModes:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setRunLoopModes(&self, run_loop_modes: &NSArray<NSRunLoopMode>);
+        pub fn setRunLoopModes(&self, run_loop_modes: &NSArray<NSRunLoopMode>);
 
         /// Closes the top-level undo group if necessary and invokes ``undoNestedGroup``.
         ///
@@ -128,7 +131,7 @@ impl NSUndoManager {
         /// This method posts an ``NSUndoManagerCheckpointNotification``.
         #[unsafe(method(undo))]
         #[unsafe(method_family = none)]
-        pub unsafe fn undo(&self);
+        pub fn undo(&self);
 
         /// Performs the operations in the last group on the redo stack, if there are any, recording them on the undo stack as a single group.
         ///
@@ -136,7 +139,7 @@ impl NSUndoManager {
         /// This method posts an ``NSUndoManagerCheckpointNotification`` and ``NSUndoManagerWillRedoChangeNotification`` before it performs the redo operation, and it posts the ``NSUndoManagerDidRedoChangeNotification`` after it performs the redo operation.
         #[unsafe(method(redo))]
         #[unsafe(method_family = none)]
-        pub unsafe fn redo(&self);
+        pub fn redo(&self);
 
         /// Performs the undo operations in the last undo group (whether top-level or nested), recording the operations on the redo stack as a single group.
         ///
@@ -144,54 +147,58 @@ impl NSUndoManager {
         /// This method posts an ``NSUndoManagerCheckpointNotification`` and ``NSUndoManagerWillUndoChangeNotification`` before it performs the undo operation, and it posts an ``NSUndoManagerDidUndoChangeNotification`` after it performs the undo operation.
         #[unsafe(method(undoNestedGroup))]
         #[unsafe(method_family = none)]
-        pub unsafe fn undoNestedGroup(&self);
+        pub fn undoNestedGroup(&self);
 
         /// Whether the receiver has any actions to undo.
         ///
         /// The return value does not mean you can safely invoke ``undo`` or ``undoNestedGroup`` — you may have to close open undo groups first.
         #[unsafe(method(canUndo))]
         #[unsafe(method_family = none)]
-        pub unsafe fn canUndo(&self) -> bool;
+        pub fn canUndo(&self) -> bool;
 
         /// Whether the receiver has any actions to redo.
         ///
         /// Because any undo operation registered clears the redo stack, this method posts an NSUndoManagerCheckpointNotification to allow clients to apply their pending operations before testing the redo stack.
         #[unsafe(method(canRedo))]
         #[unsafe(method_family = none)]
-        pub unsafe fn canRedo(&self) -> bool;
+        pub fn canRedo(&self) -> bool;
 
         /// How many times `undo` can be invoked before there are no more actions left to
         /// be undone
         #[unsafe(method(undoCount))]
         #[unsafe(method_family = none)]
-        pub unsafe fn undoCount(&self) -> NSUInteger;
+        pub fn undoCount(&self) -> NSUInteger;
 
         /// How many times `redo` can be invoked before there are no more actions left to
         /// be redone
         #[unsafe(method(redoCount))]
         #[unsafe(method_family = none)]
-        pub unsafe fn redoCount(&self) -> NSUInteger;
+        pub fn redoCount(&self) -> NSUInteger;
 
         /// Whether the receiver is in the process of performing its ``undo`` or ``undoNestedGroup`` method.
         #[unsafe(method(isUndoing))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isUndoing(&self) -> bool;
+        pub fn isUndoing(&self) -> bool;
 
         /// Whether the receiver is in the process of performing its ``redo`` method.
         #[unsafe(method(isRedoing))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isRedoing(&self) -> bool;
+        pub fn isRedoing(&self) -> bool;
 
         /// Clears the undo and redo stacks and re-enables the receiver.
         #[unsafe(method(removeAllActions))]
         #[unsafe(method_family = none)]
-        pub unsafe fn removeAllActions(&self);
+        pub fn removeAllActions(&self);
 
         /// Clears the undo and redo stacks of all operations involving the specified target as the recipient of the undo message.
         ///
         /// Doesn't re-enable the receiver if it's disabled.
         ///
         /// - Parameter target: The recepient of the undo mesages to be removed.
+        ///
+        /// # Safety
+        ///
+        /// `target` should be of the correct type.
         #[unsafe(method(removeAllActionsWithTarget:))]
         #[unsafe(method_family = none)]
         pub unsafe fn removeAllActionsWithTarget(&self, target: &AnyObject);
@@ -201,6 +208,12 @@ impl NSUndoManager {
         /// - Parameter target: The target of the undo operation. The undo manager maintains an unowned reference to `target` to prevent retain cycles.
         /// - Parameter selector: The selector for the undo operation.
         /// - Parameter object: The argument sent with the selector. The undo manager maintains a strong reference to `object`
+        ///
+        /// # Safety
+        ///
+        /// - `target` should be of the correct type.
+        /// - `selector` must be a valid selector.
+        /// - `object` should be of the correct type.
         #[unsafe(method(registerUndoWithTarget:selector:object:))]
         #[unsafe(method_family = none)]
         pub unsafe fn registerUndoWithTarget_selector_object(
@@ -222,6 +235,10 @@ impl NSUndoManager {
         ///
         /// - Parameter target: The target of the undo operation. The undo manager maintains a weak reference to `target`.
         /// - Returns:  A proxy object that forwards messages to the undo manager for recording as undo actions.
+        ///
+        /// # Safety
+        ///
+        /// `target` should be of the correct type.
         #[unsafe(method(prepareWithInvocationTarget:))]
         #[unsafe(method_family = none)]
         pub unsafe fn prepareWithInvocationTarget(&self, target: &AnyObject)
@@ -234,6 +251,10 @@ impl NSUndoManager {
         ///
         /// - Parameter target: The target of the undo operation.
         /// - Parameter undoHandler: The block to be executed when an operation is undone. The block takes a single argument, the target of the undo operation.
+        ///
+        /// # Safety
+        ///
+        /// `target` should be of the correct type.
         #[unsafe(method(registerUndoWithTarget:handler:))]
         #[unsafe(method_family = none)]
         pub unsafe fn registerUndoWithTarget_handler(
@@ -251,7 +272,7 @@ impl NSUndoManager {
         /// - Parameter discardable: Specifies if the action is discardable. YES if the next undo or redo action can be discarded; NO otherwise.
         #[unsafe(method(setActionIsDiscardable:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setActionIsDiscardable(&self, discardable: bool);
+        pub fn setActionIsDiscardable(&self, discardable: bool);
 
         /// Whether the next undo action is discardable.
         ///
@@ -259,7 +280,7 @@ impl NSUndoManager {
         /// An example might be an undo action that changes the viewable area of a document.
         #[unsafe(method(undoActionIsDiscardable))]
         #[unsafe(method_family = none)]
-        pub unsafe fn undoActionIsDiscardable(&self) -> bool;
+        pub fn undoActionIsDiscardable(&self) -> bool;
 
         /// Whether the next redo action is discardable.
         ///
@@ -267,7 +288,7 @@ impl NSUndoManager {
         /// An example might be an redo action that changes the viewable area of a document.
         #[unsafe(method(redoActionIsDiscardable))]
         #[unsafe(method_family = none)]
-        pub unsafe fn redoActionIsDiscardable(&self) -> bool;
+        pub fn redoActionIsDiscardable(&self) -> bool;
 
         #[cfg(feature = "NSString")]
         /// The name identifying the undo action.
@@ -276,7 +297,7 @@ impl NSUndoManager {
         /// For example, if the menu title is “Undo Delete,” the string returned is “Delete.”
         #[unsafe(method(undoActionName))]
         #[unsafe(method_family = none)]
-        pub unsafe fn undoActionName(&self) -> Retained<NSString>;
+        pub fn undoActionName(&self) -> Retained<NSString>;
 
         #[cfg(feature = "NSString")]
         /// The name identifying the redo action.
@@ -285,7 +306,7 @@ impl NSUndoManager {
         /// For example, if the menu title is “Redo Delete,” the string returned is “Delete.”
         #[unsafe(method(redoActionName))]
         #[unsafe(method_family = none)]
-        pub unsafe fn redoActionName(&self) -> Retained<NSString>;
+        pub fn redoActionName(&self) -> Retained<NSString>;
 
         #[cfg(feature = "NSString")]
         /// Sets the name of the action associated with the Undo or Redo command.
@@ -295,7 +316,7 @@ impl NSUndoManager {
         /// - Parameter actionName: The name of the action.
         #[unsafe(method(setActionName:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setActionName(&self, action_name: &NSString);
+        pub fn setActionName(&self, action_name: &NSString);
 
         #[cfg(feature = "NSString")]
         /// Get a value from the undo action's user info
@@ -303,7 +324,7 @@ impl NSUndoManager {
         /// - Parameter key: Which value should be retrieved
         #[unsafe(method(undoActionUserInfoValueForKey:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn undoActionUserInfoValueForKey(
+        pub fn undoActionUserInfoValueForKey(
             &self,
             key: &NSUndoManagerUserInfoKey,
         ) -> Option<Retained<AnyObject>>;
@@ -314,7 +335,7 @@ impl NSUndoManager {
         /// - Parameter key: Which value should be retrieved
         #[unsafe(method(redoActionUserInfoValueForKey:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn redoActionUserInfoValueForKey(
+        pub fn redoActionUserInfoValueForKey(
             &self,
             key: &NSUndoManagerUserInfoKey,
         ) -> Option<Retained<AnyObject>>;
@@ -323,6 +344,10 @@ impl NSUndoManager {
         /// Set user info for the Undo or Redo command.
         /// - Parameter info: Value to be saved in the user info
         /// - Parameter key: Key at which the object should be saved
+        ///
+        /// # Safety
+        ///
+        /// `info` should be of the correct type.
         #[unsafe(method(setActionUserInfoValue:forKey:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setActionUserInfoValue_forKey(
@@ -337,7 +362,7 @@ impl NSUndoManager {
         /// Returns “Undo” if no action name has been assigned or nil if there is nothing to undo.
         #[unsafe(method(undoMenuItemTitle))]
         #[unsafe(method_family = none)]
-        pub unsafe fn undoMenuItemTitle(&self) -> Retained<NSString>;
+        pub fn undoMenuItemTitle(&self) -> Retained<NSString>;
 
         #[cfg(feature = "NSString")]
         /// The complete title of the Redo menu command, for example, “Redo Paste.”
@@ -345,7 +370,7 @@ impl NSUndoManager {
         /// Returns “Redo” if no action name has been assigned or nil if there is nothing to redo.
         #[unsafe(method(redoMenuItemTitle))]
         #[unsafe(method_family = none)]
-        pub unsafe fn redoMenuItemTitle(&self) -> Retained<NSString>;
+        pub fn redoMenuItemTitle(&self) -> Retained<NSString>;
 
         #[cfg(feature = "NSString")]
         /// Returns the complete, localized title of the Undo menu command for the action identified by the given name.
@@ -356,10 +381,7 @@ impl NSUndoManager {
         /// - Returns: The localized title of the undo menu item.
         #[unsafe(method(undoMenuTitleForUndoActionName:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn undoMenuTitleForUndoActionName(
-            &self,
-            action_name: &NSString,
-        ) -> Retained<NSString>;
+        pub fn undoMenuTitleForUndoActionName(&self, action_name: &NSString) -> Retained<NSString>;
 
         #[cfg(feature = "NSString")]
         /// Returns the complete, localized title of the Redo menu command for the action identified by the given name.
@@ -370,10 +392,7 @@ impl NSUndoManager {
         /// - Returns: The localized title of the redo menu item.
         #[unsafe(method(redoMenuTitleForUndoActionName:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn redoMenuTitleForUndoActionName(
-            &self,
-            action_name: &NSString,
-        ) -> Retained<NSString>;
+        pub fn redoMenuTitleForUndoActionName(&self, action_name: &NSString) -> Retained<NSString>;
     );
 }
 
@@ -382,11 +401,11 @@ impl NSUndoManager {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }
 

@@ -20,6 +20,9 @@ extern_conformance!(
 impl NSPortMessage {
     extern_methods!(
         #[cfg(all(feature = "NSArray", feature = "NSPort"))]
+        /// # Safety
+        ///
+        /// `components` generic should be of the correct type.
         #[unsafe(method(initWithSendPort:receivePort:components:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithSendPort_receivePort_components(
@@ -32,31 +35,31 @@ impl NSPortMessage {
         #[cfg(feature = "NSArray")]
         #[unsafe(method(components))]
         #[unsafe(method_family = none)]
-        pub unsafe fn components(&self) -> Option<Retained<NSArray>>;
+        pub fn components(&self) -> Option<Retained<NSArray>>;
 
         #[cfg(feature = "NSPort")]
         #[unsafe(method(receivePort))]
         #[unsafe(method_family = none)]
-        pub unsafe fn receivePort(&self) -> Option<Retained<NSPort>>;
+        pub fn receivePort(&self) -> Option<Retained<NSPort>>;
 
         #[cfg(feature = "NSPort")]
         #[unsafe(method(sendPort))]
         #[unsafe(method_family = none)]
-        pub unsafe fn sendPort(&self) -> Option<Retained<NSPort>>;
+        pub fn sendPort(&self) -> Option<Retained<NSPort>>;
 
         #[cfg(feature = "NSDate")]
         #[unsafe(method(sendBeforeDate:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn sendBeforeDate(&self, date: &NSDate) -> bool;
+        pub fn sendBeforeDate(&self, date: &NSDate) -> bool;
 
         #[unsafe(method(msgid))]
         #[unsafe(method_family = none)]
-        pub unsafe fn msgid(&self) -> u32;
+        pub fn msgid(&self) -> u32;
 
         /// Setter for [`msgid`][Self::msgid].
         #[unsafe(method(setMsgid:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setMsgid(&self, msgid: u32);
+        pub fn setMsgid(&self, msgid: u32);
     );
 }
 
@@ -65,10 +68,17 @@ impl NSPortMessage {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl DefaultRetained for NSPortMessage {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }

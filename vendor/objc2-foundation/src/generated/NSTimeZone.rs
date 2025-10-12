@@ -3,6 +3,8 @@
 use core::ffi::*;
 use core::ptr::NonNull;
 use objc2::__framework_prelude::*;
+#[cfg(feature = "objc2-core-foundation")]
+use objc2_core_foundation::*;
 
 use crate::*;
 
@@ -16,6 +18,22 @@ extern_class!(
 unsafe impl Send for NSTimeZone {}
 
 unsafe impl Sync for NSTimeZone {}
+
+#[cfg(feature = "objc2-core-foundation")]
+impl AsRef<NSTimeZone> for CFTimeZone {
+    #[inline]
+    fn as_ref(&self) -> &NSTimeZone {
+        unsafe { &*((self as *const Self).cast()) }
+    }
+}
+
+#[cfg(feature = "objc2-core-foundation")]
+impl AsRef<CFTimeZone> for NSTimeZone {
+    #[inline]
+    fn as_ref(&self) -> &CFTimeZone {
+        unsafe { &*((self as *const Self).cast()) }
+    }
+}
 
 #[cfg(feature = "NSObject")]
 extern_conformance!(
@@ -46,37 +64,37 @@ impl NSTimeZone {
         #[cfg(feature = "NSString")]
         #[unsafe(method(name))]
         #[unsafe(method_family = none)]
-        pub unsafe fn name(&self) -> Retained<NSString>;
+        pub fn name(&self) -> Retained<NSString>;
 
         #[cfg(feature = "NSData")]
         #[unsafe(method(data))]
         #[unsafe(method_family = none)]
-        pub unsafe fn data(&self) -> Retained<NSData>;
+        pub fn data(&self) -> Retained<NSData>;
 
         #[cfg(feature = "NSDate")]
         #[unsafe(method(secondsFromGMTForDate:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn secondsFromGMTForDate(&self, a_date: &NSDate) -> NSInteger;
+        pub fn secondsFromGMTForDate(&self, a_date: &NSDate) -> NSInteger;
 
         #[cfg(all(feature = "NSDate", feature = "NSString"))]
         #[unsafe(method(abbreviationForDate:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn abbreviationForDate(&self, a_date: &NSDate) -> Option<Retained<NSString>>;
+        pub fn abbreviationForDate(&self, a_date: &NSDate) -> Option<Retained<NSString>>;
 
         #[cfg(feature = "NSDate")]
         #[unsafe(method(isDaylightSavingTimeForDate:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isDaylightSavingTimeForDate(&self, a_date: &NSDate) -> bool;
+        pub fn isDaylightSavingTimeForDate(&self, a_date: &NSDate) -> bool;
 
         #[cfg(feature = "NSDate")]
         #[unsafe(method(daylightSavingTimeOffsetForDate:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn daylightSavingTimeOffsetForDate(&self, a_date: &NSDate) -> NSTimeInterval;
+        pub fn daylightSavingTimeOffsetForDate(&self, a_date: &NSDate) -> NSTimeInterval;
 
         #[cfg(feature = "NSDate")]
         #[unsafe(method(nextDaylightSavingTimeTransitionAfterDate:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn nextDaylightSavingTimeTransitionAfterDate(
+        pub fn nextDaylightSavingTimeTransitionAfterDate(
             &self,
             a_date: &NSDate,
         ) -> Option<Retained<NSDate>>;
@@ -88,12 +106,19 @@ impl NSTimeZone {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl DefaultRetained for NSTimeZone {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }
 
 /// [Apple's documentation](https://developer.apple.com/documentation/foundation/nstimezonenamestyle?language=objc)
@@ -129,84 +154,88 @@ impl NSTimeZone {
     extern_methods!(
         #[unsafe(method(systemTimeZone))]
         #[unsafe(method_family = none)]
-        pub unsafe fn systemTimeZone() -> Retained<NSTimeZone>;
+        pub fn systemTimeZone() -> Retained<NSTimeZone>;
 
         #[unsafe(method(resetSystemTimeZone))]
         #[unsafe(method_family = none)]
-        pub unsafe fn resetSystemTimeZone();
+        pub fn resetSystemTimeZone();
 
         #[unsafe(method(defaultTimeZone))]
         #[unsafe(method_family = none)]
-        pub unsafe fn defaultTimeZone() -> Retained<NSTimeZone>;
+        pub fn defaultTimeZone() -> Retained<NSTimeZone>;
 
         /// Setter for [`defaultTimeZone`][Self::defaultTimeZone].
+        ///
+        /// This is [copied][crate::NSCopying::copy] when set.
         #[unsafe(method(setDefaultTimeZone:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setDefaultTimeZone(default_time_zone: &NSTimeZone);
+        pub fn setDefaultTimeZone(default_time_zone: &NSTimeZone);
 
         #[unsafe(method(localTimeZone))]
         #[unsafe(method_family = none)]
-        pub unsafe fn localTimeZone() -> Retained<NSTimeZone>;
+        pub fn localTimeZone() -> Retained<NSTimeZone>;
 
         #[cfg(all(feature = "NSArray", feature = "NSString"))]
         #[unsafe(method(knownTimeZoneNames))]
         #[unsafe(method_family = none)]
-        pub unsafe fn knownTimeZoneNames() -> Retained<NSArray<NSString>>;
+        pub fn knownTimeZoneNames() -> Retained<NSArray<NSString>>;
 
         #[cfg(all(feature = "NSDictionary", feature = "NSString"))]
         #[unsafe(method(abbreviationDictionary))]
         #[unsafe(method_family = none)]
-        pub unsafe fn abbreviationDictionary() -> Retained<NSDictionary<NSString, NSString>>;
+        pub fn abbreviationDictionary() -> Retained<NSDictionary<NSString, NSString>>;
 
         #[cfg(all(feature = "NSDictionary", feature = "NSString"))]
         /// Setter for [`abbreviationDictionary`][Self::abbreviationDictionary].
+        ///
+        /// This is [copied][crate::NSCopying::copy] when set.
         #[unsafe(method(setAbbreviationDictionary:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setAbbreviationDictionary(
+        pub fn setAbbreviationDictionary(
             abbreviation_dictionary: &NSDictionary<NSString, NSString>,
         );
 
         #[cfg(feature = "NSString")]
         #[unsafe(method(timeZoneDataVersion))]
         #[unsafe(method_family = none)]
-        pub unsafe fn timeZoneDataVersion() -> Retained<NSString>;
+        pub fn timeZoneDataVersion() -> Retained<NSString>;
 
         #[unsafe(method(secondsFromGMT))]
         #[unsafe(method_family = none)]
-        pub unsafe fn secondsFromGMT(&self) -> NSInteger;
+        pub fn secondsFromGMT(&self) -> NSInteger;
 
         #[cfg(feature = "NSString")]
         #[unsafe(method(abbreviation))]
         #[unsafe(method_family = none)]
-        pub unsafe fn abbreviation(&self) -> Option<Retained<NSString>>;
+        pub fn abbreviation(&self) -> Option<Retained<NSString>>;
 
         #[unsafe(method(isDaylightSavingTime))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isDaylightSavingTime(&self) -> bool;
+        pub fn isDaylightSavingTime(&self) -> bool;
 
         #[cfg(feature = "NSDate")]
         #[unsafe(method(daylightSavingTimeOffset))]
         #[unsafe(method_family = none)]
-        pub unsafe fn daylightSavingTimeOffset(&self) -> NSTimeInterval;
+        pub fn daylightSavingTimeOffset(&self) -> NSTimeInterval;
 
         #[cfg(feature = "NSDate")]
         #[unsafe(method(nextDaylightSavingTimeTransition))]
         #[unsafe(method_family = none)]
-        pub unsafe fn nextDaylightSavingTimeTransition(&self) -> Option<Retained<NSDate>>;
+        pub fn nextDaylightSavingTimeTransition(&self) -> Option<Retained<NSDate>>;
 
         #[cfg(feature = "NSString")]
         #[unsafe(method(description))]
         #[unsafe(method_family = none)]
-        pub unsafe fn description(&self) -> Retained<NSString>;
+        pub fn description(&self) -> Retained<NSString>;
 
         #[unsafe(method(isEqualToTimeZone:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isEqualToTimeZone(&self, a_time_zone: &NSTimeZone) -> bool;
+        pub fn isEqualToTimeZone(&self, a_time_zone: &NSTimeZone) -> bool;
 
         #[cfg(all(feature = "NSLocale", feature = "NSString"))]
         #[unsafe(method(localizedName:locale:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn localizedName_locale(
+        pub fn localizedName_locale(
             &self,
             style: NSTimeZoneNameStyle,
             locale: Option<&NSLocale>,
@@ -220,12 +249,12 @@ impl NSTimeZone {
         #[cfg(feature = "NSString")]
         #[unsafe(method(timeZoneWithName:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn timeZoneWithName(tz_name: &NSString) -> Option<Retained<Self>>;
+        pub fn timeZoneWithName(tz_name: &NSString) -> Option<Retained<Self>>;
 
         #[cfg(all(feature = "NSData", feature = "NSString"))]
         #[unsafe(method(timeZoneWithName:data:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn timeZoneWithName_data(
+        pub fn timeZoneWithName_data(
             tz_name: &NSString,
             a_data: Option<&NSData>,
         ) -> Option<Retained<Self>>;
@@ -233,15 +262,12 @@ impl NSTimeZone {
         #[cfg(feature = "NSString")]
         #[unsafe(method(initWithName:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithName(
-            this: Allocated<Self>,
-            tz_name: &NSString,
-        ) -> Option<Retained<Self>>;
+        pub fn initWithName(this: Allocated<Self>, tz_name: &NSString) -> Option<Retained<Self>>;
 
         #[cfg(all(feature = "NSData", feature = "NSString"))]
         #[unsafe(method(initWithName:data:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithName_data(
+        pub fn initWithName_data(
             this: Allocated<Self>,
             tz_name: &NSString,
             a_data: Option<&NSData>,
@@ -249,12 +275,12 @@ impl NSTimeZone {
 
         #[unsafe(method(timeZoneForSecondsFromGMT:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn timeZoneForSecondsFromGMT(seconds: NSInteger) -> Retained<Self>;
+        pub fn timeZoneForSecondsFromGMT(seconds: NSInteger) -> Retained<Self>;
 
         #[cfg(feature = "NSString")]
         #[unsafe(method(timeZoneWithAbbreviation:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn timeZoneWithAbbreviation(abbreviation: &NSString) -> Option<Retained<Self>>;
+        pub fn timeZoneWithAbbreviation(abbreviation: &NSString) -> Option<Retained<Self>>;
     );
 }
 

@@ -9,6 +9,7 @@ use objc2_foundation::*;
 use crate::*;
 
 /// DOMNodeExtensions.
+#[deprecated]
 #[cfg(all(
     feature = "DOMNode",
     feature = "DOMObject",
@@ -27,6 +28,7 @@ impl DOMNode {
 }
 
 /// DOMElementAppKitExtensions.
+#[deprecated]
 #[cfg(all(
     feature = "DOMElement",
     feature = "DOMNode",
@@ -44,6 +46,7 @@ impl DOMElement {
 }
 
 /// DOMHTMLDocumentExtensions.
+#[deprecated]
 #[cfg(all(
     feature = "DOMDocument",
     feature = "DOMHTMLDocument",
@@ -54,6 +57,10 @@ impl DOMElement {
 impl DOMHTMLDocument {
     extern_methods!(
         #[cfg(feature = "DOMDocumentFragment")]
+        /// # Safety
+        ///
+        /// - `markup_string` might not allow `None`.
+        /// - `base_url` might not allow `None`.
         #[unsafe(method(createDocumentFragmentWithMarkupString:baseURL:))]
         #[unsafe(method_family = none)]
         pub unsafe fn createDocumentFragmentWithMarkupString_baseURL(
@@ -63,6 +70,9 @@ impl DOMHTMLDocument {
         ) -> Option<Retained<DOMDocumentFragment>>;
 
         #[cfg(feature = "DOMDocumentFragment")]
+        /// # Safety
+        ///
+        /// `text` might not allow `None`.
         #[unsafe(method(createDocumentFragmentWithText:))]
         #[unsafe(method_family = none)]
         pub unsafe fn createDocumentFragmentWithText(

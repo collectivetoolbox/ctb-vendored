@@ -22,31 +22,32 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(textViewShouldBeginEditing:))]
         #[unsafe(method_family = none)]
-        unsafe fn textViewShouldBeginEditing(&self, text_view: &UITextView) -> bool;
+        fn textViewShouldBeginEditing(&self, text_view: &UITextView) -> bool;
 
         #[cfg(all(feature = "UIResponder", feature = "UIView"))]
         #[optional]
         #[unsafe(method(textViewShouldEndEditing:))]
         #[unsafe(method_family = none)]
-        unsafe fn textViewShouldEndEditing(&self, text_view: &UITextView) -> bool;
+        fn textViewShouldEndEditing(&self, text_view: &UITextView) -> bool;
 
         #[cfg(all(feature = "UIResponder", feature = "UIView"))]
         #[optional]
         #[unsafe(method(textViewDidBeginEditing:))]
         #[unsafe(method_family = none)]
-        unsafe fn textViewDidBeginEditing(&self, text_view: &UITextView);
+        fn textViewDidBeginEditing(&self, text_view: &UITextView);
 
         #[cfg(all(feature = "UIResponder", feature = "UIView"))]
         #[optional]
         #[unsafe(method(textViewDidEndEditing:))]
         #[unsafe(method_family = none)]
-        unsafe fn textViewDidEndEditing(&self, text_view: &UITextView);
+        fn textViewDidEndEditing(&self, text_view: &UITextView);
 
         #[cfg(all(feature = "UIResponder", feature = "UIView"))]
+        #[deprecated]
         #[optional]
         #[unsafe(method(textView:shouldChangeTextInRange:replacementText:))]
         #[unsafe(method_family = none)]
-        unsafe fn textView_shouldChangeTextInRange_replacementText(
+        fn textView_shouldChangeTextInRange_replacementText(
             &self,
             text_view: &UITextView,
             range: NSRange,
@@ -54,16 +55,41 @@ extern_protocol!(
         ) -> bool;
 
         #[cfg(all(feature = "UIResponder", feature = "UIView"))]
+        /// Asks the delegate if the text at the specified `ranges` should be replaced with `text`.
+        ///
+        ///
+        /// If this method returns YES then the text view will, at its own discretion, choose any one of the specified `ranges` of text and replace it with the specified `replacementText` before deleting the text at the other ranges. If the delegate does not implement this method then the `textView:shouldChangeTextInRange:replacementText:` method will be called and passed the union range instead. If the delegate also does not implement that method then YES is assumed.
+        ///
+        ///
+        /// Parameter `textView`: The text view asking the delegate
+        ///
+        /// Parameter `ranges`: The ranges of the text that should be deleted before replacing
+        ///
+        /// Parameter `replacementText`: The replacement text
+        ///
+        ///
+        /// Returns: Returns true if the text at the `ranges` should be replaced.
+        #[optional]
+        #[unsafe(method(textView:shouldChangeTextInRanges:replacementText:))]
+        #[unsafe(method_family = none)]
+        fn textView_shouldChangeTextInRanges_replacementText(
+            &self,
+            text_view: &UITextView,
+            ranges: &NSArray<NSValue>,
+            text: &NSString,
+        ) -> bool;
+
+        #[cfg(all(feature = "UIResponder", feature = "UIView"))]
         #[optional]
         #[unsafe(method(textViewDidChange:))]
         #[unsafe(method_family = none)]
-        unsafe fn textViewDidChange(&self, text_view: &UITextView);
+        fn textViewDidChange(&self, text_view: &UITextView);
 
         #[cfg(all(feature = "UIResponder", feature = "UIView"))]
         #[optional]
         #[unsafe(method(textViewDidChangeSelection:))]
         #[unsafe(method_family = none)]
-        unsafe fn textViewDidChangeSelection(&self, text_view: &UITextView);
+        fn textViewDidChangeSelection(&self, text_view: &UITextView);
 
         #[cfg(all(
             feature = "UIMenu",
@@ -83,13 +109,45 @@ extern_protocol!(
         ///
         /// Returns: Return a UIMenu describing the desired menu hierarchy. Return
         /// `nil`to present the default system menu.
+        #[deprecated]
         #[optional]
         #[unsafe(method(textView:editMenuForTextInRange:suggestedActions:))]
         #[unsafe(method_family = none)]
-        unsafe fn textView_editMenuForTextInRange_suggestedActions(
+        fn textView_editMenuForTextInRange_suggestedActions(
             &self,
             text_view: &UITextView,
             range: NSRange,
+            suggested_actions: &NSArray<UIMenuElement>,
+        ) -> Option<Retained<UIMenu>>;
+
+        #[cfg(all(
+            feature = "UIMenu",
+            feature = "UIMenuElement",
+            feature = "UIResponder",
+            feature = "UIView"
+        ))]
+        /// Asks the delegate for the menu to be shown for the specified text ranges.
+        ///
+        ///
+        /// If the delegate does not implement this method then the `textView:editMenuForTextInRange:suggestedActions:` method will be called and passed the union range instead. If the delegate also does not implement that method then `nil` is assumed.
+        ///
+        ///
+        /// Parameter `textView`: The text view requesting the menu.
+        ///
+        /// Parameter `ranges`: The text ranges for which the menu is presented for.
+        ///
+        /// Parameter `suggestedActions`: The actions and commands that the system suggests.
+        ///
+        ///
+        /// Returns: Return a UIMenu describing the desired menu hierarchy. Return
+        /// `nil`to present the default system menu.
+        #[optional]
+        #[unsafe(method(textView:editMenuForTextInRanges:suggestedActions:))]
+        #[unsafe(method_family = none)]
+        fn textView_editMenuForTextInRanges_suggestedActions(
+            &self,
+            text_view: &UITextView,
+            ranges: &NSArray<NSValue>,
             suggested_actions: &NSArray<UIMenuElement>,
         ) -> Option<Retained<UIMenu>>;
 
@@ -107,7 +165,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(textView:willPresentEditMenuWithAnimator:))]
         #[unsafe(method_family = none)]
-        unsafe fn textView_willPresentEditMenuWithAnimator(
+        fn textView_willPresentEditMenuWithAnimator(
             &self,
             text_view: &UITextView,
             animator: &ProtocolObject<dyn UIEditMenuInteractionAnimating>,
@@ -127,7 +185,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(textView:willDismissEditMenuWithAnimator:))]
         #[unsafe(method_family = none)]
-        unsafe fn textView_willDismissEditMenuWithAnimator(
+        fn textView_willDismissEditMenuWithAnimator(
             &self,
             text_view: &UITextView,
             animator: &ProtocolObject<dyn UIEditMenuInteractionAnimating>,
@@ -156,7 +214,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(textView:primaryActionForTextItem:defaultAction:))]
         #[unsafe(method_family = none)]
-        unsafe fn textView_primaryActionForTextItem_defaultAction(
+        fn textView_primaryActionForTextItem_defaultAction(
             &self,
             text_view: &UITextView,
             text_item: &UITextItem,
@@ -185,7 +243,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(textView:menuConfigurationForTextItem:defaultMenu:))]
         #[unsafe(method_family = none)]
-        unsafe fn textView_menuConfigurationForTextItem_defaultMenu(
+        fn textView_menuConfigurationForTextItem_defaultMenu(
             &self,
             text_view: &UITextView,
             text_item: &UITextItem,
@@ -209,7 +267,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(textView:textItemMenuWillDisplayForTextItem:animator:))]
         #[unsafe(method_family = none)]
-        unsafe fn textView_textItemMenuWillDisplayForTextItem_animator(
+        fn textView_textItemMenuWillDisplayForTextItem_animator(
             &self,
             text_view: &UITextView,
             text_item: &UITextItem,
@@ -233,7 +291,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(textView:textItemMenuWillEndForTextItem:animator:))]
         #[unsafe(method_family = none)]
-        unsafe fn textView_textItemMenuWillEndForTextItem_animator(
+        fn textView_textItemMenuWillEndForTextItem_animator(
             &self,
             text_view: &UITextView,
             text_item: &UITextItem,
@@ -248,7 +306,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(textViewWritingToolsWillBegin:))]
         #[unsafe(method_family = none)]
-        unsafe fn textViewWritingToolsWillBegin(&self, text_view: &UITextView);
+        fn textViewWritingToolsWillBegin(&self, text_view: &UITextView);
 
         #[cfg(all(feature = "UIResponder", feature = "UIView"))]
         /// Informs the delegate that Writing Tools has finished manipulating the text view
@@ -258,7 +316,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(textViewWritingToolsDidEnd:))]
         #[unsafe(method_family = none)]
-        unsafe fn textViewWritingToolsDidEnd(&self, text_view: &UITextView);
+        fn textViewWritingToolsDidEnd(&self, text_view: &UITextView);
 
         #[cfg(all(feature = "UIResponder", feature = "UIView"))]
         /// Allows the delegate to specify ranges of text to be ignored by Writing Tools
@@ -272,7 +330,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(textView:writingToolsIgnoredRangesInEnclosingRange:))]
         #[unsafe(method_family = none)]
-        unsafe fn textView_writingToolsIgnoredRangesInEnclosingRange(
+        fn textView_writingToolsIgnoredRangesInEnclosingRange(
             &self,
             text_view: &UITextView,
             enclosing_range: NSRange,
@@ -287,7 +345,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(textView:shouldInteractWithURL:inRange:interaction:))]
         #[unsafe(method_family = none)]
-        unsafe fn textView_shouldInteractWithURL_inRange_interaction(
+        fn textView_shouldInteractWithURL_inRange_interaction(
             &self,
             text_view: &UITextView,
             url: &NSURL,
@@ -305,7 +363,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(textView:shouldInteractWithTextAttachment:inRange:interaction:))]
         #[unsafe(method_family = none)]
-        unsafe fn textView_shouldInteractWithTextAttachment_inRange_interaction(
+        fn textView_shouldInteractWithTextAttachment_inRange_interaction(
             &self,
             text_view: &UITextView,
             text_attachment: &NSTextAttachment,
@@ -318,7 +376,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(textView:shouldInteractWithURL:inRange:))]
         #[unsafe(method_family = none)]
-        unsafe fn textView_shouldInteractWithURL_inRange(
+        fn textView_shouldInteractWithURL_inRange(
             &self,
             text_view: &UITextView,
             url: &NSURL,
@@ -334,7 +392,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(textView:shouldInteractWithTextAttachment:inRange:))]
         #[unsafe(method_family = none)]
-        unsafe fn textView_shouldInteractWithTextAttachment_inRange(
+        fn textView_shouldInteractWithTextAttachment_inRange(
             &self,
             text_view: &UITextView,
             text_attachment: &NSTextAttachment,
@@ -354,7 +412,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(textView:willBeginFormattingWithViewController:))]
         #[unsafe(method_family = none)]
-        unsafe fn textView_willBeginFormattingWithViewController(
+        fn textView_willBeginFormattingWithViewController(
             &self,
             text_view: &UITextView,
             view_controller: &UITextFormattingViewController,
@@ -373,7 +431,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(textView:didBeginFormattingWithViewController:))]
         #[unsafe(method_family = none)]
-        unsafe fn textView_didBeginFormattingWithViewController(
+        fn textView_didBeginFormattingWithViewController(
             &self,
             text_view: &UITextView,
             view_controller: &UITextFormattingViewController,
@@ -392,7 +450,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(textView:willEndFormattingWithViewController:))]
         #[unsafe(method_family = none)]
-        unsafe fn textView_willEndFormattingWithViewController(
+        fn textView_willEndFormattingWithViewController(
             &self,
             text_view: &UITextView,
             view_controller: &UITextFormattingViewController,
@@ -411,7 +469,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(textView:didEndFormattingWithViewController:))]
         #[unsafe(method_family = none)]
-        unsafe fn textView_didEndFormattingWithViewController(
+        fn textView_didEndFormattingWithViewController(
             &self,
             text_view: &UITextView,
             view_controller: &UITextFormattingViewController,
@@ -430,7 +488,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(textView:insertInputSuggestion:))]
         #[unsafe(method_family = none)]
-        unsafe fn textView_insertInputSuggestion(
+        fn textView_insertInputSuggestion(
             &self,
             text_view: &UITextView,
             input_suggestion: &UIInputSuggestion,
@@ -639,119 +697,143 @@ impl UITextView {
     extern_methods!(
         #[unsafe(method(delegate))]
         #[unsafe(method_family = none)]
-        pub unsafe fn delegate(&self) -> Option<Retained<ProtocolObject<dyn UITextViewDelegate>>>;
+        pub fn delegate(&self) -> Option<Retained<ProtocolObject<dyn UITextViewDelegate>>>;
 
-        /// This is a [weak property][objc2::topics::weak_property].
         /// Setter for [`delegate`][Self::delegate].
+        ///
+        /// This is a [weak property][objc2::topics::weak_property].
         #[unsafe(method(setDelegate:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setDelegate(&self, delegate: Option<&ProtocolObject<dyn UITextViewDelegate>>);
 
         #[unsafe(method(text))]
         #[unsafe(method_family = none)]
-        pub unsafe fn text(&self) -> Retained<NSString>;
+        pub fn text(&self) -> Retained<NSString>;
 
         /// Setter for [`text`][Self::text].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setText:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setText(&self, text: Option<&NSString>);
+        pub fn setText(&self, text: Option<&NSString>);
 
         #[cfg(feature = "UIFont")]
         #[unsafe(method(font))]
         #[unsafe(method_family = none)]
-        pub unsafe fn font(&self) -> Option<Retained<UIFont>>;
+        pub fn font(&self) -> Option<Retained<UIFont>>;
 
         #[cfg(feature = "UIFont")]
         /// Setter for [`font`][Self::font].
         #[unsafe(method(setFont:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setFont(&self, font: Option<&UIFont>);
+        pub fn setFont(&self, font: Option<&UIFont>);
 
         #[cfg(feature = "UIColor")]
         #[unsafe(method(textColor))]
         #[unsafe(method_family = none)]
-        pub unsafe fn textColor(&self) -> Option<Retained<UIColor>>;
+        pub fn textColor(&self) -> Option<Retained<UIColor>>;
 
         #[cfg(feature = "UIColor")]
         /// Setter for [`textColor`][Self::textColor].
         #[unsafe(method(setTextColor:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setTextColor(&self, text_color: Option<&UIColor>);
+        pub fn setTextColor(&self, text_color: Option<&UIColor>);
 
         #[cfg(feature = "NSText")]
         #[unsafe(method(textAlignment))]
         #[unsafe(method_family = none)]
-        pub unsafe fn textAlignment(&self) -> NSTextAlignment;
+        pub fn textAlignment(&self) -> NSTextAlignment;
 
         #[cfg(feature = "NSText")]
         /// Setter for [`textAlignment`][Self::textAlignment].
         #[unsafe(method(setTextAlignment:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setTextAlignment(&self, text_alignment: NSTextAlignment);
+        pub fn setTextAlignment(&self, text_alignment: NSTextAlignment);
 
+        /// A union of all the `selectedRanges`.
+        #[deprecated]
         #[unsafe(method(selectedRange))]
         #[unsafe(method_family = none)]
-        pub unsafe fn selectedRange(&self) -> NSRange;
+        pub fn selectedRange(&self) -> NSRange;
 
         /// Setter for [`selectedRange`][Self::selectedRange].
+        #[deprecated]
         #[unsafe(method(setSelectedRange:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setSelectedRange(&self, selected_range: NSRange);
+        pub fn setSelectedRange(&self, selected_range: NSRange);
+
+        /// The `NSRange`s of the selection. In most cases, there will only be a single selected range. For cases where bidirectional text is selected, there may be multiple discontiguous ranges. These selected ranges will always be in the normal form, which means they are sorted in ascending order and there are no overlaps. The selected ranges will always be converted to its normal form when they are set. There will always be at least one selected range in this array. So if this array is set to an empty array then the selection will be cleared and a single selected range will be left behind where the length will be 0 and the location will be the location at the end of the selection.
+        #[unsafe(method(selectedRanges))]
+        #[unsafe(method_family = none)]
+        pub fn selectedRanges(&self) -> Retained<NSArray<NSValue>>;
+
+        /// Setter for [`selectedRanges`][Self::selectedRanges].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
+        #[unsafe(method(setSelectedRanges:))]
+        #[unsafe(method_family = none)]
+        pub fn setSelectedRanges(&self, selected_ranges: &NSArray<NSValue>);
 
         #[unsafe(method(isEditable))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isEditable(&self) -> bool;
+        pub fn isEditable(&self) -> bool;
 
         /// Setter for [`isEditable`][Self::isEditable].
         #[unsafe(method(setEditable:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setEditable(&self, editable: bool);
+        pub fn setEditable(&self, editable: bool);
 
         #[unsafe(method(isSelectable))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isSelectable(&self) -> bool;
+        pub fn isSelectable(&self) -> bool;
 
         /// Setter for [`isSelectable`][Self::isSelectable].
         #[unsafe(method(setSelectable:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setSelectable(&self, selectable: bool);
+        pub fn setSelectable(&self, selectable: bool);
 
         #[cfg(feature = "UIDataDetectors")]
         #[unsafe(method(dataDetectorTypes))]
         #[unsafe(method_family = none)]
-        pub unsafe fn dataDetectorTypes(&self) -> UIDataDetectorTypes;
+        pub fn dataDetectorTypes(&self) -> UIDataDetectorTypes;
 
         #[cfg(feature = "UIDataDetectors")]
         /// Setter for [`dataDetectorTypes`][Self::dataDetectorTypes].
         #[unsafe(method(setDataDetectorTypes:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setDataDetectorTypes(&self, data_detector_types: UIDataDetectorTypes);
+        pub fn setDataDetectorTypes(&self, data_detector_types: UIDataDetectorTypes);
 
         #[unsafe(method(allowsEditingTextAttributes))]
         #[unsafe(method_family = none)]
-        pub unsafe fn allowsEditingTextAttributes(&self) -> bool;
+        pub fn allowsEditingTextAttributes(&self) -> bool;
 
         /// Setter for [`allowsEditingTextAttributes`][Self::allowsEditingTextAttributes].
         #[unsafe(method(setAllowsEditingTextAttributes:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setAllowsEditingTextAttributes(&self, allows_editing_text_attributes: bool);
+        pub fn setAllowsEditingTextAttributes(&self, allows_editing_text_attributes: bool);
 
         #[unsafe(method(attributedText))]
         #[unsafe(method_family = none)]
-        pub unsafe fn attributedText(&self) -> Retained<NSAttributedString>;
+        pub fn attributedText(&self) -> Retained<NSAttributedString>;
 
         /// Setter for [`attributedText`][Self::attributedText].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setAttributedText:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setAttributedText(&self, attributed_text: Option<&NSAttributedString>);
+        pub fn setAttributedText(&self, attributed_text: Option<&NSAttributedString>);
 
         #[unsafe(method(typingAttributes))]
         #[unsafe(method_family = none)]
-        pub unsafe fn typingAttributes(
-            &self,
-        ) -> Retained<NSDictionary<NSAttributedStringKey, AnyObject>>;
+        pub fn typingAttributes(&self) -> Retained<NSDictionary<NSAttributedStringKey, AnyObject>>;
 
         /// Setter for [`typingAttributes`][Self::typingAttributes].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
+        ///
+        /// # Safety
+        ///
+        /// `typing_attributes` generic should be of the correct type.
         #[unsafe(method(setTypingAttributes:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setTypingAttributes(
@@ -761,39 +843,39 @@ impl UITextView {
 
         #[unsafe(method(scrollRangeToVisible:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn scrollRangeToVisible(&self, range: NSRange);
+        pub fn scrollRangeToVisible(&self, range: NSRange);
 
         #[unsafe(method(inputView))]
         #[unsafe(method_family = none)]
-        pub unsafe fn inputView(&self) -> Option<Retained<UIView>>;
+        pub fn inputView(&self) -> Option<Retained<UIView>>;
 
         /// Setter for [`inputView`][Self::inputView].
         #[unsafe(method(setInputView:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setInputView(&self, input_view: Option<&UIView>);
+        pub fn setInputView(&self, input_view: Option<&UIView>);
 
         #[unsafe(method(inputAccessoryView))]
         #[unsafe(method_family = none)]
-        pub unsafe fn inputAccessoryView(&self) -> Option<Retained<UIView>>;
+        pub fn inputAccessoryView(&self) -> Option<Retained<UIView>>;
 
         /// Setter for [`inputAccessoryView`][Self::inputAccessoryView].
         #[unsafe(method(setInputAccessoryView:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setInputAccessoryView(&self, input_accessory_view: Option<&UIView>);
+        pub fn setInputAccessoryView(&self, input_accessory_view: Option<&UIView>);
 
         #[unsafe(method(clearsOnInsertion))]
         #[unsafe(method_family = none)]
-        pub unsafe fn clearsOnInsertion(&self) -> bool;
+        pub fn clearsOnInsertion(&self) -> bool;
 
         /// Setter for [`clearsOnInsertion`][Self::clearsOnInsertion].
         #[unsafe(method(setClearsOnInsertion:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setClearsOnInsertion(&self, clears_on_insertion: bool);
+        pub fn setClearsOnInsertion(&self, clears_on_insertion: bool);
 
         #[cfg(all(feature = "NSTextContainer", feature = "objc2-core-foundation"))]
         #[unsafe(method(initWithFrame:textContainer:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithFrame_textContainer(
+        pub fn initWithFrame_textContainer(
             this: Allocated<Self>,
             frame: CGRect,
             text_container: Option<&NSTextContainer>,
@@ -801,11 +883,14 @@ impl UITextView {
 
         #[unsafe(method(textViewUsingTextLayoutManager:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn textViewUsingTextLayoutManager(
+        pub fn textViewUsingTextLayoutManager(
             using_text_layout_manager: bool,
             mtm: MainThreadMarker,
         ) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -816,41 +901,47 @@ impl UITextView {
         #[cfg(feature = "NSTextContainer")]
         #[unsafe(method(textContainer))]
         #[unsafe(method_family = none)]
-        pub unsafe fn textContainer(&self) -> Retained<NSTextContainer>;
+        pub fn textContainer(&self) -> Retained<NSTextContainer>;
 
         #[cfg(all(feature = "UIGeometry", feature = "objc2-core-foundation"))]
         #[unsafe(method(textContainerInset))]
         #[unsafe(method_family = none)]
-        pub unsafe fn textContainerInset(&self) -> UIEdgeInsets;
+        pub fn textContainerInset(&self) -> UIEdgeInsets;
 
         #[cfg(all(feature = "UIGeometry", feature = "objc2-core-foundation"))]
         /// Setter for [`textContainerInset`][Self::textContainerInset].
         #[unsafe(method(setTextContainerInset:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setTextContainerInset(&self, text_container_inset: UIEdgeInsets);
+        pub fn setTextContainerInset(&self, text_container_inset: UIEdgeInsets);
 
         #[cfg(feature = "NSTextLayoutManager")]
         #[unsafe(method(textLayoutManager))]
         #[unsafe(method_family = none)]
-        pub unsafe fn textLayoutManager(&self) -> Option<Retained<NSTextLayoutManager>>;
+        pub fn textLayoutManager(&self) -> Option<Retained<NSTextLayoutManager>>;
 
         #[cfg(feature = "NSLayoutManager")]
         #[unsafe(method(layoutManager))]
         #[unsafe(method_family = none)]
-        pub unsafe fn layoutManager(&self) -> Retained<NSLayoutManager>;
+        pub fn layoutManager(&self) -> Retained<NSLayoutManager>;
 
         #[cfg(feature = "NSTextStorage")]
         #[unsafe(method(textStorage))]
         #[unsafe(method_family = none)]
-        pub unsafe fn textStorage(&self) -> Retained<NSTextStorage>;
+        pub fn textStorage(&self) -> Retained<NSTextStorage>;
 
         #[unsafe(method(linkTextAttributes))]
         #[unsafe(method_family = none)]
-        pub unsafe fn linkTextAttributes(
+        pub fn linkTextAttributes(
             &self,
         ) -> Retained<NSDictionary<NSAttributedStringKey, AnyObject>>;
 
         /// Setter for [`linkTextAttributes`][Self::linkTextAttributes].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
+        ///
+        /// # Safety
+        ///
+        /// `link_text_attributes` generic should be of the correct type.
         #[unsafe(method(setLinkTextAttributes:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setLinkTextAttributes(
@@ -860,46 +951,52 @@ impl UITextView {
 
         #[unsafe(method(usesStandardTextScaling))]
         #[unsafe(method_family = none)]
-        pub unsafe fn usesStandardTextScaling(&self) -> bool;
+        pub fn usesStandardTextScaling(&self) -> bool;
 
         /// Setter for [`usesStandardTextScaling`][Self::usesStandardTextScaling].
         #[unsafe(method(setUsesStandardTextScaling:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setUsesStandardTextScaling(&self, uses_standard_text_scaling: bool);
+        pub fn setUsesStandardTextScaling(&self, uses_standard_text_scaling: bool);
 
         #[cfg(feature = "UIFindInteraction")]
         /// If `findInteractionEnabled` is set to true, returns this text view's built-in find interaction. Otherwise, nil.
         #[unsafe(method(findInteraction))]
         #[unsafe(method_family = none)]
-        pub unsafe fn findInteraction(&self) -> Option<Retained<UIFindInteraction>>;
+        pub fn findInteraction(&self) -> Option<Retained<UIFindInteraction>>;
 
         /// Enables this text view's built-in find interaction.
         #[unsafe(method(isFindInteractionEnabled))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isFindInteractionEnabled(&self) -> bool;
+        pub fn isFindInteractionEnabled(&self) -> bool;
 
         /// Setter for [`isFindInteractionEnabled`][Self::isFindInteractionEnabled].
         #[unsafe(method(setFindInteractionEnabled:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setFindInteractionEnabled(&self, find_interaction_enabled: bool);
+        pub fn setFindInteractionEnabled(&self, find_interaction_enabled: bool);
 
         /// The border style for the text field.
         #[unsafe(method(borderStyle))]
         #[unsafe(method_family = none)]
-        pub unsafe fn borderStyle(&self) -> UITextViewBorderStyle;
+        pub fn borderStyle(&self) -> UITextViewBorderStyle;
 
         /// Setter for [`borderStyle`][Self::borderStyle].
         #[unsafe(method(setBorderStyle:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setBorderStyle(&self, border_style: UITextViewBorderStyle);
+        pub fn setBorderStyle(&self, border_style: UITextViewBorderStyle);
 
         #[unsafe(method(textHighlightAttributes))]
         #[unsafe(method_family = none)]
-        pub unsafe fn textHighlightAttributes(
+        pub fn textHighlightAttributes(
             &self,
         ) -> Retained<NSDictionary<NSAttributedStringKey, AnyObject>>;
 
         /// Setter for [`textHighlightAttributes`][Self::textHighlightAttributes].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
+        ///
+        /// # Safety
+        ///
+        /// `text_highlight_attributes` generic should be of the correct type.
         #[unsafe(method(setTextHighlightAttributes:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setTextHighlightAttributes(
@@ -910,7 +1007,7 @@ impl UITextView {
         #[cfg(all(feature = "NSTextRange", feature = "objc2-core-foundation"))]
         #[unsafe(method(drawTextHighlightBackgroundForTextRange:origin:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn drawTextHighlightBackgroundForTextRange_origin(
+        pub fn drawTextHighlightBackgroundForTextRange_origin(
             &self,
             text_range: &NSTextRange,
             origin: CGPoint,
@@ -925,44 +1022,41 @@ impl UITextView {
         /// `-textViewWritingToolsDidEnd:`completes)
         #[unsafe(method(isWritingToolsActive))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isWritingToolsActive(&self) -> bool;
+        pub fn isWritingToolsActive(&self) -> bool;
 
         #[cfg(feature = "UITextInputTraits")]
         #[unsafe(method(writingToolsBehavior))]
         #[unsafe(method_family = none)]
-        pub unsafe fn writingToolsBehavior(&self) -> UIWritingToolsBehavior;
+        pub fn writingToolsBehavior(&self) -> UIWritingToolsBehavior;
 
         #[cfg(feature = "UITextInputTraits")]
         /// Setter for [`writingToolsBehavior`][Self::writingToolsBehavior].
         #[unsafe(method(setWritingToolsBehavior:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setWritingToolsBehavior(
-            &self,
-            writing_tools_behavior: UIWritingToolsBehavior,
-        );
+        pub fn setWritingToolsBehavior(&self, writing_tools_behavior: UIWritingToolsBehavior);
 
         #[cfg(feature = "UITextInputTraits")]
         #[unsafe(method(allowedWritingToolsResultOptions))]
         #[unsafe(method_family = none)]
-        pub unsafe fn allowedWritingToolsResultOptions(&self) -> UIWritingToolsResultOptions;
+        pub fn allowedWritingToolsResultOptions(&self) -> UIWritingToolsResultOptions;
 
         #[cfg(feature = "UITextInputTraits")]
         /// Setter for [`allowedWritingToolsResultOptions`][Self::allowedWritingToolsResultOptions].
         #[unsafe(method(setAllowedWritingToolsResultOptions:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setAllowedWritingToolsResultOptions(
+        pub fn setAllowedWritingToolsResultOptions(
             &self,
             allowed_writing_tools_result_options: UIWritingToolsResultOptions,
         );
 
         #[unsafe(method(subclassForWritingToolsCoordinator))]
         #[unsafe(method_family = none)]
-        pub unsafe fn subclassForWritingToolsCoordinator(&self) -> &'static AnyClass;
+        pub fn subclassForWritingToolsCoordinator(&self) -> &'static AnyClass;
 
         #[cfg(feature = "UIWritingToolsCoordinator")]
         #[unsafe(method(writingToolsCoordinator))]
         #[unsafe(method_family = none)]
-        pub unsafe fn writingToolsCoordinator(&self) -> Retained<UIWritingToolsCoordinator>;
+        pub fn writingToolsCoordinator(&self) -> Retained<UIWritingToolsCoordinator>;
 
         #[cfg(feature = "UITextFormattingViewControllerConfiguration")]
         /// For text views that have flag `allowsEditingTextAttributes` set,
@@ -972,15 +1066,17 @@ impl UITextView {
         /// It has a non-nil default value.
         #[unsafe(method(textFormattingConfiguration))]
         #[unsafe(method_family = none)]
-        pub unsafe fn textFormattingConfiguration(
+        pub fn textFormattingConfiguration(
             &self,
         ) -> Option<Retained<UITextFormattingViewControllerConfiguration>>;
 
         #[cfg(feature = "UITextFormattingViewControllerConfiguration")]
         /// Setter for [`textFormattingConfiguration`][Self::textFormattingConfiguration].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setTextFormattingConfiguration:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setTextFormattingConfiguration(
+        pub fn setTextFormattingConfiguration(
             &self,
             text_formatting_configuration: Option<&UITextFormattingViewControllerConfiguration>,
         );
@@ -994,7 +1090,11 @@ impl UITextView {
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(initWithFrame:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithFrame(this: Allocated<Self>, frame: CGRect) -> Retained<Self>;
+        pub fn initWithFrame(this: Allocated<Self>, frame: CGRect) -> Retained<Self>;
+
+        #[unsafe(method(init))]
+        #[unsafe(method_family = init)]
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
     );
 }
 
@@ -1002,13 +1102,9 @@ impl UITextView {
 #[cfg(all(feature = "UIResponder", feature = "UIScrollView", feature = "UIView"))]
 impl UITextView {
     extern_methods!(
-        #[unsafe(method(init))]
-        #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
-
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }
 
@@ -1080,9 +1176,15 @@ impl UITextView {
     extern_methods!(
         #[unsafe(method(interactionState))]
         #[unsafe(method_family = none)]
-        pub unsafe fn interactionState(&self) -> Retained<AnyObject>;
+        pub fn interactionState(&self) -> Retained<AnyObject>;
 
         /// Setter for [`interactionState`][Self::interactionState].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
+        ///
+        /// # Safety
+        ///
+        /// `interaction_state` should be of the correct type.
         #[unsafe(method(setInteractionState:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setInteractionState(&self, interaction_state: &AnyObject);

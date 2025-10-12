@@ -40,7 +40,7 @@ impl NSCustomImageRep {
         #[cfg(feature = "block2")]
         #[unsafe(method(initWithSize:flipped:drawingHandler:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithSize_flipped_drawingHandler(
+        pub fn initWithSize_flipped_drawingHandler(
             this: Allocated<Self>,
             size: NSSize,
             drawing_handler_should_be_called_with_flipped_context: bool,
@@ -50,8 +50,12 @@ impl NSCustomImageRep {
         #[cfg(feature = "block2")]
         #[unsafe(method(drawingHandler))]
         #[unsafe(method_family = none)]
-        pub unsafe fn drawingHandler(&self) -> *mut block2::DynBlock<dyn Fn(NSRect) -> Bool>;
+        pub fn drawingHandler(&self) -> *mut block2::DynBlock<dyn Fn(NSRect) -> Bool>;
 
+        /// # Safety
+        ///
+        /// - `selector` must be a valid selector.
+        /// - `delegate` should be of the correct type.
         #[unsafe(method(initWithDrawSelector:delegate:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithDrawSelector_delegate(
@@ -62,11 +66,11 @@ impl NSCustomImageRep {
 
         #[unsafe(method(drawSelector))]
         #[unsafe(method_family = none)]
-        pub unsafe fn drawSelector(&self) -> Option<Sel>;
+        pub fn drawSelector(&self) -> Option<Sel>;
 
         #[unsafe(method(delegate))]
         #[unsafe(method_family = none)]
-        pub unsafe fn delegate(&self) -> Option<Retained<AnyObject>>;
+        pub fn delegate(&self) -> Option<Retained<AnyObject>>;
     );
 }
 
@@ -76,8 +80,11 @@ impl NSCustomImageRep {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -93,6 +100,14 @@ impl NSCustomImageRep {
     extern_methods!(
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+#[cfg(feature = "NSImageRep")]
+impl DefaultRetained for NSCustomImageRep {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }

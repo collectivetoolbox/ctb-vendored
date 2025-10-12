@@ -46,6 +46,9 @@ unsafe impl RefEncode for NSTextCursorAccessoryPlacement {
 extern_protocol!(
     /// [Apple's documentation](https://developer.apple.com/documentation/appkit/nstextinputclient?language=objc)
     pub unsafe trait NSTextInputClient {
+        /// # Safety
+        ///
+        /// `string` should be of the correct type.
         #[unsafe(method(insertText:replacementRange:))]
         #[unsafe(method_family = none)]
         unsafe fn insertText_replacementRange(
@@ -54,10 +57,16 @@ extern_protocol!(
             replacement_range: NSRange,
         );
 
+        /// # Safety
+        ///
+        /// `selector` must be a valid selector.
         #[unsafe(method(doCommandBySelector:))]
         #[unsafe(method_family = none)]
         unsafe fn doCommandBySelector(&self, selector: Sel);
 
+        /// # Safety
+        ///
+        /// `string` should be of the correct type.
         #[unsafe(method(setMarkedText:selectedRange:replacementRange:))]
         #[unsafe(method_family = none)]
         unsafe fn setMarkedText_selectedRange_replacementRange(
@@ -69,20 +78,23 @@ extern_protocol!(
 
         #[unsafe(method(unmarkText))]
         #[unsafe(method_family = none)]
-        unsafe fn unmarkText(&self);
+        fn unmarkText(&self);
 
         #[unsafe(method(selectedRange))]
         #[unsafe(method_family = none)]
-        unsafe fn selectedRange(&self) -> NSRange;
+        fn selectedRange(&self) -> NSRange;
 
         #[unsafe(method(markedRange))]
         #[unsafe(method_family = none)]
-        unsafe fn markedRange(&self) -> NSRange;
+        fn markedRange(&self) -> NSRange;
 
         #[unsafe(method(hasMarkedText))]
         #[unsafe(method_family = none)]
-        unsafe fn hasMarkedText(&self) -> bool;
+        fn hasMarkedText(&self) -> bool;
 
+        /// # Safety
+        ///
+        /// `actual_range` must be a valid pointer or null.
         #[unsafe(method(attributedSubstringForProposedRange:actualRange:))]
         #[unsafe(method_family = none)]
         unsafe fn attributedSubstringForProposedRange_actualRange(
@@ -93,8 +105,11 @@ extern_protocol!(
 
         #[unsafe(method(validAttributesForMarkedText))]
         #[unsafe(method_family = none)]
-        unsafe fn validAttributesForMarkedText(&self) -> Retained<NSArray<NSAttributedStringKey>>;
+        fn validAttributesForMarkedText(&self) -> Retained<NSArray<NSAttributedStringKey>>;
 
+        /// # Safety
+        ///
+        /// `actual_range` must be a valid pointer or null.
         #[unsafe(method(firstRectForCharacterRange:actualRange:))]
         #[unsafe(method_family = none)]
         unsafe fn firstRectForCharacterRange_actualRange(
@@ -105,60 +120,60 @@ extern_protocol!(
 
         #[unsafe(method(characterIndexForPoint:))]
         #[unsafe(method_family = none)]
-        unsafe fn characterIndexForPoint(&self, point: NSPoint) -> NSUInteger;
+        fn characterIndexForPoint(&self, point: NSPoint) -> NSUInteger;
 
         #[optional]
         #[unsafe(method(attributedString))]
         #[unsafe(method_family = none)]
-        unsafe fn attributedString(&self) -> Retained<NSAttributedString>;
+        fn attributedString(&self) -> Retained<NSAttributedString>;
 
         #[cfg(feature = "objc2-core-foundation")]
         #[optional]
         #[unsafe(method(fractionOfDistanceThroughGlyphForPoint:))]
         #[unsafe(method_family = none)]
-        unsafe fn fractionOfDistanceThroughGlyphForPoint(&self, point: NSPoint) -> CGFloat;
+        fn fractionOfDistanceThroughGlyphForPoint(&self, point: NSPoint) -> CGFloat;
 
         #[cfg(feature = "objc2-core-foundation")]
         #[optional]
         #[unsafe(method(baselineDeltaForCharacterAtIndex:))]
         #[unsafe(method_family = none)]
-        unsafe fn baselineDeltaForCharacterAtIndex(&self, an_index: NSUInteger) -> CGFloat;
+        fn baselineDeltaForCharacterAtIndex(&self, an_index: NSUInteger) -> CGFloat;
 
         #[optional]
         #[unsafe(method(windowLevel))]
         #[unsafe(method_family = none)]
-        unsafe fn windowLevel(&self) -> NSInteger;
+        fn windowLevel(&self) -> NSInteger;
 
         #[optional]
         #[unsafe(method(drawsVerticallyForCharacterAtIndex:))]
         #[unsafe(method_family = none)]
-        unsafe fn drawsVerticallyForCharacterAtIndex(&self, char_index: NSUInteger) -> bool;
+        fn drawsVerticallyForCharacterAtIndex(&self, char_index: NSUInteger) -> bool;
 
         #[optional]
         #[unsafe(method(preferredTextAccessoryPlacement))]
         #[unsafe(method_family = none)]
-        unsafe fn preferredTextAccessoryPlacement(&self) -> NSTextCursorAccessoryPlacement;
+        fn preferredTextAccessoryPlacement(&self) -> NSTextCursorAccessoryPlacement;
 
         #[optional]
         #[unsafe(method(unionRectInVisibleSelectedRange))]
         #[unsafe(method_family = none)]
-        unsafe fn unionRectInVisibleSelectedRange(&self) -> NSRect;
+        fn unionRectInVisibleSelectedRange(&self) -> NSRect;
 
         #[optional]
         #[unsafe(method(documentVisibleRect))]
         #[unsafe(method_family = none)]
-        unsafe fn documentVisibleRect(&self) -> NSRect;
+        fn documentVisibleRect(&self) -> NSRect;
 
         #[optional]
         #[unsafe(method(supportsAdaptiveImageGlyph))]
         #[unsafe(method_family = none)]
-        unsafe fn supportsAdaptiveImageGlyph(&self) -> bool;
+        fn supportsAdaptiveImageGlyph(&self) -> bool;
 
         #[cfg(feature = "NSAdaptiveImageGlyph")]
         #[optional]
         #[unsafe(method(insertAdaptiveImageGlyph:replacementRange:))]
         #[unsafe(method_family = none)]
-        unsafe fn insertAdaptiveImageGlyph_replacementRange(
+        fn insertAdaptiveImageGlyph_replacementRange(
             &self,
             adaptive_image_glyph: &NSAdaptiveImageGlyph,
             replacement_range: NSRange,

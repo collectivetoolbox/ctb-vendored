@@ -126,6 +126,11 @@ pub unsafe trait NSObjectNSKeyValueObserving:
 {
     extern_methods!(
         #[cfg(all(feature = "NSDictionary", feature = "NSString"))]
+        /// # Safety
+        ///
+        /// - `object` should be of the correct type.
+        /// - `change` generic should be of the correct type.
+        /// - `context` must be a valid pointer or null.
         #[unsafe(method(observeValueForKeyPath:ofObject:change:context:))]
         #[unsafe(method_family = none)]
         unsafe fn observeValueForKeyPath_ofObject_change_context(
@@ -152,6 +157,10 @@ pub unsafe trait NSObjectNSKeyValueObserverRegistration:
 {
     extern_methods!(
         #[cfg(feature = "NSString")]
+        /// # Safety
+        ///
+        /// - `observer` should be of the correct type.
+        /// - `context` must be a valid pointer or null.
         #[unsafe(method(addObserver:forKeyPath:options:context:))]
         #[unsafe(method_family = none)]
         unsafe fn addObserver_forKeyPath_options_context(
@@ -163,6 +172,10 @@ pub unsafe trait NSObjectNSKeyValueObserverRegistration:
         );
 
         #[cfg(feature = "NSString")]
+        /// # Safety
+        ///
+        /// - `observer` should be of the correct type.
+        /// - `context` must be a valid pointer or null.
         #[unsafe(method(removeObserver:forKeyPath:context:))]
         #[unsafe(method_family = none)]
         unsafe fn removeObserver_forKeyPath_context(
@@ -173,6 +186,9 @@ pub unsafe trait NSObjectNSKeyValueObserverRegistration:
         );
 
         #[cfg(feature = "NSString")]
+        /// # Safety
+        ///
+        /// `observer` should be of the correct type.
         #[unsafe(method(removeObserver:forKeyPath:))]
         #[unsafe(method_family = none)]
         unsafe fn removeObserver_forKeyPath(&self, observer: &NSObject, key_path: &NSString);
@@ -187,6 +203,10 @@ unsafe impl NSObjectNSKeyValueObserverRegistration for NSObject {}
 impl<ObjectType: Message> NSArray<ObjectType> {
     extern_methods!(
         #[cfg(all(feature = "NSIndexSet", feature = "NSString"))]
+        /// # Safety
+        ///
+        /// - `observer` should be of the correct type.
+        /// - `context` must be a valid pointer or null.
         #[unsafe(method(addObserver:toObjectsAtIndexes:forKeyPath:options:context:))]
         #[unsafe(method_family = none)]
         pub unsafe fn addObserver_toObjectsAtIndexes_forKeyPath_options_context(
@@ -199,6 +219,10 @@ impl<ObjectType: Message> NSArray<ObjectType> {
         );
 
         #[cfg(all(feature = "NSIndexSet", feature = "NSString"))]
+        /// # Safety
+        ///
+        /// - `observer` should be of the correct type.
+        /// - `context` must be a valid pointer or null.
         #[unsafe(method(removeObserver:fromObjectsAtIndexes:forKeyPath:context:))]
         #[unsafe(method_family = none)]
         pub unsafe fn removeObserver_fromObjectsAtIndexes_forKeyPath_context(
@@ -210,6 +234,9 @@ impl<ObjectType: Message> NSArray<ObjectType> {
         );
 
         #[cfg(all(feature = "NSIndexSet", feature = "NSString"))]
+        /// # Safety
+        ///
+        /// `observer` should be of the correct type.
         #[unsafe(method(removeObserver:fromObjectsAtIndexes:forKeyPath:))]
         #[unsafe(method_family = none)]
         pub unsafe fn removeObserver_fromObjectsAtIndexes_forKeyPath(
@@ -220,6 +247,10 @@ impl<ObjectType: Message> NSArray<ObjectType> {
         );
 
         #[cfg(feature = "NSString")]
+        /// # Safety
+        ///
+        /// - `observer` should be of the correct type.
+        /// - `context` must be a valid pointer or null.
         #[unsafe(method(addObserver:forKeyPath:options:context:))]
         #[unsafe(method_family = none)]
         pub unsafe fn addObserver_forKeyPath_options_context(
@@ -231,6 +262,10 @@ impl<ObjectType: Message> NSArray<ObjectType> {
         );
 
         #[cfg(feature = "NSString")]
+        /// # Safety
+        ///
+        /// - `observer` should be of the correct type.
+        /// - `context` must be a valid pointer or null.
         #[unsafe(method(removeObserver:forKeyPath:context:))]
         #[unsafe(method_family = none)]
         pub unsafe fn removeObserver_forKeyPath_context(
@@ -241,6 +276,9 @@ impl<ObjectType: Message> NSArray<ObjectType> {
         );
 
         #[cfg(feature = "NSString")]
+        /// # Safety
+        ///
+        /// `observer` should be of the correct type.
         #[unsafe(method(removeObserver:forKeyPath:))]
         #[unsafe(method_family = none)]
         pub unsafe fn removeObserver_forKeyPath(&self, observer: &NSObject, key_path: &NSString);
@@ -252,6 +290,10 @@ impl<ObjectType: Message> NSArray<ObjectType> {
 impl<ObjectType: Message> NSOrderedSet<ObjectType> {
     extern_methods!(
         #[cfg(feature = "NSString")]
+        /// # Safety
+        ///
+        /// - `observer` should be of the correct type.
+        /// - `context` must be a valid pointer or null.
         #[unsafe(method(addObserver:forKeyPath:options:context:))]
         #[unsafe(method_family = none)]
         pub unsafe fn addObserver_forKeyPath_options_context(
@@ -263,6 +305,10 @@ impl<ObjectType: Message> NSOrderedSet<ObjectType> {
         );
 
         #[cfg(feature = "NSString")]
+        /// # Safety
+        ///
+        /// - `observer` should be of the correct type.
+        /// - `context` must be a valid pointer or null.
         #[unsafe(method(removeObserver:forKeyPath:context:))]
         #[unsafe(method_family = none)]
         pub unsafe fn removeObserver_forKeyPath_context(
@@ -273,6 +319,9 @@ impl<ObjectType: Message> NSOrderedSet<ObjectType> {
         );
 
         #[cfg(feature = "NSString")]
+        /// # Safety
+        ///
+        /// `observer` should be of the correct type.
         #[unsafe(method(removeObserver:forKeyPath:))]
         #[unsafe(method_family = none)]
         pub unsafe fn removeObserver_forKeyPath(&self, observer: &NSObject, key_path: &NSString);
@@ -284,6 +333,10 @@ impl<ObjectType: Message> NSOrderedSet<ObjectType> {
 impl<ObjectType: Message> NSSet<ObjectType> {
     extern_methods!(
         #[cfg(feature = "NSString")]
+        /// # Safety
+        ///
+        /// - `observer` should be of the correct type.
+        /// - `context` must be a valid pointer or null.
         #[unsafe(method(addObserver:forKeyPath:options:context:))]
         #[unsafe(method_family = none)]
         pub unsafe fn addObserver_forKeyPath_options_context(
@@ -295,6 +348,10 @@ impl<ObjectType: Message> NSSet<ObjectType> {
         );
 
         #[cfg(feature = "NSString")]
+        /// # Safety
+        ///
+        /// - `observer` should be of the correct type.
+        /// - `context` must be a valid pointer or null.
         #[unsafe(method(removeObserver:forKeyPath:context:))]
         #[unsafe(method_family = none)]
         pub unsafe fn removeObserver_forKeyPath_context(
@@ -305,6 +362,9 @@ impl<ObjectType: Message> NSSet<ObjectType> {
         );
 
         #[cfg(feature = "NSString")]
+        /// # Safety
+        ///
+        /// `observer` should be of the correct type.
         #[unsafe(method(removeObserver:forKeyPath:))]
         #[unsafe(method_family = none)]
         pub unsafe fn removeObserver_forKeyPath(&self, observer: &NSObject, key_path: &NSString);
@@ -324,17 +384,17 @@ pub unsafe trait NSObjectNSKeyValueObserverNotification:
         #[cfg(feature = "NSString")]
         #[unsafe(method(willChangeValueForKey:))]
         #[unsafe(method_family = none)]
-        unsafe fn willChangeValueForKey(&self, key: &NSString);
+        fn willChangeValueForKey(&self, key: &NSString);
 
         #[cfg(feature = "NSString")]
         #[unsafe(method(didChangeValueForKey:))]
         #[unsafe(method_family = none)]
-        unsafe fn didChangeValueForKey(&self, key: &NSString);
+        fn didChangeValueForKey(&self, key: &NSString);
 
         #[cfg(all(feature = "NSIndexSet", feature = "NSString"))]
         #[unsafe(method(willChange:valuesAtIndexes:forKey:))]
         #[unsafe(method_family = none)]
-        unsafe fn willChange_valuesAtIndexes_forKey(
+        fn willChange_valuesAtIndexes_forKey(
             &self,
             change_kind: NSKeyValueChange,
             indexes: &NSIndexSet,
@@ -344,7 +404,7 @@ pub unsafe trait NSObjectNSKeyValueObserverNotification:
         #[cfg(all(feature = "NSIndexSet", feature = "NSString"))]
         #[unsafe(method(didChange:valuesAtIndexes:forKey:))]
         #[unsafe(method_family = none)]
-        unsafe fn didChange_valuesAtIndexes_forKey(
+        fn didChange_valuesAtIndexes_forKey(
             &self,
             change_kind: NSKeyValueChange,
             indexes: &NSIndexSet,
@@ -352,6 +412,9 @@ pub unsafe trait NSObjectNSKeyValueObserverNotification:
         );
 
         #[cfg(all(feature = "NSSet", feature = "NSString"))]
+        /// # Safety
+        ///
+        /// `objects` generic should be of the correct type.
         #[unsafe(method(willChangeValueForKey:withSetMutation:usingObjects:))]
         #[unsafe(method_family = none)]
         unsafe fn willChangeValueForKey_withSetMutation_usingObjects(
@@ -362,6 +425,9 @@ pub unsafe trait NSObjectNSKeyValueObserverNotification:
         );
 
         #[cfg(all(feature = "NSSet", feature = "NSString"))]
+        /// # Safety
+        ///
+        /// `objects` generic should be of the correct type.
         #[unsafe(method(didChangeValueForKey:withSetMutation:usingObjects:))]
         #[unsafe(method_family = none)]
         unsafe fn didChangeValueForKey_withSetMutation_usingObjects(
@@ -389,20 +455,22 @@ pub unsafe trait NSObjectNSKeyValueObservingCustomization:
         #[cfg(all(feature = "NSSet", feature = "NSString"))]
         #[unsafe(method(keyPathsForValuesAffectingValueForKey:))]
         #[unsafe(method_family = none)]
-        unsafe fn keyPathsForValuesAffectingValueForKey(
-            key: &NSString,
-        ) -> Retained<NSSet<NSString>>;
+        fn keyPathsForValuesAffectingValueForKey(key: &NSString) -> Retained<NSSet<NSString>>;
 
         #[cfg(feature = "NSString")]
         #[unsafe(method(automaticallyNotifiesObserversForKey:))]
         #[unsafe(method_family = none)]
-        unsafe fn automaticallyNotifiesObserversForKey(key: &NSString) -> bool;
+        fn automaticallyNotifiesObserversForKey(key: &NSString) -> bool;
 
         #[unsafe(method(observationInfo))]
         #[unsafe(method_family = none)]
-        unsafe fn observationInfo(&self) -> *mut c_void;
+        fn observationInfo(&self) -> *mut c_void;
 
         /// Setter for [`observationInfo`][Self::observationInfo].
+        ///
+        /// # Safety
+        ///
+        /// `observation_info` must be a valid pointer or null.
         #[unsafe(method(setObservationInfo:))]
         #[unsafe(method_family = none)]
         unsafe fn setObservationInfo(&self, observation_info: *mut c_void);

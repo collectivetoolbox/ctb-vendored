@@ -95,8 +95,11 @@ impl UIVideoEditorController {
     extern_methods!(
         #[unsafe(method(canEditVideoAtPath:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn canEditVideoAtPath(video_path: &NSString, mtm: MainThreadMarker) -> bool;
+        pub fn canEditVideoAtPath(video_path: &NSString, mtm: MainThreadMarker) -> bool;
 
+        /// # Safety
+        ///
+        /// This is not retained internally, you must ensure the object is still alive.
         #[unsafe(method(delegate))]
         #[unsafe(method_family = none)]
         pub unsafe fn delegate(
@@ -108,6 +111,11 @@ impl UIVideoEditorController {
         >;
 
         /// Setter for [`delegate`][Self::delegate].
+        ///
+        /// # Safety
+        ///
+        /// - `delegate` should be of the correct type.
+        /// - This is unretained, you must ensure the object is kept alive while in use.
         #[unsafe(method(setDelegate:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setDelegate(
@@ -119,32 +127,34 @@ impl UIVideoEditorController {
 
         #[unsafe(method(videoPath))]
         #[unsafe(method_family = none)]
-        pub unsafe fn videoPath(&self) -> Retained<NSString>;
+        pub fn videoPath(&self) -> Retained<NSString>;
 
         /// Setter for [`videoPath`][Self::videoPath].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setVideoPath:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setVideoPath(&self, video_path: &NSString);
+        pub fn setVideoPath(&self, video_path: &NSString);
 
         #[unsafe(method(videoMaximumDuration))]
         #[unsafe(method_family = none)]
-        pub unsafe fn videoMaximumDuration(&self) -> NSTimeInterval;
+        pub fn videoMaximumDuration(&self) -> NSTimeInterval;
 
         /// Setter for [`videoMaximumDuration`][Self::videoMaximumDuration].
         #[unsafe(method(setVideoMaximumDuration:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setVideoMaximumDuration(&self, video_maximum_duration: NSTimeInterval);
+        pub fn setVideoMaximumDuration(&self, video_maximum_duration: NSTimeInterval);
 
         #[cfg(feature = "UIImagePickerController")]
         #[unsafe(method(videoQuality))]
         #[unsafe(method_family = none)]
-        pub unsafe fn videoQuality(&self) -> UIImagePickerControllerQualityType;
+        pub fn videoQuality(&self) -> UIImagePickerControllerQualityType;
 
         #[cfg(feature = "UIImagePickerController")]
         /// Setter for [`videoQuality`][Self::videoQuality].
         #[unsafe(method(setVideoQuality:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setVideoQuality(&self, video_quality: UIImagePickerControllerQualityType);
+        pub fn setVideoQuality(&self, video_quality: UIImagePickerControllerQualityType);
     );
 }
 
@@ -156,6 +166,10 @@ impl UIVideoEditorController {
 ))]
 impl UIVideoEditorController {
     extern_methods!(
+        /// # Safety
+        ///
+        /// - `navigation_bar_class` probably has further requirements.
+        /// - `toolbar_class` probably has further requirements.
         #[unsafe(method(initWithNavigationBarClass:toolbarClass:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithNavigationBarClass_toolbarClass(
@@ -166,19 +180,22 @@ impl UIVideoEditorController {
 
         #[unsafe(method(initWithRootViewController:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithRootViewController(
+        pub fn initWithRootViewController(
             this: Allocated<Self>,
             root_view_controller: &UIViewController,
         ) -> Retained<Self>;
 
         #[unsafe(method(initWithNibName:bundle:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithNibName_bundle(
+        pub fn initWithNibName_bundle(
             this: Allocated<Self>,
             nib_name_or_nil: Option<&NSString>,
             nib_bundle_or_nil: Option<&NSBundle>,
         ) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `a_decoder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -198,11 +215,11 @@ impl UIVideoEditorController {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }
 
@@ -219,7 +236,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(videoEditorController:didSaveEditedVideoToPath:))]
         #[unsafe(method_family = none)]
-        unsafe fn videoEditorController_didSaveEditedVideoToPath(
+        fn videoEditorController_didSaveEditedVideoToPath(
             &self,
             editor: &UIVideoEditorController,
             edited_video_path: &NSString,
@@ -233,7 +250,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(videoEditorController:didFailWithError:))]
         #[unsafe(method_family = none)]
-        unsafe fn videoEditorController_didFailWithError(
+        fn videoEditorController_didFailWithError(
             &self,
             editor: &UIVideoEditorController,
             error: &NSError,
@@ -247,6 +264,6 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(videoEditorControllerDidCancel:))]
         #[unsafe(method_family = none)]
-        unsafe fn videoEditorControllerDidCancel(&self, editor: &UIVideoEditorController);
+        fn videoEditorControllerDidCancel(&self, editor: &UIVideoEditorController);
     }
 );

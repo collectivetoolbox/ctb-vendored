@@ -279,75 +279,75 @@ impl NSMorphology {
     extern_methods!(
         #[unsafe(method(grammaticalGender))]
         #[unsafe(method_family = none)]
-        pub unsafe fn grammaticalGender(&self) -> NSGrammaticalGender;
+        pub fn grammaticalGender(&self) -> NSGrammaticalGender;
 
         /// Setter for [`grammaticalGender`][Self::grammaticalGender].
         #[unsafe(method(setGrammaticalGender:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setGrammaticalGender(&self, grammatical_gender: NSGrammaticalGender);
+        pub fn setGrammaticalGender(&self, grammatical_gender: NSGrammaticalGender);
 
         #[unsafe(method(partOfSpeech))]
         #[unsafe(method_family = none)]
-        pub unsafe fn partOfSpeech(&self) -> NSGrammaticalPartOfSpeech;
+        pub fn partOfSpeech(&self) -> NSGrammaticalPartOfSpeech;
 
         /// Setter for [`partOfSpeech`][Self::partOfSpeech].
         #[unsafe(method(setPartOfSpeech:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setPartOfSpeech(&self, part_of_speech: NSGrammaticalPartOfSpeech);
+        pub fn setPartOfSpeech(&self, part_of_speech: NSGrammaticalPartOfSpeech);
 
         #[unsafe(method(number))]
         #[unsafe(method_family = none)]
-        pub unsafe fn number(&self) -> NSGrammaticalNumber;
+        pub fn number(&self) -> NSGrammaticalNumber;
 
         /// Setter for [`number`][Self::number].
         #[unsafe(method(setNumber:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setNumber(&self, number: NSGrammaticalNumber);
+        pub fn setNumber(&self, number: NSGrammaticalNumber);
 
         #[unsafe(method(grammaticalCase))]
         #[unsafe(method_family = none)]
-        pub unsafe fn grammaticalCase(&self) -> NSGrammaticalCase;
+        pub fn grammaticalCase(&self) -> NSGrammaticalCase;
 
         /// Setter for [`grammaticalCase`][Self::grammaticalCase].
         #[unsafe(method(setGrammaticalCase:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setGrammaticalCase(&self, grammatical_case: NSGrammaticalCase);
+        pub fn setGrammaticalCase(&self, grammatical_case: NSGrammaticalCase);
 
         #[unsafe(method(determination))]
         #[unsafe(method_family = none)]
-        pub unsafe fn determination(&self) -> NSGrammaticalDetermination;
+        pub fn determination(&self) -> NSGrammaticalDetermination;
 
         /// Setter for [`determination`][Self::determination].
         #[unsafe(method(setDetermination:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setDetermination(&self, determination: NSGrammaticalDetermination);
+        pub fn setDetermination(&self, determination: NSGrammaticalDetermination);
 
         #[unsafe(method(grammaticalPerson))]
         #[unsafe(method_family = none)]
-        pub unsafe fn grammaticalPerson(&self) -> NSGrammaticalPerson;
+        pub fn grammaticalPerson(&self) -> NSGrammaticalPerson;
 
         /// Setter for [`grammaticalPerson`][Self::grammaticalPerson].
         #[unsafe(method(setGrammaticalPerson:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setGrammaticalPerson(&self, grammatical_person: NSGrammaticalPerson);
+        pub fn setGrammaticalPerson(&self, grammatical_person: NSGrammaticalPerson);
 
         #[unsafe(method(pronounType))]
         #[unsafe(method_family = none)]
-        pub unsafe fn pronounType(&self) -> NSGrammaticalPronounType;
+        pub fn pronounType(&self) -> NSGrammaticalPronounType;
 
         /// Setter for [`pronounType`][Self::pronounType].
         #[unsafe(method(setPronounType:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setPronounType(&self, pronoun_type: NSGrammaticalPronounType);
+        pub fn setPronounType(&self, pronoun_type: NSGrammaticalPronounType);
 
         #[unsafe(method(definiteness))]
         #[unsafe(method_family = none)]
-        pub unsafe fn definiteness(&self) -> NSGrammaticalDefiniteness;
+        pub fn definiteness(&self) -> NSGrammaticalDefiniteness;
 
         /// Setter for [`definiteness`][Self::definiteness].
         #[unsafe(method(setDefiniteness:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setDefiniteness(&self, definiteness: NSGrammaticalDefiniteness);
+        pub fn setDefiniteness(&self, definiteness: NSGrammaticalDefiniteness);
     );
 }
 
@@ -356,12 +356,19 @@ impl NSMorphology {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl DefaultRetained for NSMorphology {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }
 
 extern_class!(
@@ -408,7 +415,7 @@ impl NSMorphologyPronoun {
         #[cfg(feature = "NSString")]
         #[unsafe(method(initWithPronoun:morphology:dependentMorphology:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithPronoun_morphology_dependentMorphology(
+        pub fn initWithPronoun_morphology_dependentMorphology(
             this: Allocated<Self>,
             pronoun: &NSString,
             morphology: &NSMorphology,
@@ -418,26 +425,27 @@ impl NSMorphologyPronoun {
         #[cfg(feature = "NSString")]
         #[unsafe(method(pronoun))]
         #[unsafe(method_family = none)]
-        pub unsafe fn pronoun(&self) -> Retained<NSString>;
+        pub fn pronoun(&self) -> Retained<NSString>;
 
         #[unsafe(method(morphology))]
         #[unsafe(method_family = none)]
-        pub unsafe fn morphology(&self) -> Retained<NSMorphology>;
+        pub fn morphology(&self) -> Retained<NSMorphology>;
 
         #[unsafe(method(dependentMorphology))]
         #[unsafe(method_family = none)]
-        pub unsafe fn dependentMorphology(&self) -> Option<Retained<NSMorphology>>;
+        pub fn dependentMorphology(&self) -> Option<Retained<NSMorphology>>;
     );
 }
 
 /// NSCustomPronouns.
+#[deprecated = "Use NSTermOfAddress instead"]
 impl NSMorphology {
     extern_methods!(
         #[cfg(feature = "NSString")]
         #[deprecated = "Use NSTermOfAddress instead"]
         #[unsafe(method(customPronounForLanguage:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn customPronounForLanguage(
+        pub fn customPronounForLanguage(
             &self,
             language: &NSString,
         ) -> Option<Retained<NSMorphologyCustomPronoun>>;
@@ -446,7 +454,7 @@ impl NSMorphology {
         #[deprecated = "Use NSTermOfAddress instead"]
         #[unsafe(method(setCustomPronoun:forLanguage:error:_))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setCustomPronoun_forLanguage_error(
+        pub fn setCustomPronoun_forLanguage_error(
             &self,
             features: Option<&NSMorphologyCustomPronoun>,
             language: &NSString,
@@ -492,81 +500,88 @@ impl NSMorphologyCustomPronoun {
         #[deprecated = "Use NSTermOfAddress instead"]
         #[unsafe(method(isSupportedForLanguage:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isSupportedForLanguage(language: &NSString) -> bool;
+        pub fn isSupportedForLanguage(language: &NSString) -> bool;
 
         #[cfg(all(feature = "NSArray", feature = "NSString"))]
         #[deprecated = "Use NSTermOfAddress instead"]
         #[unsafe(method(requiredKeysForLanguage:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn requiredKeysForLanguage(language: &NSString) -> Retained<NSArray<NSString>>;
+        pub fn requiredKeysForLanguage(language: &NSString) -> Retained<NSArray<NSString>>;
 
         #[cfg(feature = "NSString")]
         #[deprecated = "Use NSTermOfAddress instead"]
         #[unsafe(method(subjectForm))]
         #[unsafe(method_family = none)]
-        pub unsafe fn subjectForm(&self) -> Option<Retained<NSString>>;
+        pub fn subjectForm(&self) -> Option<Retained<NSString>>;
 
         #[cfg(feature = "NSString")]
         /// Setter for [`subjectForm`][Self::subjectForm].
+        ///
+        /// This is [copied][crate::NSCopying::copy] when set.
         #[deprecated = "Use NSTermOfAddress instead"]
         #[unsafe(method(setSubjectForm:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setSubjectForm(&self, subject_form: Option<&NSString>);
+        pub fn setSubjectForm(&self, subject_form: Option<&NSString>);
 
         #[cfg(feature = "NSString")]
         #[deprecated = "Use NSTermOfAddress instead"]
         #[unsafe(method(objectForm))]
         #[unsafe(method_family = none)]
-        pub unsafe fn objectForm(&self) -> Option<Retained<NSString>>;
+        pub fn objectForm(&self) -> Option<Retained<NSString>>;
 
         #[cfg(feature = "NSString")]
         /// Setter for [`objectForm`][Self::objectForm].
+        ///
+        /// This is [copied][crate::NSCopying::copy] when set.
         #[deprecated = "Use NSTermOfAddress instead"]
         #[unsafe(method(setObjectForm:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setObjectForm(&self, object_form: Option<&NSString>);
+        pub fn setObjectForm(&self, object_form: Option<&NSString>);
 
         #[cfg(feature = "NSString")]
         #[deprecated = "Use NSTermOfAddress instead"]
         #[unsafe(method(possessiveForm))]
         #[unsafe(method_family = none)]
-        pub unsafe fn possessiveForm(&self) -> Option<Retained<NSString>>;
+        pub fn possessiveForm(&self) -> Option<Retained<NSString>>;
 
         #[cfg(feature = "NSString")]
         /// Setter for [`possessiveForm`][Self::possessiveForm].
+        ///
+        /// This is [copied][crate::NSCopying::copy] when set.
         #[deprecated = "Use NSTermOfAddress instead"]
         #[unsafe(method(setPossessiveForm:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setPossessiveForm(&self, possessive_form: Option<&NSString>);
+        pub fn setPossessiveForm(&self, possessive_form: Option<&NSString>);
 
         #[cfg(feature = "NSString")]
         #[deprecated = "Use NSTermOfAddress instead"]
         #[unsafe(method(possessiveAdjectiveForm))]
         #[unsafe(method_family = none)]
-        pub unsafe fn possessiveAdjectiveForm(&self) -> Option<Retained<NSString>>;
+        pub fn possessiveAdjectiveForm(&self) -> Option<Retained<NSString>>;
 
         #[cfg(feature = "NSString")]
         /// Setter for [`possessiveAdjectiveForm`][Self::possessiveAdjectiveForm].
+        ///
+        /// This is [copied][crate::NSCopying::copy] when set.
         #[deprecated = "Use NSTermOfAddress instead"]
         #[unsafe(method(setPossessiveAdjectiveForm:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setPossessiveAdjectiveForm(
-            &self,
-            possessive_adjective_form: Option<&NSString>,
-        );
+        pub fn setPossessiveAdjectiveForm(&self, possessive_adjective_form: Option<&NSString>);
 
         #[cfg(feature = "NSString")]
         #[deprecated = "Use NSTermOfAddress instead"]
         #[unsafe(method(reflexiveForm))]
         #[unsafe(method_family = none)]
-        pub unsafe fn reflexiveForm(&self) -> Option<Retained<NSString>>;
+        pub fn reflexiveForm(&self) -> Option<Retained<NSString>>;
 
         #[cfg(feature = "NSString")]
         /// Setter for [`reflexiveForm`][Self::reflexiveForm].
+        ///
+        /// This is [copied][crate::NSCopying::copy] when set.
         #[deprecated = "Use NSTermOfAddress instead"]
         #[unsafe(method(setReflexiveForm:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setReflexiveForm(&self, reflexive_form: Option<&NSString>);
+        pub fn setReflexiveForm(&self, reflexive_form: Option<&NSString>);
     );
 }
 
@@ -575,12 +590,19 @@ impl NSMorphologyCustomPronoun {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl DefaultRetained for NSMorphologyCustomPronoun {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }
 
 /// NSMorphologyUserSettings.
@@ -588,10 +610,10 @@ impl NSMorphology {
     extern_methods!(
         #[unsafe(method(isUnspecified))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isUnspecified(&self) -> bool;
+        pub fn isUnspecified(&self) -> bool;
 
         #[unsafe(method(userMorphology))]
         #[unsafe(method_family = none)]
-        pub unsafe fn userMorphology() -> Retained<NSMorphology>;
+        pub fn userMorphology() -> Retained<NSMorphology>;
     );
 }

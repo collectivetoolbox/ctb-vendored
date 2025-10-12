@@ -10,6 +10,7 @@ use objc2::__framework_prelude::*;
 use crate::*;
 
 /// [Apple's documentation](https://developer.apple.com/documentation/corefoundation/cfbundle?language=objc)
+#[doc(alias = "CFBundleRef")]
 #[repr(C)]
 pub struct CFBundle {
     inner: [u8; 0],
@@ -25,6 +26,7 @@ cf_objc2_type!(
 );
 
 /// [Apple's documentation](https://developer.apple.com/documentation/corefoundation/cfplugin?language=objc)
+#[doc(alias = "CFPlugInRef")]
 #[repr(C)]
 pub struct CFPlugIn {
     inner: [u8; 0],
@@ -161,7 +163,7 @@ impl CFBundle {
     #[doc(alias = "CFBundleCopyBundleURL")]
     #[cfg(feature = "CFURL")]
     #[inline]
-    pub fn bundle_url(self: &CFBundle) -> Option<CFRetained<CFURL>> {
+    pub fn bundle_url(&self) -> Option<CFRetained<CFURL>> {
         extern "C-unwind" {
             fn CFBundleCopyBundleURL(bundle: &CFBundle) -> Option<NonNull<CFURL>>;
         }
@@ -172,7 +174,7 @@ impl CFBundle {
     #[doc(alias = "CFBundleGetValueForInfoDictionaryKey")]
     #[inline]
     pub fn value_for_info_dictionary_key(
-        self: &CFBundle,
+        &self,
         key: Option<&CFString>,
     ) -> Option<CFRetained<CFType>> {
         extern "C-unwind" {
@@ -188,7 +190,7 @@ impl CFBundle {
     #[doc(alias = "CFBundleGetInfoDictionary")]
     #[cfg(feature = "CFDictionary")]
     #[inline]
-    pub fn info_dictionary(self: &CFBundle) -> Option<CFRetained<CFDictionary>> {
+    pub fn info_dictionary(&self) -> Option<CFRetained<CFDictionary>> {
         extern "C-unwind" {
             fn CFBundleGetInfoDictionary(bundle: &CFBundle) -> Option<NonNull<CFDictionary>>;
         }
@@ -199,7 +201,7 @@ impl CFBundle {
     #[doc(alias = "CFBundleGetLocalInfoDictionary")]
     #[cfg(feature = "CFDictionary")]
     #[inline]
-    pub fn local_info_dictionary(self: &CFBundle) -> Option<CFRetained<CFDictionary>> {
+    pub fn local_info_dictionary(&self) -> Option<CFRetained<CFDictionary>> {
         extern "C-unwind" {
             fn CFBundleGetLocalInfoDictionary(bundle: &CFBundle) -> Option<NonNull<CFDictionary>>;
         }
@@ -207,9 +209,13 @@ impl CFBundle {
         ret.map(|ret| unsafe { CFRetained::retain(ret) })
     }
 
+    /// # Safety
+    ///
+    /// - `package_type` must be a valid pointer.
+    /// - `package_creator` must be a valid pointer.
     #[doc(alias = "CFBundleGetPackageInfo")]
     #[inline]
-    pub unsafe fn package_info(self: &CFBundle, package_type: *mut u32, package_creator: *mut u32) {
+    pub unsafe fn package_info(&self, package_type: *mut u32, package_creator: *mut u32) {
         extern "C-unwind" {
             fn CFBundleGetPackageInfo(
                 bundle: &CFBundle,
@@ -222,7 +228,7 @@ impl CFBundle {
 
     #[doc(alias = "CFBundleGetIdentifier")]
     #[inline]
-    pub fn identifier(self: &CFBundle) -> Option<CFRetained<CFString>> {
+    pub fn identifier(&self) -> Option<CFRetained<CFString>> {
         extern "C-unwind" {
             fn CFBundleGetIdentifier(bundle: &CFBundle) -> Option<NonNull<CFString>>;
         }
@@ -232,7 +238,7 @@ impl CFBundle {
 
     #[doc(alias = "CFBundleGetVersionNumber")]
     #[inline]
-    pub fn version_number(self: &CFBundle) -> u32 {
+    pub fn version_number(&self) -> u32 {
         extern "C-unwind" {
             fn CFBundleGetVersionNumber(bundle: &CFBundle) -> u32;
         }
@@ -241,7 +247,7 @@ impl CFBundle {
 
     #[doc(alias = "CFBundleGetDevelopmentRegion")]
     #[inline]
-    pub fn development_region(self: &CFBundle) -> Option<CFRetained<CFString>> {
+    pub fn development_region(&self) -> Option<CFRetained<CFString>> {
         extern "C-unwind" {
             fn CFBundleGetDevelopmentRegion(bundle: &CFBundle) -> Option<NonNull<CFString>>;
         }
@@ -252,7 +258,7 @@ impl CFBundle {
     #[doc(alias = "CFBundleCopySupportFilesDirectoryURL")]
     #[cfg(feature = "CFURL")]
     #[inline]
-    pub fn support_files_directory_url(self: &CFBundle) -> Option<CFRetained<CFURL>> {
+    pub fn support_files_directory_url(&self) -> Option<CFRetained<CFURL>> {
         extern "C-unwind" {
             fn CFBundleCopySupportFilesDirectoryURL(bundle: &CFBundle) -> Option<NonNull<CFURL>>;
         }
@@ -263,7 +269,7 @@ impl CFBundle {
     #[doc(alias = "CFBundleCopyResourcesDirectoryURL")]
     #[cfg(feature = "CFURL")]
     #[inline]
-    pub fn resources_directory_url(self: &CFBundle) -> Option<CFRetained<CFURL>> {
+    pub fn resources_directory_url(&self) -> Option<CFRetained<CFURL>> {
         extern "C-unwind" {
             fn CFBundleCopyResourcesDirectoryURL(bundle: &CFBundle) -> Option<NonNull<CFURL>>;
         }
@@ -274,7 +280,7 @@ impl CFBundle {
     #[doc(alias = "CFBundleCopyPrivateFrameworksURL")]
     #[cfg(feature = "CFURL")]
     #[inline]
-    pub fn private_frameworks_url(self: &CFBundle) -> Option<CFRetained<CFURL>> {
+    pub fn private_frameworks_url(&self) -> Option<CFRetained<CFURL>> {
         extern "C-unwind" {
             fn CFBundleCopyPrivateFrameworksURL(bundle: &CFBundle) -> Option<NonNull<CFURL>>;
         }
@@ -285,7 +291,7 @@ impl CFBundle {
     #[doc(alias = "CFBundleCopySharedFrameworksURL")]
     #[cfg(feature = "CFURL")]
     #[inline]
-    pub fn shared_frameworks_url(self: &CFBundle) -> Option<CFRetained<CFURL>> {
+    pub fn shared_frameworks_url(&self) -> Option<CFRetained<CFURL>> {
         extern "C-unwind" {
             fn CFBundleCopySharedFrameworksURL(bundle: &CFBundle) -> Option<NonNull<CFURL>>;
         }
@@ -296,7 +302,7 @@ impl CFBundle {
     #[doc(alias = "CFBundleCopySharedSupportURL")]
     #[cfg(feature = "CFURL")]
     #[inline]
-    pub fn shared_support_url(self: &CFBundle) -> Option<CFRetained<CFURL>> {
+    pub fn shared_support_url(&self) -> Option<CFRetained<CFURL>> {
         extern "C-unwind" {
             fn CFBundleCopySharedSupportURL(bundle: &CFBundle) -> Option<NonNull<CFURL>>;
         }
@@ -307,7 +313,7 @@ impl CFBundle {
     #[doc(alias = "CFBundleCopyBuiltInPlugInsURL")]
     #[cfg(feature = "CFURL")]
     #[inline]
-    pub fn built_in_plug_ins_url(self: &CFBundle) -> Option<CFRetained<CFURL>> {
+    pub fn built_in_plug_ins_url(&self) -> Option<CFRetained<CFURL>> {
         extern "C-unwind" {
             fn CFBundleCopyBuiltInPlugInsURL(bundle: &CFBundle) -> Option<NonNull<CFURL>>;
         }
@@ -330,6 +336,11 @@ impl CFBundle {
         ret.map(|ret| unsafe { CFRetained::from_raw(ret) })
     }
 
+    /// # Safety
+    ///
+    /// - `url` might not allow `None`.
+    /// - `package_type` must be a valid pointer.
+    /// - `package_creator` must be a valid pointer.
     #[doc(alias = "CFBundleGetPackageInfoInDirectory")]
     #[cfg(feature = "CFURL")]
     #[inline]
@@ -353,7 +364,7 @@ impl CFBundle {
     #[cfg(feature = "CFURL")]
     #[inline]
     pub fn resource_url(
-        self: &CFBundle,
+        &self,
         resource_name: Option<&CFString>,
         resource_type: Option<&CFString>,
         sub_dir_name: Option<&CFString>,
@@ -375,7 +386,7 @@ impl CFBundle {
     #[cfg(feature = "CFArray")]
     #[inline]
     pub fn resource_urls_of_type(
-        self: &CFBundle,
+        &self,
         resource_type: Option<&CFString>,
         sub_dir_name: Option<&CFString>,
     ) -> Option<CFRetained<CFArray>> {
@@ -393,7 +404,7 @@ impl CFBundle {
     #[doc(alias = "CFBundleCopyLocalizedString")]
     #[inline]
     pub fn localized_string(
-        self: &CFBundle,
+        &self,
         key: Option<&CFString>,
         value: Option<&CFString>,
         table_name: Option<&CFString>,
@@ -418,11 +429,19 @@ impl CFBundle {
     /// - tableName: The name of the strings file to search.
     /// - localizations: An array of BCP 47 language codes corresponding to available localizations. Bundle compares the array against its available localizations, and uses the best result to retrieve the localized string. If empty, we treat it as no localization is available, and may return a fallback.
     /// - Returns: A localized version of the string designated by ``key`` in table ``tableName``.
+    ///
+    /// # Safety
+    ///
+    /// - `key` might not allow `None`.
+    /// - `value` might not allow `None`.
+    /// - `table_name` might not allow `None`.
+    /// - `localizations` generic must be of the correct type.
+    /// - `localizations` might not allow `None`.
     #[doc(alias = "CFBundleCopyLocalizedStringForLocalizations")]
     #[cfg(feature = "CFArray")]
     #[inline]
     pub unsafe fn localized_string_for_localizations(
-        self: &CFBundle,
+        &self,
         key: Option<&CFString>,
         value: Option<&CFString>,
         table_name: Option<&CFString>,
@@ -495,7 +514,7 @@ impl CFBundle {
     #[doc(alias = "CFBundleCopyBundleLocalizations")]
     #[cfg(feature = "CFArray")]
     #[inline]
-    pub fn bundle_localizations(self: &CFBundle) -> Option<CFRetained<CFArray>> {
+    pub fn bundle_localizations(&self) -> Option<CFRetained<CFArray>> {
         extern "C-unwind" {
             fn CFBundleCopyBundleLocalizations(bundle: &CFBundle) -> Option<NonNull<CFArray>>;
         }
@@ -503,6 +522,10 @@ impl CFBundle {
         ret.map(|ret| unsafe { CFRetained::from_raw(ret) })
     }
 
+    /// # Safety
+    ///
+    /// - `loc_array` generic must be of the correct type.
+    /// - `loc_array` might not allow `None`.
     #[doc(alias = "CFBundleCopyPreferredLocalizationsFromArray")]
     #[cfg(feature = "CFArray")]
     #[inline]
@@ -518,6 +541,12 @@ impl CFBundle {
         ret.map(|ret| unsafe { CFRetained::from_raw(ret) })
     }
 
+    /// # Safety
+    ///
+    /// - `loc_array` generic must be of the correct type.
+    /// - `loc_array` might not allow `None`.
+    /// - `pref_array` generic must be of the correct type.
+    /// - `pref_array` might not allow `None`.
     #[doc(alias = "CFBundleCopyLocalizationsForPreferences")]
     #[cfg(feature = "CFArray")]
     #[inline]
@@ -539,7 +568,7 @@ impl CFBundle {
     #[cfg(feature = "CFURL")]
     #[inline]
     pub fn resource_url_for_localization(
-        self: &CFBundle,
+        &self,
         resource_name: Option<&CFString>,
         resource_type: Option<&CFString>,
         sub_dir_name: Option<&CFString>,
@@ -570,7 +599,7 @@ impl CFBundle {
     #[cfg(feature = "CFArray")]
     #[inline]
     pub fn resource_urls_of_type_for_localization(
-        self: &CFBundle,
+        &self,
         resource_type: Option<&CFString>,
         sub_dir_name: Option<&CFString>,
         localization_name: Option<&CFString>,
@@ -634,7 +663,7 @@ impl CFBundle {
     #[doc(alias = "CFBundleCopyExecutableURL")]
     #[cfg(feature = "CFURL")]
     #[inline]
-    pub fn executable_url(self: &CFBundle) -> Option<CFRetained<CFURL>> {
+    pub fn executable_url(&self) -> Option<CFRetained<CFURL>> {
         extern "C-unwind" {
             fn CFBundleCopyExecutableURL(bundle: &CFBundle) -> Option<NonNull<CFURL>>;
         }
@@ -658,7 +687,7 @@ impl CFBundle {
     #[doc(alias = "CFBundleCopyExecutableArchitectures")]
     #[cfg(feature = "CFArray")]
     #[inline]
-    pub fn executable_architectures(self: &CFBundle) -> Option<CFRetained<CFArray>> {
+    pub fn executable_architectures(&self) -> Option<CFRetained<CFArray>> {
         extern "C-unwind" {
             fn CFBundleCopyExecutableArchitectures(bundle: &CFBundle) -> Option<NonNull<CFArray>>;
         }
@@ -666,10 +695,13 @@ impl CFBundle {
         ret.map(|ret| unsafe { CFRetained::from_raw(ret) })
     }
 
+    /// # Safety
+    ///
+    /// `error` must be a valid pointer.
     #[doc(alias = "CFBundlePreflightExecutable")]
     #[cfg(feature = "CFError")]
     #[inline]
-    pub unsafe fn preflight_executable(self: &CFBundle, error: *mut *mut CFError) -> bool {
+    pub unsafe fn preflight_executable(&self, error: *mut *mut CFError) -> bool {
         extern "C-unwind" {
             fn CFBundlePreflightExecutable(bundle: &CFBundle, error: *mut *mut CFError) -> Boolean;
         }
@@ -677,13 +709,13 @@ impl CFBundle {
         ret != 0
     }
 
+    /// # Safety
+    ///
+    /// `error` must be a valid pointer.
     #[doc(alias = "CFBundleLoadExecutableAndReturnError")]
     #[cfg(feature = "CFError")]
     #[inline]
-    pub unsafe fn load_executable_and_return_error(
-        self: &CFBundle,
-        error: *mut *mut CFError,
-    ) -> bool {
+    pub unsafe fn load_executable_and_return_error(&self, error: *mut *mut CFError) -> bool {
         extern "C-unwind" {
             fn CFBundleLoadExecutableAndReturnError(
                 bundle: &CFBundle,
@@ -696,7 +728,7 @@ impl CFBundle {
 
     #[doc(alias = "CFBundleLoadExecutable")]
     #[inline]
-    pub unsafe fn load_executable(self: &CFBundle) -> bool {
+    pub unsafe fn load_executable(&self) -> bool {
         extern "C-unwind" {
             fn CFBundleLoadExecutable(bundle: &CFBundle) -> Boolean;
         }
@@ -706,7 +738,7 @@ impl CFBundle {
 
     #[doc(alias = "CFBundleIsExecutableLoaded")]
     #[inline]
-    pub fn is_executable_loaded(self: &CFBundle) -> bool {
+    pub fn is_executable_loaded(&self) -> bool {
         extern "C-unwind" {
             fn CFBundleIsExecutableLoaded(bundle: &CFBundle) -> Boolean;
         }
@@ -716,7 +748,7 @@ impl CFBundle {
 
     #[doc(alias = "CFBundleUnloadExecutable")]
     #[inline]
-    pub unsafe fn unload_executable(self: &CFBundle) {
+    pub unsafe fn unload_executable(&self) {
         extern "C-unwind" {
             fn CFBundleUnloadExecutable(bundle: &CFBundle);
         }
@@ -725,10 +757,7 @@ impl CFBundle {
 
     #[doc(alias = "CFBundleGetFunctionPointerForName")]
     #[inline]
-    pub fn function_pointer_for_name(
-        self: &CFBundle,
-        function_name: Option<&CFString>,
-    ) -> *mut c_void {
+    pub fn function_pointer_for_name(&self, function_name: Option<&CFString>) -> *mut c_void {
         extern "C-unwind" {
             fn CFBundleGetFunctionPointerForName(
                 bundle: &CFBundle,
@@ -738,11 +767,16 @@ impl CFBundle {
         unsafe { CFBundleGetFunctionPointerForName(self, function_name) }
     }
 
+    /// # Safety
+    ///
+    /// - `function_names` generic must be of the correct type.
+    /// - `function_names` might not allow `None`.
+    /// - `ftbl` must be a valid pointer.
     #[doc(alias = "CFBundleGetFunctionPointersForNames")]
     #[cfg(feature = "CFArray")]
     #[inline]
     pub unsafe fn function_pointers_for_names(
-        self: &CFBundle,
+        &self,
         function_names: Option<&CFArray>,
         ftbl: *mut *mut c_void,
     ) {
@@ -758,7 +792,7 @@ impl CFBundle {
 
     #[doc(alias = "CFBundleGetDataPointerForName")]
     #[inline]
-    pub fn data_pointer_for_name(self: &CFBundle, symbol_name: Option<&CFString>) -> *mut c_void {
+    pub fn data_pointer_for_name(&self, symbol_name: Option<&CFString>) -> *mut c_void {
         extern "C-unwind" {
             fn CFBundleGetDataPointerForName(
                 bundle: &CFBundle,
@@ -768,11 +802,16 @@ impl CFBundle {
         unsafe { CFBundleGetDataPointerForName(self, symbol_name) }
     }
 
+    /// # Safety
+    ///
+    /// - `symbol_names` generic must be of the correct type.
+    /// - `symbol_names` might not allow `None`.
+    /// - `stbl` must be a valid pointer.
     #[doc(alias = "CFBundleGetDataPointersForNames")]
     #[cfg(feature = "CFArray")]
     #[inline]
     pub unsafe fn data_pointers_for_names(
-        self: &CFBundle,
+        &self,
         symbol_names: Option<&CFArray>,
         stbl: *mut *mut c_void,
     ) {
@@ -790,7 +829,7 @@ impl CFBundle {
     #[cfg(feature = "CFURL")]
     #[inline]
     pub fn auxiliary_executable_url(
-        self: &CFBundle,
+        &self,
         executable_name: Option<&CFString>,
     ) -> Option<CFRetained<CFURL>> {
         extern "C-unwind" {
@@ -805,7 +844,7 @@ impl CFBundle {
 
     #[doc(alias = "CFBundleIsExecutableLoadable")]
     #[inline]
-    pub fn is_executable_loadable(self: &CFBundle) -> bool {
+    pub fn is_executable_loadable(&self) -> bool {
         extern "C-unwind" {
             fn CFBundleIsExecutableLoadable(bundle: &CFBundle) -> Boolean;
         }
@@ -837,7 +876,7 @@ impl CFBundle {
 
     #[doc(alias = "CFBundleGetPlugIn")]
     #[inline]
-    pub fn plug_in(self: &CFBundle) -> Option<CFRetained<CFPlugIn>> {
+    pub fn plug_in(&self) -> Option<CFRetained<CFPlugIn>> {
         extern "C-unwind" {
             fn CFBundleGetPlugIn(bundle: &CFBundle) -> Option<NonNull<CFPlugIn>>;
         }
@@ -848,18 +887,22 @@ impl CFBundle {
     #[doc(alias = "CFBundleOpenBundleResourceMap")]
     #[deprecated = "The Carbon Resource Manager is deprecated. This should only be used to access Resource Manager-style resources in old bundles."]
     #[inline]
-    pub unsafe fn open_bundle_resource_map(self: &CFBundle) -> CFBundleRefNum {
+    pub fn open_bundle_resource_map(&self) -> CFBundleRefNum {
         extern "C-unwind" {
             fn CFBundleOpenBundleResourceMap(bundle: &CFBundle) -> CFBundleRefNum;
         }
         unsafe { CFBundleOpenBundleResourceMap(self) }
     }
 
+    /// # Safety
+    ///
+    /// - `ref_num` must be a valid pointer.
+    /// - `localized_ref_num` must be a valid pointer.
     #[doc(alias = "CFBundleOpenBundleResourceFiles")]
     #[deprecated = "The Carbon Resource Manager is deprecated. This should only be used to access Resource Manager-style resources in old bundles."]
     #[inline]
     pub unsafe fn open_bundle_resource_files(
-        self: &CFBundle,
+        &self,
         ref_num: *mut CFBundleRefNum,
         localized_ref_num: *mut CFBundleRefNum,
     ) -> i32 {
@@ -876,7 +919,7 @@ impl CFBundle {
     #[doc(alias = "CFBundleCloseBundleResourceMap")]
     #[deprecated = "The Carbon Resource Manager is deprecated. This should only be used to access Resource Manager-style resources in old bundles."]
     #[inline]
-    pub unsafe fn close_bundle_resource_map(self: &CFBundle, ref_num: CFBundleRefNum) {
+    pub fn close_bundle_resource_map(&self, ref_num: CFBundleRefNum) {
         extern "C-unwind" {
             fn CFBundleCloseBundleResourceMap(bundle: &CFBundle, ref_num: CFBundleRefNum);
         }
@@ -1624,9 +1667,13 @@ pub extern "C-unwind" fn CFBundleGetPlugIn(bundle: &CFBundle) -> Option<CFRetain
     ret.map(|ret| unsafe { CFRetained::retain(ret) })
 }
 
-extern "C-unwind" {
-    #[deprecated = "renamed to `CFBundle::open_bundle_resource_map`"]
-    pub fn CFBundleOpenBundleResourceMap(bundle: &CFBundle) -> CFBundleRefNum;
+#[deprecated = "renamed to `CFBundle::open_bundle_resource_map`"]
+#[inline]
+pub extern "C-unwind" fn CFBundleOpenBundleResourceMap(bundle: &CFBundle) -> CFBundleRefNum {
+    extern "C-unwind" {
+        fn CFBundleOpenBundleResourceMap(bundle: &CFBundle) -> CFBundleRefNum;
+    }
+    unsafe { CFBundleOpenBundleResourceMap(bundle) }
 }
 
 extern "C-unwind" {
@@ -1638,7 +1685,14 @@ extern "C-unwind" {
     ) -> i32;
 }
 
-extern "C-unwind" {
-    #[deprecated = "renamed to `CFBundle::close_bundle_resource_map`"]
-    pub fn CFBundleCloseBundleResourceMap(bundle: &CFBundle, ref_num: CFBundleRefNum);
+#[deprecated = "renamed to `CFBundle::close_bundle_resource_map`"]
+#[inline]
+pub extern "C-unwind" fn CFBundleCloseBundleResourceMap(
+    bundle: &CFBundle,
+    ref_num: CFBundleRefNum,
+) {
+    extern "C-unwind" {
+        fn CFBundleCloseBundleResourceMap(bundle: &CFBundle, ref_num: CFBundleRefNum);
+    }
+    unsafe { CFBundleCloseBundleResourceMap(bundle, ref_num) }
 }

@@ -251,6 +251,7 @@ pub mod natural {
         pub mod mod_neg;
         pub mod mod_op;
         pub mod mod_pow;
+        // end
         pub mod mod_power_of_2;
         pub mod mod_power_of_2_add;
         pub mod mod_power_of_2_inverse;
@@ -345,6 +346,7 @@ pub mod natural {
         pub mod exhaustive_positive_naturals;
     }
     pub mod factorization {
+        pub mod is_square;
         pub mod primes;
     }
     pub mod logic {

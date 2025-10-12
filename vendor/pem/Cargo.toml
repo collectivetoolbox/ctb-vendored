@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.60.0"
 name = "pem"
-version = "3.0.5"
+version = "3.0.6"
 authors = ["Jonathan Creekmore <jonathan@thecreekmores.org>"]
 build = false
 autolib = false
@@ -34,6 +34,17 @@ categories = ["cryptography"]
 license = "MIT"
 repository = "https://github.com/jcreekmore/pem-rs.git"
 
+[badges.travis-ci]
+repository = "jcreekmore/pem-rs"
+
+[features]
+default = ["std"]
+serde = ["dep:serde_core"]
+std = [
+    "base64/std",
+    "serde_core?/std",
+]
+
 [lib]
 name = "pem"
 path = "src/lib.rs"
@@ -48,7 +59,7 @@ version = "0.22.0"
 features = ["alloc"]
 default-features = false
 
-[dependencies.serde]
+[dependencies.serde_core]
 version = "1"
 optional = true
 default-features = false
@@ -63,14 +74,3 @@ default-features = false
 
 [dev-dependencies.serde_json]
 version = "1"
-
-[features]
-default = ["std"]
-serde = ["dep:serde"]
-std = [
-    "base64/std",
-    "serde?/std",
-]
-
-[badges.travis-ci]
-repository = "jcreekmore/pem-rs"

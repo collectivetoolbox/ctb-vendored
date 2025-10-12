@@ -47,59 +47,59 @@ impl NSBackgroundActivityScheduler {
         #[cfg(feature = "NSString")]
         #[unsafe(method(initWithIdentifier:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithIdentifier(
-            this: Allocated<Self>,
-            identifier: &NSString,
-        ) -> Retained<Self>;
+        pub fn initWithIdentifier(this: Allocated<Self>, identifier: &NSString) -> Retained<Self>;
 
         #[cfg(feature = "NSString")]
         #[unsafe(method(identifier))]
         #[unsafe(method_family = none)]
-        pub unsafe fn identifier(&self) -> Retained<NSString>;
+        pub fn identifier(&self) -> Retained<NSString>;
 
         #[cfg(feature = "NSObjCRuntime")]
         #[unsafe(method(qualityOfService))]
         #[unsafe(method_family = none)]
-        pub unsafe fn qualityOfService(&self) -> NSQualityOfService;
+        pub fn qualityOfService(&self) -> NSQualityOfService;
 
         #[cfg(feature = "NSObjCRuntime")]
         /// Setter for [`qualityOfService`][Self::qualityOfService].
         #[unsafe(method(setQualityOfService:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setQualityOfService(&self, quality_of_service: NSQualityOfService);
+        pub fn setQualityOfService(&self, quality_of_service: NSQualityOfService);
 
         #[unsafe(method(repeats))]
         #[unsafe(method_family = none)]
-        pub unsafe fn repeats(&self) -> bool;
+        pub fn repeats(&self) -> bool;
 
         /// Setter for [`repeats`][Self::repeats].
         #[unsafe(method(setRepeats:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setRepeats(&self, repeats: bool);
+        pub fn setRepeats(&self, repeats: bool);
 
         #[cfg(feature = "NSDate")]
         #[unsafe(method(interval))]
         #[unsafe(method_family = none)]
-        pub unsafe fn interval(&self) -> NSTimeInterval;
+        pub fn interval(&self) -> NSTimeInterval;
 
         #[cfg(feature = "NSDate")]
         /// Setter for [`interval`][Self::interval].
         #[unsafe(method(setInterval:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setInterval(&self, interval: NSTimeInterval);
+        pub fn setInterval(&self, interval: NSTimeInterval);
 
         #[cfg(feature = "NSDate")]
         #[unsafe(method(tolerance))]
         #[unsafe(method_family = none)]
-        pub unsafe fn tolerance(&self) -> NSTimeInterval;
+        pub fn tolerance(&self) -> NSTimeInterval;
 
         #[cfg(feature = "NSDate")]
         /// Setter for [`tolerance`][Self::tolerance].
         #[unsafe(method(setTolerance:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setTolerance(&self, tolerance: NSTimeInterval);
+        pub fn setTolerance(&self, tolerance: NSTimeInterval);
 
         #[cfg(feature = "block2")]
+        /// # Safety
+        ///
+        /// `block` block must be sendable.
         #[unsafe(method(scheduleWithBlock:))]
         #[unsafe(method_family = none)]
         pub unsafe fn scheduleWithBlock(
@@ -109,11 +109,11 @@ impl NSBackgroundActivityScheduler {
 
         #[unsafe(method(invalidate))]
         #[unsafe(method_family = none)]
-        pub unsafe fn invalidate(&self);
+        pub fn invalidate(&self);
 
         #[unsafe(method(shouldDefer))]
         #[unsafe(method_family = none)]
-        pub unsafe fn shouldDefer(&self) -> bool;
+        pub fn shouldDefer(&self) -> bool;
     );
 }
 
@@ -122,10 +122,17 @@ impl NSBackgroundActivityScheduler {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl DefaultRetained for NSBackgroundActivityScheduler {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }

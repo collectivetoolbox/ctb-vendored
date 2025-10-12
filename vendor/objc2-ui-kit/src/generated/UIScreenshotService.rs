@@ -36,15 +36,15 @@ impl UIScreenshotService {
         /// Assign a delegate in order to send PDF data to accompany the screenshot taken by the user
         #[unsafe(method(delegate))]
         #[unsafe(method_family = none)]
-        pub unsafe fn delegate(
-            &self,
-        ) -> Option<Retained<ProtocolObject<dyn UIScreenshotServiceDelegate>>>;
+        pub fn delegate(&self)
+            -> Option<Retained<ProtocolObject<dyn UIScreenshotServiceDelegate>>>;
 
-        /// This is a [weak property][objc2::topics::weak_property].
         /// Setter for [`delegate`][Self::delegate].
+        ///
+        /// This is a [weak property][objc2::topics::weak_property].
         #[unsafe(method(setDelegate:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setDelegate(
+        pub fn setDelegate(
             &self,
             delegate: Option<&ProtocolObject<dyn UIScreenshotServiceDelegate>>,
         );
@@ -57,7 +57,7 @@ impl UIScreenshotService {
         /// The window scene associated with the screenshot service
         #[unsafe(method(windowScene))]
         #[unsafe(method_family = none)]
-        pub unsafe fn windowScene(&self) -> Option<Retained<UIWindowScene>>;
+        pub fn windowScene(&self) -> Option<Retained<UIWindowScene>>;
     );
 }
 
@@ -74,7 +74,7 @@ impl UIWindowScene {
         /// This is non-null if the screenshot service is available for this window scene
         #[unsafe(method(screenshotService))]
         #[unsafe(method_family = none)]
-        pub unsafe fn screenshotService(&self) -> Option<Retained<UIScreenshotService>>;
+        pub fn screenshotService(&self) -> Option<Retained<UIScreenshotService>>;
     );
 }
 
@@ -93,7 +93,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(screenshotService:generatePDFRepresentationWithCompletion:))]
         #[unsafe(method_family = none)]
-        unsafe fn screenshotService_generatePDFRepresentationWithCompletion(
+        fn screenshotService_generatePDFRepresentationWithCompletion(
             &self,
             screenshot_service: &UIScreenshotService,
             completion_handler: &block2::DynBlock<dyn Fn(*mut NSData, NSInteger, CGRect)>,

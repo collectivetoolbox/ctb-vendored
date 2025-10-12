@@ -22,9 +22,13 @@ impl NSExtensionContext {
         #[cfg(feature = "NSArray")]
         #[unsafe(method(inputItems))]
         #[unsafe(method_family = none)]
-        pub unsafe fn inputItems(&self) -> Retained<NSArray>;
+        pub fn inputItems(&self) -> Retained<NSArray>;
 
         #[cfg(all(feature = "NSArray", feature = "block2"))]
+        /// # Safety
+        ///
+        /// - `items` generic should be of the correct type.
+        /// - `completion_handler` block must be sendable.
         #[unsafe(method(completeRequestReturningItems:completionHandler:))]
         #[unsafe(method_family = none)]
         pub unsafe fn completeRequestReturningItems_completionHandler(
@@ -36,9 +40,12 @@ impl NSExtensionContext {
         #[cfg(feature = "NSError")]
         #[unsafe(method(cancelRequestWithError:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn cancelRequestWithError(&self, error: &NSError);
+        pub fn cancelRequestWithError(&self, error: &NSError);
 
         #[cfg(all(feature = "NSURL", feature = "block2"))]
+        /// # Safety
+        ///
+        /// `completion_handler` block must be sendable.
         #[unsafe(method(openURL:completionHandler:))]
         #[unsafe(method_family = none)]
         pub unsafe fn openURL_completionHandler(
@@ -54,12 +61,19 @@ impl NSExtensionContext {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl DefaultRetained for NSExtensionContext {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }
 
 extern "C" {

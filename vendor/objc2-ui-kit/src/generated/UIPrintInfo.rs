@@ -99,6 +99,9 @@ extern_conformance!(
 
 impl UIPrintInfo {
     extern_methods!(
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -108,8 +111,11 @@ impl UIPrintInfo {
 
         #[unsafe(method(printInfo))]
         #[unsafe(method_family = none)]
-        pub unsafe fn printInfo(mtm: MainThreadMarker) -> Retained<UIPrintInfo>;
+        pub fn printInfo(mtm: MainThreadMarker) -> Retained<UIPrintInfo>;
 
+        /// # Safety
+        ///
+        /// `dictionary` generic should be of the correct type.
         #[unsafe(method(printInfoWithDictionary:))]
         #[unsafe(method_family = none)]
         pub unsafe fn printInfoWithDictionary(
@@ -119,52 +125,56 @@ impl UIPrintInfo {
 
         #[unsafe(method(printerID))]
         #[unsafe(method_family = none)]
-        pub unsafe fn printerID(&self) -> Option<Retained<NSString>>;
+        pub fn printerID(&self) -> Option<Retained<NSString>>;
 
         /// Setter for [`printerID`][Self::printerID].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setPrinterID:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setPrinterID(&self, printer_id: Option<&NSString>);
+        pub fn setPrinterID(&self, printer_id: Option<&NSString>);
 
         #[unsafe(method(jobName))]
         #[unsafe(method_family = none)]
-        pub unsafe fn jobName(&self) -> Retained<NSString>;
+        pub fn jobName(&self) -> Retained<NSString>;
 
         /// Setter for [`jobName`][Self::jobName].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setJobName:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setJobName(&self, job_name: &NSString);
+        pub fn setJobName(&self, job_name: &NSString);
 
         #[unsafe(method(outputType))]
         #[unsafe(method_family = none)]
-        pub unsafe fn outputType(&self) -> UIPrintInfoOutputType;
+        pub fn outputType(&self) -> UIPrintInfoOutputType;
 
         /// Setter for [`outputType`][Self::outputType].
         #[unsafe(method(setOutputType:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setOutputType(&self, output_type: UIPrintInfoOutputType);
+        pub fn setOutputType(&self, output_type: UIPrintInfoOutputType);
 
         #[unsafe(method(orientation))]
         #[unsafe(method_family = none)]
-        pub unsafe fn orientation(&self) -> UIPrintInfoOrientation;
+        pub fn orientation(&self) -> UIPrintInfoOrientation;
 
         /// Setter for [`orientation`][Self::orientation].
         #[unsafe(method(setOrientation:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setOrientation(&self, orientation: UIPrintInfoOrientation);
+        pub fn setOrientation(&self, orientation: UIPrintInfoOrientation);
 
         #[unsafe(method(duplex))]
         #[unsafe(method_family = none)]
-        pub unsafe fn duplex(&self) -> UIPrintInfoDuplex;
+        pub fn duplex(&self) -> UIPrintInfoDuplex;
 
         /// Setter for [`duplex`][Self::duplex].
         #[unsafe(method(setDuplex:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setDuplex(&self, duplex: UIPrintInfoDuplex);
+        pub fn setDuplex(&self, duplex: UIPrintInfoDuplex);
 
         #[unsafe(method(dictionaryRepresentation))]
         #[unsafe(method_family = none)]
-        pub unsafe fn dictionaryRepresentation(&self) -> Retained<NSDictionary>;
+        pub fn dictionaryRepresentation(&self) -> Retained<NSDictionary>;
     );
 }
 
@@ -173,10 +183,10 @@ impl UIPrintInfo {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }

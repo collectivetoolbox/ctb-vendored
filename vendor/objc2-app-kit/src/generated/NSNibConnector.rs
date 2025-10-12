@@ -26,33 +26,49 @@ impl NSNibConnector {
     extern_methods!(
         #[unsafe(method(source))]
         #[unsafe(method_family = none)]
-        pub unsafe fn source(&self) -> Option<Retained<AnyObject>>;
+        pub fn source(&self) -> Option<Retained<AnyObject>>;
 
-        /// This is a [weak property][objc2::topics::weak_property].
         /// Setter for [`source`][Self::source].
+        ///
+        /// This is a [weak property][objc2::topics::weak_property].
+        ///
+        /// # Safety
+        ///
+        /// `source` should be of the correct type.
         #[unsafe(method(setSource:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setSource(&self, source: Option<&AnyObject>);
 
         #[unsafe(method(destination))]
         #[unsafe(method_family = none)]
-        pub unsafe fn destination(&self) -> Option<Retained<AnyObject>>;
+        pub fn destination(&self) -> Option<Retained<AnyObject>>;
 
-        /// This is a [weak property][objc2::topics::weak_property].
         /// Setter for [`destination`][Self::destination].
+        ///
+        /// This is a [weak property][objc2::topics::weak_property].
+        ///
+        /// # Safety
+        ///
+        /// `destination` should be of the correct type.
         #[unsafe(method(setDestination:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setDestination(&self, destination: Option<&AnyObject>);
 
         #[unsafe(method(label))]
         #[unsafe(method_family = none)]
-        pub unsafe fn label(&self) -> Retained<NSString>;
+        pub fn label(&self) -> Retained<NSString>;
 
         /// Setter for [`label`][Self::label].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setLabel:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setLabel(&self, label: &NSString);
+        pub fn setLabel(&self, label: &NSString);
 
+        /// # Safety
+        ///
+        /// - `old_object` should be of the correct type.
+        /// - `new_object` should be of the correct type.
         #[unsafe(method(replaceObject:withObject:))]
         #[unsafe(method_family = none)]
         pub unsafe fn replaceObject_withObject(
@@ -63,7 +79,7 @@ impl NSNibConnector {
 
         #[unsafe(method(establishConnection))]
         #[unsafe(method_family = none)]
-        pub unsafe fn establishConnection(&self);
+        pub fn establishConnection(&self);
     );
 }
 
@@ -72,10 +88,17 @@ impl NSNibConnector {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl DefaultRetained for NSNibConnector {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }

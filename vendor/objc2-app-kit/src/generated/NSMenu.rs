@@ -122,29 +122,30 @@ impl NSMenu {
     extern_methods!(
         #[unsafe(method(initWithTitle:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithTitle(this: Allocated<Self>, title: &NSString) -> Retained<Self>;
+        pub fn initWithTitle(this: Allocated<Self>, title: &NSString) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(this: Allocated<Self>, coder: &NSCoder) -> Retained<Self>;
 
         #[unsafe(method(title))]
         #[unsafe(method_family = none)]
-        pub unsafe fn title(&self) -> Retained<NSString>;
+        pub fn title(&self) -> Retained<NSString>;
 
         /// Setter for [`title`][Self::title].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setTitle:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setTitle(&self, title: &NSString);
+        pub fn setTitle(&self, title: &NSString);
 
         #[cfg(all(feature = "NSEvent", feature = "NSResponder", feature = "NSView"))]
         #[unsafe(method(popUpContextMenu:withEvent:forView:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn popUpContextMenu_withEvent_forView(
-            menu: &NSMenu,
-            event: &NSEvent,
-            view: &NSView,
-        );
+        pub fn popUpContextMenu_withEvent_forView(menu: &NSMenu, event: &NSEvent, view: &NSView);
 
         #[cfg(all(
             feature = "NSEvent",
@@ -154,7 +155,7 @@ impl NSMenu {
         ))]
         #[unsafe(method(popUpContextMenu:withEvent:forView:withFont:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn popUpContextMenu_withEvent_forView_withFont(
+        pub fn popUpContextMenu_withEvent_forView_withFont(
             menu: &NSMenu,
             event: &NSEvent,
             view: &NSView,
@@ -164,7 +165,7 @@ impl NSMenu {
         #[cfg(all(feature = "NSMenuItem", feature = "NSResponder", feature = "NSView"))]
         #[unsafe(method(popUpMenuPositioningItem:atLocation:inView:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn popUpMenuPositioningItem_atLocation_inView(
+        pub fn popUpMenuPositioningItem_atLocation_inView(
             &self,
             item: Option<&NSMenuItem>,
             location: NSPoint,
@@ -173,17 +174,24 @@ impl NSMenu {
 
         #[unsafe(method(setMenuBarVisible:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setMenuBarVisible(visible: bool, mtm: MainThreadMarker);
+        pub fn setMenuBarVisible(visible: bool, mtm: MainThreadMarker);
 
         #[unsafe(method(menuBarVisible))]
         #[unsafe(method_family = none)]
-        pub unsafe fn menuBarVisible(mtm: MainThreadMarker) -> bool;
+        pub fn menuBarVisible(mtm: MainThreadMarker) -> bool;
 
+        /// # Safety
+        ///
+        /// This is not retained internally, you must ensure the object is still alive.
         #[unsafe(method(supermenu))]
         #[unsafe(method_family = none)]
         pub unsafe fn supermenu(&self) -> Option<Retained<NSMenu>>;
 
         /// Setter for [`supermenu`][Self::supermenu].
+        ///
+        /// # Safety
+        ///
+        /// This is unretained, you must ensure the object is kept alive while in use.
         #[unsafe(method(setSupermenu:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setSupermenu(&self, supermenu: Option<&NSMenu>);
@@ -191,7 +199,7 @@ impl NSMenu {
         #[cfg(feature = "NSMenuItem")]
         #[unsafe(method(insertItem:atIndex:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn insertItem_atIndex(&self, new_item: &NSMenuItem, index: NSInteger);
+        pub fn insertItem_atIndex(&self, new_item: &NSMenuItem, index: NSInteger);
 
         #[cfg(feature = "NSMenuItem")]
         #[unsafe(method(addItem:))]
@@ -199,6 +207,9 @@ impl NSMenu {
         pub fn addItem(&self, new_item: &NSMenuItem);
 
         #[cfg(feature = "NSMenuItem")]
+        /// # Safety
+        ///
+        /// `selector` must be a valid selector.
         #[unsafe(method(insertItemWithTitle:action:keyEquivalent:atIndex:))]
         #[unsafe(method_family = none)]
         pub unsafe fn insertItemWithTitle_action_keyEquivalent_atIndex(
@@ -210,6 +221,9 @@ impl NSMenu {
         ) -> Retained<NSMenuItem>;
 
         #[cfg(feature = "NSMenuItem")]
+        /// # Safety
+        ///
+        /// `selector` must be a valid selector.
         #[unsafe(method(addItemWithTitle:action:keyEquivalent:))]
         #[unsafe(method_family = none)]
         pub unsafe fn addItemWithTitle_action_keyEquivalent(
@@ -221,55 +235,60 @@ impl NSMenu {
 
         #[unsafe(method(removeItemAtIndex:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn removeItemAtIndex(&self, index: NSInteger);
+        pub fn removeItemAtIndex(&self, index: NSInteger);
 
         #[cfg(feature = "NSMenuItem")]
         #[unsafe(method(removeItem:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn removeItem(&self, item: &NSMenuItem);
+        pub fn removeItem(&self, item: &NSMenuItem);
 
         #[cfg(feature = "NSMenuItem")]
         #[unsafe(method(setSubmenu:forItem:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setSubmenu_forItem(&self, menu: Option<&NSMenu>, item: &NSMenuItem);
+        pub fn setSubmenu_forItem(&self, menu: Option<&NSMenu>, item: &NSMenuItem);
 
         #[unsafe(method(removeAllItems))]
         #[unsafe(method_family = none)]
-        pub unsafe fn removeAllItems(&self);
+        pub fn removeAllItems(&self);
 
         #[cfg(feature = "NSMenuItem")]
         #[unsafe(method(itemArray))]
         #[unsafe(method_family = none)]
-        pub unsafe fn itemArray(&self) -> Retained<NSArray<NSMenuItem>>;
+        pub fn itemArray(&self) -> Retained<NSArray<NSMenuItem>>;
 
         #[cfg(feature = "NSMenuItem")]
         /// Setter for [`itemArray`][Self::itemArray].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setItemArray:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setItemArray(&self, item_array: &NSArray<NSMenuItem>);
+        pub fn setItemArray(&self, item_array: &NSArray<NSMenuItem>);
 
         #[unsafe(method(numberOfItems))]
         #[unsafe(method_family = none)]
-        pub unsafe fn numberOfItems(&self) -> NSInteger;
+        pub fn numberOfItems(&self) -> NSInteger;
 
         #[cfg(feature = "NSMenuItem")]
         #[unsafe(method(itemAtIndex:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn itemAtIndex(&self, index: NSInteger) -> Option<Retained<NSMenuItem>>;
+        pub fn itemAtIndex(&self, index: NSInteger) -> Option<Retained<NSMenuItem>>;
 
         #[cfg(feature = "NSMenuItem")]
         #[unsafe(method(indexOfItem:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn indexOfItem(&self, item: &NSMenuItem) -> NSInteger;
+        pub fn indexOfItem(&self, item: &NSMenuItem) -> NSInteger;
 
         #[unsafe(method(indexOfItemWithTitle:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn indexOfItemWithTitle(&self, title: &NSString) -> NSInteger;
+        pub fn indexOfItemWithTitle(&self, title: &NSString) -> NSInteger;
 
         #[unsafe(method(indexOfItemWithTag:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn indexOfItemWithTag(&self, tag: NSInteger) -> NSInteger;
+        pub fn indexOfItemWithTag(&self, tag: NSInteger) -> NSInteger;
 
+        /// # Safety
+        ///
+        /// `object` should be of the correct type.
         #[unsafe(method(indexOfItemWithRepresentedObject:))]
         #[unsafe(method_family = none)]
         pub unsafe fn indexOfItemWithRepresentedObject(
@@ -279,8 +298,12 @@ impl NSMenu {
 
         #[unsafe(method(indexOfItemWithSubmenu:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn indexOfItemWithSubmenu(&self, submenu: Option<&NSMenu>) -> NSInteger;
+        pub fn indexOfItemWithSubmenu(&self, submenu: Option<&NSMenu>) -> NSInteger;
 
+        /// # Safety
+        ///
+        /// - `target` should be of the correct type.
+        /// - `action_selector` must be a valid selector.
         #[unsafe(method(indexOfItemWithTarget:andAction:))]
         #[unsafe(method_family = none)]
         pub unsafe fn indexOfItemWithTarget_andAction(
@@ -292,134 +315,139 @@ impl NSMenu {
         #[cfg(feature = "NSMenuItem")]
         #[unsafe(method(itemWithTitle:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn itemWithTitle(&self, title: &NSString) -> Option<Retained<NSMenuItem>>;
+        pub fn itemWithTitle(&self, title: &NSString) -> Option<Retained<NSMenuItem>>;
 
         #[cfg(feature = "NSMenuItem")]
         #[unsafe(method(itemWithTag:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn itemWithTag(&self, tag: NSInteger) -> Option<Retained<NSMenuItem>>;
+        pub fn itemWithTag(&self, tag: NSInteger) -> Option<Retained<NSMenuItem>>;
 
         #[unsafe(method(autoenablesItems))]
         #[unsafe(method_family = none)]
-        pub unsafe fn autoenablesItems(&self) -> bool;
+        pub fn autoenablesItems(&self) -> bool;
 
         /// Setter for [`autoenablesItems`][Self::autoenablesItems].
         #[unsafe(method(setAutoenablesItems:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setAutoenablesItems(&self, autoenables_items: bool);
+        pub fn setAutoenablesItems(&self, autoenables_items: bool);
 
         #[unsafe(method(update))]
         #[unsafe(method_family = none)]
-        pub unsafe fn update(&self);
+        pub fn update(&self);
 
         #[cfg(feature = "NSEvent")]
         #[unsafe(method(performKeyEquivalent:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn performKeyEquivalent(&self, event: &NSEvent) -> bool;
+        pub fn performKeyEquivalent(&self, event: &NSEvent) -> bool;
 
         #[cfg(feature = "NSMenuItem")]
         #[unsafe(method(itemChanged:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn itemChanged(&self, item: &NSMenuItem);
+        pub fn itemChanged(&self, item: &NSMenuItem);
 
         #[unsafe(method(performActionForItemAtIndex:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn performActionForItemAtIndex(&self, index: NSInteger);
+        pub fn performActionForItemAtIndex(&self, index: NSInteger);
 
         #[unsafe(method(delegate))]
         #[unsafe(method_family = none)]
-        pub unsafe fn delegate(&self) -> Option<Retained<ProtocolObject<dyn NSMenuDelegate>>>;
+        pub fn delegate(&self) -> Option<Retained<ProtocolObject<dyn NSMenuDelegate>>>;
 
-        /// This is a [weak property][objc2::topics::weak_property].
         /// Setter for [`delegate`][Self::delegate].
+        ///
+        /// This is a [weak property][objc2::topics::weak_property].
         #[unsafe(method(setDelegate:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setDelegate(&self, delegate: Option<&ProtocolObject<dyn NSMenuDelegate>>);
+        pub fn setDelegate(&self, delegate: Option<&ProtocolObject<dyn NSMenuDelegate>>);
 
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(menuBarHeight))]
         #[unsafe(method_family = none)]
-        pub unsafe fn menuBarHeight(&self) -> CGFloat;
+        pub fn menuBarHeight(&self) -> CGFloat;
 
         #[unsafe(method(cancelTracking))]
         #[unsafe(method_family = none)]
-        pub unsafe fn cancelTracking(&self);
+        pub fn cancelTracking(&self);
 
         #[unsafe(method(cancelTrackingWithoutAnimation))]
         #[unsafe(method_family = none)]
-        pub unsafe fn cancelTrackingWithoutAnimation(&self);
+        pub fn cancelTrackingWithoutAnimation(&self);
 
         #[cfg(feature = "NSMenuItem")]
         #[unsafe(method(highlightedItem))]
         #[unsafe(method_family = none)]
-        pub unsafe fn highlightedItem(&self) -> Option<Retained<NSMenuItem>>;
+        pub fn highlightedItem(&self) -> Option<Retained<NSMenuItem>>;
 
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(minimumWidth))]
         #[unsafe(method_family = none)]
-        pub unsafe fn minimumWidth(&self) -> CGFloat;
+        pub fn minimumWidth(&self) -> CGFloat;
 
         #[cfg(feature = "objc2-core-foundation")]
         /// Setter for [`minimumWidth`][Self::minimumWidth].
         #[unsafe(method(setMinimumWidth:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setMinimumWidth(&self, minimum_width: CGFloat);
+        pub fn setMinimumWidth(&self, minimum_width: CGFloat);
 
         #[unsafe(method(size))]
         #[unsafe(method_family = none)]
-        pub unsafe fn size(&self) -> NSSize;
+        pub fn size(&self) -> NSSize;
 
         #[cfg(feature = "NSFont")]
         #[unsafe(method(font))]
         #[unsafe(method_family = none)]
-        pub unsafe fn font(&self) -> Option<Retained<NSFont>>;
+        pub fn font(&self) -> Option<Retained<NSFont>>;
 
         #[cfg(feature = "NSFont")]
         /// Setter for [`font`][Self::font].
+        ///
+        /// # Safety
+        ///
+        /// `font` might not allow `None`.
         #[unsafe(method(setFont:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setFont(&self, font: Option<&NSFont>);
 
         #[unsafe(method(allowsContextMenuPlugIns))]
         #[unsafe(method_family = none)]
-        pub unsafe fn allowsContextMenuPlugIns(&self) -> bool;
+        pub fn allowsContextMenuPlugIns(&self) -> bool;
 
         /// Setter for [`allowsContextMenuPlugIns`][Self::allowsContextMenuPlugIns].
         #[unsafe(method(setAllowsContextMenuPlugIns:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setAllowsContextMenuPlugIns(&self, allows_context_menu_plug_ins: bool);
+        pub fn setAllowsContextMenuPlugIns(&self, allows_context_menu_plug_ins: bool);
 
         #[unsafe(method(automaticallyInsertsWritingToolsItems))]
         #[unsafe(method_family = none)]
-        pub unsafe fn automaticallyInsertsWritingToolsItems(&self) -> bool;
+        pub fn automaticallyInsertsWritingToolsItems(&self) -> bool;
 
         /// Setter for [`automaticallyInsertsWritingToolsItems`][Self::automaticallyInsertsWritingToolsItems].
         #[unsafe(method(setAutomaticallyInsertsWritingToolsItems:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setAutomaticallyInsertsWritingToolsItems(
+        pub fn setAutomaticallyInsertsWritingToolsItems(
             &self,
             automatically_inserts_writing_tools_items: bool,
         );
 
         #[unsafe(method(showsStateColumn))]
         #[unsafe(method_family = none)]
-        pub unsafe fn showsStateColumn(&self) -> bool;
+        pub fn showsStateColumn(&self) -> bool;
 
         /// Setter for [`showsStateColumn`][Self::showsStateColumn].
         #[unsafe(method(setShowsStateColumn:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setShowsStateColumn(&self, shows_state_column: bool);
+        pub fn setShowsStateColumn(&self, shows_state_column: bool);
 
         #[cfg(feature = "NSUserInterfaceLayout")]
         #[unsafe(method(userInterfaceLayoutDirection))]
         #[unsafe(method_family = none)]
-        pub unsafe fn userInterfaceLayoutDirection(&self) -> NSUserInterfaceLayoutDirection;
+        pub fn userInterfaceLayoutDirection(&self) -> NSUserInterfaceLayoutDirection;
 
         #[cfg(feature = "NSUserInterfaceLayout")]
         /// Setter for [`userInterfaceLayoutDirection`][Self::userInterfaceLayoutDirection].
         #[unsafe(method(setUserInterfaceLayoutDirection:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setUserInterfaceLayoutDirection(
+        pub fn setUserInterfaceLayoutDirection(
             &self,
             user_interface_layout_direction: NSUserInterfaceLayoutDirection,
         );
@@ -446,10 +474,14 @@ impl NSMenu {
         /// Creates a palette menu displaying user-selectable color
         /// tags using the provided array of colors and optional titles.
         ///
+        /// Note that the palette menu is configured for display as an inline menu; you must set it as the submenu of another menu item, contained in a standard menu.
+        /// The palette menu cannot be used to invoke the `popUpMenuPositioningItem` method, or attached directly to a popup button or toolbar item.
+        ///
+        ///
         /// Returns: An autoconfigured palette menu.
         #[unsafe(method(paletteMenuWithColors:titles:selectionHandler:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn paletteMenuWithColors_titles_selectionHandler(
+        pub fn paletteMenuWithColors_titles_selectionHandler(
             colors: &NSArray<NSColor>,
             item_titles: &NSArray<NSString>,
             on_selection_change: Option<&block2::DynBlock<dyn Fn(NonNull<NSMenu>)>>,
@@ -457,7 +489,7 @@ impl NSMenu {
         ) -> Retained<Self>;
 
         #[cfg(all(feature = "NSColor", feature = "NSImage", feature = "block2"))]
-        /// Creates an palette menu displaying user-selectable color tags
+        /// Creates a palette menu displaying user-selectable color tags
         /// using the provided template image, tinted using the specified
         /// array of colors.
         ///
@@ -466,11 +498,14 @@ impl NSMenu {
         /// has been updated. Currently selected items can be retrieved
         /// from the `selectedItems` property.
         ///
+        /// Note that the palette menu is configured for display as an inline menu; you must set it as the submenu of another menu item, contained in a standard menu.
+        /// The palette menu cannot be used to invoke the `popUpMenuPositioningItem` method, or attached directly to a popup button or toolbar item.
+        ///
         ///
         /// Returns: An autoconfigured palette menu.
         #[unsafe(method(paletteMenuWithColors:titles:templateImage:selectionHandler:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn paletteMenuWithColors_titles_templateImage_selectionHandler(
+        pub fn paletteMenuWithColors_titles_templateImage_selectionHandler(
             colors: &NSArray<NSColor>,
             item_titles: &NSArray<NSString>,
             image: &NSImage,
@@ -485,12 +520,12 @@ impl NSMenu {
         /// menu of the app.
         #[unsafe(method(presentationStyle))]
         #[unsafe(method_family = none)]
-        pub unsafe fn presentationStyle(&self) -> NSMenuPresentationStyle;
+        pub fn presentationStyle(&self) -> NSMenuPresentationStyle;
 
         /// Setter for [`presentationStyle`][Self::presentationStyle].
         #[unsafe(method(setPresentationStyle:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setPresentationStyle(&self, presentation_style: NSMenuPresentationStyle);
+        pub fn setPresentationStyle(&self, presentation_style: NSMenuPresentationStyle);
 
         /// The selection mode of the menu.
         ///
@@ -499,12 +534,12 @@ impl NSMenu {
         /// of the items with the same target/action.
         #[unsafe(method(selectionMode))]
         #[unsafe(method_family = none)]
-        pub unsafe fn selectionMode(&self) -> NSMenuSelectionMode;
+        pub fn selectionMode(&self) -> NSMenuSelectionMode;
 
         /// Setter for [`selectionMode`][Self::selectionMode].
         #[unsafe(method(setSelectionMode:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setSelectionMode(&self, selection_mode: NSMenuSelectionMode);
+        pub fn setSelectionMode(&self, selection_mode: NSMenuSelectionMode);
 
         #[cfg(feature = "NSMenuItem")]
         /// The menu items that are selected.
@@ -517,19 +552,24 @@ impl NSMenu {
         /// deselect any previously selected items that are not in the array.
         #[unsafe(method(selectedItems))]
         #[unsafe(method_family = none)]
-        pub unsafe fn selectedItems(&self) -> Retained<NSArray<NSMenuItem>>;
+        pub fn selectedItems(&self) -> Retained<NSArray<NSMenuItem>>;
 
         #[cfg(feature = "NSMenuItem")]
         /// Setter for [`selectedItems`][Self::selectedItems].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setSelectedItems:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setSelectedItems(&self, selected_items: &NSArray<NSMenuItem>);
+        pub fn setSelectedItems(&self, selected_items: &NSArray<NSMenuItem>);
     );
 }
 
 /// NSSubmenuAction.
 impl NSMenu {
     extern_methods!(
+        /// # Safety
+        ///
+        /// `sender` should be of the correct type.
         #[unsafe(method(submenuAction:))]
         #[unsafe(method_family = none)]
         pub unsafe fn submenuAction(&self, sender: Option<&AnyObject>);
@@ -542,7 +582,7 @@ extern_protocol!(
         #[cfg(feature = "NSMenuItem")]
         #[unsafe(method(validateMenuItem:))]
         #[unsafe(method_family = none)]
-        unsafe fn validateMenuItem(&self, menu_item: &NSMenuItem) -> bool;
+        fn validateMenuItem(&self, menu_item: &NSMenuItem) -> bool;
     }
 );
 
@@ -552,18 +592,18 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(menuNeedsUpdate:))]
         #[unsafe(method_family = none)]
-        unsafe fn menuNeedsUpdate(&self, menu: &NSMenu);
+        fn menuNeedsUpdate(&self, menu: &NSMenu);
 
         #[optional]
         #[unsafe(method(numberOfItemsInMenu:))]
         #[unsafe(method_family = none)]
-        unsafe fn numberOfItemsInMenu(&self, menu: &NSMenu) -> NSInteger;
+        fn numberOfItemsInMenu(&self, menu: &NSMenu) -> NSInteger;
 
         #[cfg(feature = "NSMenuItem")]
         #[optional]
         #[unsafe(method(menu:updateItem:atIndex:shouldCancel:))]
         #[unsafe(method_family = none)]
-        unsafe fn menu_updateItem_atIndex_shouldCancel(
+        fn menu_updateItem_atIndex_shouldCancel(
             &self,
             menu: &NSMenu,
             item: &NSMenuItem,
@@ -574,24 +614,24 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(menuWillOpen:))]
         #[unsafe(method_family = none)]
-        unsafe fn menuWillOpen(&self, menu: &NSMenu);
+        fn menuWillOpen(&self, menu: &NSMenu);
 
         #[optional]
         #[unsafe(method(menuDidClose:))]
         #[unsafe(method_family = none)]
-        unsafe fn menuDidClose(&self, menu: &NSMenu);
+        fn menuDidClose(&self, menu: &NSMenu);
 
         #[cfg(feature = "NSMenuItem")]
         #[optional]
         #[unsafe(method(menu:willHighlightItem:))]
         #[unsafe(method_family = none)]
-        unsafe fn menu_willHighlightItem(&self, menu: &NSMenu, item: Option<&NSMenuItem>);
+        fn menu_willHighlightItem(&self, menu: &NSMenu, item: Option<&NSMenuItem>);
 
         #[cfg(feature = "NSScreen")]
         #[optional]
         #[unsafe(method(confinementRectForMenu:onScreen:))]
         #[unsafe(method_family = none)]
-        unsafe fn confinementRectForMenu_onScreen(
+        fn confinementRectForMenu_onScreen(
             &self,
             menu: &NSMenu,
             screen: Option<&NSScreen>,
@@ -634,7 +674,7 @@ impl NSMenu {
     extern_methods!(
         #[unsafe(method(propertiesToUpdate))]
         #[unsafe(method_family = none)]
-        pub unsafe fn propertiesToUpdate(&self) -> NSMenuProperties;
+        pub fn propertiesToUpdate(&self) -> NSMenuProperties;
     );
 }
 
@@ -676,6 +716,10 @@ extern "C" {
 /// NSDeprecated.
 impl NSMenu {
     extern_methods!(
+        /// # Safety
+        ///
+        /// - `menu_rep` should be of the correct type.
+        /// - `menu_rep` might not allow `None`.
         #[deprecated]
         #[unsafe(method(setMenuRepresentation:))]
         #[unsafe(method_family = none)]
@@ -684,8 +728,12 @@ impl NSMenu {
         #[deprecated]
         #[unsafe(method(menuRepresentation))]
         #[unsafe(method_family = none)]
-        pub unsafe fn menuRepresentation(&self) -> Option<Retained<AnyObject>>;
+        pub fn menuRepresentation(&self) -> Option<Retained<AnyObject>>;
 
+        /// # Safety
+        ///
+        /// - `menu_rep` should be of the correct type.
+        /// - `menu_rep` might not allow `None`.
         #[deprecated]
         #[unsafe(method(setContextMenuRepresentation:))]
         #[unsafe(method_family = none)]
@@ -694,8 +742,12 @@ impl NSMenu {
         #[deprecated]
         #[unsafe(method(contextMenuRepresentation))]
         #[unsafe(method_family = none)]
-        pub unsafe fn contextMenuRepresentation(&self) -> Option<Retained<AnyObject>>;
+        pub fn contextMenuRepresentation(&self) -> Option<Retained<AnyObject>>;
 
+        /// # Safety
+        ///
+        /// - `menu_rep` should be of the correct type.
+        /// - `menu_rep` might not allow `None`.
         #[deprecated]
         #[unsafe(method(setTearOffMenuRepresentation:))]
         #[unsafe(method_family = none)]
@@ -704,13 +756,16 @@ impl NSMenu {
         #[deprecated]
         #[unsafe(method(tearOffMenuRepresentation))]
         #[unsafe(method_family = none)]
-        pub unsafe fn tearOffMenuRepresentation(&self) -> Option<Retained<AnyObject>>;
+        pub fn tearOffMenuRepresentation(&self) -> Option<Retained<AnyObject>>;
 
         #[deprecated]
         #[unsafe(method(menuZone))]
         #[unsafe(method_family = none)]
-        pub unsafe fn menuZone(mtm: MainThreadMarker) -> *mut NSZone;
+        pub fn menuZone(mtm: MainThreadMarker) -> *mut NSZone;
 
+        /// # Safety
+        ///
+        /// `zone` must be a valid pointer.
         #[deprecated]
         #[unsafe(method(setMenuZone:))]
         #[unsafe(method_family = none)]
@@ -719,18 +774,21 @@ impl NSMenu {
         #[deprecated]
         #[unsafe(method(attachedMenu))]
         #[unsafe(method_family = none)]
-        pub unsafe fn attachedMenu(&self) -> Option<Retained<NSMenu>>;
+        pub fn attachedMenu(&self) -> Option<Retained<NSMenu>>;
 
         #[deprecated]
         #[unsafe(method(isAttached))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isAttached(&self) -> bool;
+        pub fn isAttached(&self) -> bool;
 
         #[deprecated]
         #[unsafe(method(sizeToFit))]
         #[unsafe(method_family = none)]
-        pub unsafe fn sizeToFit(&self);
+        pub fn sizeToFit(&self);
 
+        /// # Safety
+        ///
+        /// `submenu` might not allow `None`.
         #[deprecated]
         #[unsafe(method(locationForSubmenu:))]
         #[unsafe(method_family = none)]
@@ -739,23 +797,23 @@ impl NSMenu {
         #[deprecated]
         #[unsafe(method(menuChangedMessagesEnabled))]
         #[unsafe(method_family = none)]
-        pub unsafe fn menuChangedMessagesEnabled(&self) -> bool;
+        pub fn menuChangedMessagesEnabled(&self) -> bool;
 
         /// Setter for [`menuChangedMessagesEnabled`][Self::menuChangedMessagesEnabled].
         #[deprecated]
         #[unsafe(method(setMenuChangedMessagesEnabled:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setMenuChangedMessagesEnabled(&self, menu_changed_messages_enabled: bool);
+        pub fn setMenuChangedMessagesEnabled(&self, menu_changed_messages_enabled: bool);
 
         #[cfg(feature = "NSEvent")]
         #[deprecated]
         #[unsafe(method(helpRequested:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn helpRequested(&self, event_ptr: &NSEvent);
+        pub fn helpRequested(&self, event_ptr: &NSEvent);
 
         #[deprecated]
         #[unsafe(method(isTornOff))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isTornOff(&self) -> bool;
+        pub fn isTornOff(&self) -> bool;
     );
 }

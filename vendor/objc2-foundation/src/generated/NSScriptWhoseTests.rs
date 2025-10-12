@@ -57,13 +57,16 @@ impl NSScriptWhoseTest {
     extern_methods!(
         #[unsafe(method(isTrue))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isTrue(&self) -> bool;
+        pub fn isTrue(&self) -> bool;
 
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[cfg(feature = "NSCoder")]
+        /// # Safety
+        ///
+        /// `in_coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -78,8 +81,15 @@ impl NSScriptWhoseTest {
     extern_methods!(
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl DefaultRetained for NSScriptWhoseTest {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }
 
 extern_class!(
@@ -103,7 +113,7 @@ impl NSLogicalTest {
         #[cfg(feature = "NSArray")]
         #[unsafe(method(initAndTestWithTests:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initAndTestWithTests(
+        pub fn initAndTestWithTests(
             this: Allocated<Self>,
             sub_tests: &NSArray<NSSpecifierTest>,
         ) -> Retained<Self>;
@@ -111,14 +121,14 @@ impl NSLogicalTest {
         #[cfg(feature = "NSArray")]
         #[unsafe(method(initOrTestWithTests:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initOrTestWithTests(
+        pub fn initOrTestWithTests(
             this: Allocated<Self>,
             sub_tests: &NSArray<NSSpecifierTest>,
         ) -> Retained<Self>;
 
         #[unsafe(method(initNotTestWithTest:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initNotTestWithTest(
+        pub fn initNotTestWithTest(
             this: Allocated<Self>,
             sub_test: &NSScriptWhoseTest,
         ) -> Retained<Self>;
@@ -130,9 +140,12 @@ impl NSLogicalTest {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[cfg(feature = "NSCoder")]
+        /// # Safety
+        ///
+        /// `in_coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -147,8 +160,15 @@ impl NSLogicalTest {
     extern_methods!(
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl DefaultRetained for NSLogicalTest {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }
 
 extern_class!(
@@ -174,6 +194,9 @@ impl NSSpecifierTest {
         pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[cfg(feature = "NSCoder")]
+        /// # Safety
+        ///
+        /// `in_coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -182,6 +205,9 @@ impl NSSpecifierTest {
         ) -> Option<Retained<Self>>;
 
         #[cfg(feature = "NSScriptObjectSpecifiers")]
+        /// # Safety
+        ///
+        /// `obj2` should be of the correct type.
         #[unsafe(method(initWithObjectSpecifier:comparisonOperator:testObject:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithObjectSpecifier_comparisonOperator_testObject(
@@ -212,30 +238,51 @@ pub unsafe trait NSObjectNSComparisonMethods:
     ClassType + Sized + private_NSObjectNSComparisonMethods::Sealed
 {
     extern_methods!(
+        /// # Safety
+        ///
+        /// `object` should be of the correct type.
         #[unsafe(method(isEqualTo:))]
         #[unsafe(method_family = none)]
         unsafe fn isEqualTo(&self, object: Option<&AnyObject>) -> bool;
 
+        /// # Safety
+        ///
+        /// `object` should be of the correct type.
         #[unsafe(method(isLessThanOrEqualTo:))]
         #[unsafe(method_family = none)]
         unsafe fn isLessThanOrEqualTo(&self, object: Option<&AnyObject>) -> bool;
 
+        /// # Safety
+        ///
+        /// `object` should be of the correct type.
         #[unsafe(method(isLessThan:))]
         #[unsafe(method_family = none)]
         unsafe fn isLessThan(&self, object: Option<&AnyObject>) -> bool;
 
+        /// # Safety
+        ///
+        /// `object` should be of the correct type.
         #[unsafe(method(isGreaterThanOrEqualTo:))]
         #[unsafe(method_family = none)]
         unsafe fn isGreaterThanOrEqualTo(&self, object: Option<&AnyObject>) -> bool;
 
+        /// # Safety
+        ///
+        /// `object` should be of the correct type.
         #[unsafe(method(isGreaterThan:))]
         #[unsafe(method_family = none)]
         unsafe fn isGreaterThan(&self, object: Option<&AnyObject>) -> bool;
 
+        /// # Safety
+        ///
+        /// `object` should be of the correct type.
         #[unsafe(method(isNotEqualTo:))]
         #[unsafe(method_family = none)]
         unsafe fn isNotEqualTo(&self, object: Option<&AnyObject>) -> bool;
 
+        /// # Safety
+        ///
+        /// `object` should be of the correct type.
         #[unsafe(method(doesContain:))]
         #[unsafe(method_family = none)]
         unsafe fn doesContain(&self, object: &AnyObject) -> bool;
@@ -243,12 +290,12 @@ pub unsafe trait NSObjectNSComparisonMethods:
         #[cfg(feature = "NSString")]
         #[unsafe(method(isLike:))]
         #[unsafe(method_family = none)]
-        unsafe fn isLike(&self, object: &NSString) -> bool;
+        fn isLike(&self, object: &NSString) -> bool;
 
         #[cfg(feature = "NSString")]
         #[unsafe(method(isCaseInsensitiveLike:))]
         #[unsafe(method_family = none)]
-        unsafe fn isCaseInsensitiveLike(&self, object: &NSString) -> bool;
+        fn isCaseInsensitiveLike(&self, object: &NSString) -> bool;
     );
 }
 
@@ -265,34 +312,58 @@ pub unsafe trait NSObjectNSScriptingComparisonMethods:
     ClassType + Sized + private_NSObjectNSScriptingComparisonMethods::Sealed
 {
     extern_methods!(
+        /// # Safety
+        ///
+        /// `object` should be of the correct type.
         #[unsafe(method(scriptingIsEqualTo:))]
         #[unsafe(method_family = none)]
         unsafe fn scriptingIsEqualTo(&self, object: &AnyObject) -> bool;
 
+        /// # Safety
+        ///
+        /// `object` should be of the correct type.
         #[unsafe(method(scriptingIsLessThanOrEqualTo:))]
         #[unsafe(method_family = none)]
         unsafe fn scriptingIsLessThanOrEqualTo(&self, object: &AnyObject) -> bool;
 
+        /// # Safety
+        ///
+        /// `object` should be of the correct type.
         #[unsafe(method(scriptingIsLessThan:))]
         #[unsafe(method_family = none)]
         unsafe fn scriptingIsLessThan(&self, object: &AnyObject) -> bool;
 
+        /// # Safety
+        ///
+        /// `object` should be of the correct type.
         #[unsafe(method(scriptingIsGreaterThanOrEqualTo:))]
         #[unsafe(method_family = none)]
         unsafe fn scriptingIsGreaterThanOrEqualTo(&self, object: &AnyObject) -> bool;
 
+        /// # Safety
+        ///
+        /// `object` should be of the correct type.
         #[unsafe(method(scriptingIsGreaterThan:))]
         #[unsafe(method_family = none)]
         unsafe fn scriptingIsGreaterThan(&self, object: &AnyObject) -> bool;
 
+        /// # Safety
+        ///
+        /// `object` should be of the correct type.
         #[unsafe(method(scriptingBeginsWith:))]
         #[unsafe(method_family = none)]
         unsafe fn scriptingBeginsWith(&self, object: &AnyObject) -> bool;
 
+        /// # Safety
+        ///
+        /// `object` should be of the correct type.
         #[unsafe(method(scriptingEndsWith:))]
         #[unsafe(method_family = none)]
         unsafe fn scriptingEndsWith(&self, object: &AnyObject) -> bool;
 
+        /// # Safety
+        ///
+        /// `object` should be of the correct type.
         #[unsafe(method(scriptingContains:))]
         #[unsafe(method_family = none)]
         unsafe fn scriptingContains(&self, object: &AnyObject) -> bool;

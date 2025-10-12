@@ -10,6 +10,7 @@ use objc2::__framework_prelude::*;
 use crate::*;
 
 /// [Apple's documentation](https://developer.apple.com/documentation/corefoundation/cfsocket?language=objc)
+#[doc(alias = "CFSocketRef")]
 #[repr(C)]
 pub struct CFSocket {
     inner: [u8; 0],
@@ -136,6 +137,7 @@ pub type CFSocketCallBack = Option<
 
 /// [Apple's documentation](https://developer.apple.com/documentation/corefoundation/cfsocketcontext?language=objc)
 #[repr(C)]
+#[allow(unpredictable_function_pointer_comparisons)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CFSocketContext {
     pub version: CFIndex,
@@ -179,6 +181,11 @@ unsafe impl ConcreteType for CFSocket {
 }
 
 impl CFSocket {
+    /// # Safety
+    ///
+    /// - `allocator` might not allow `None`.
+    /// - `callout` must be implemented correctly.
+    /// - `context` must be a valid pointer.
     #[doc(alias = "CFSocketCreate")]
     #[cfg(feature = "CFData")]
     #[inline]
@@ -216,6 +223,11 @@ impl CFSocket {
         ret.map(|ret| unsafe { CFRetained::from_raw(ret) })
     }
 
+    /// # Safety
+    ///
+    /// - `allocator` might not allow `None`.
+    /// - `callout` must be implemented correctly.
+    /// - `context` must be a valid pointer.
     #[doc(alias = "CFSocketCreateWithNative")]
     #[cfg(feature = "CFData")]
     #[inline]
@@ -240,6 +252,12 @@ impl CFSocket {
         ret.map(|ret| unsafe { CFRetained::from_raw(ret) })
     }
 
+    /// # Safety
+    ///
+    /// - `allocator` might not allow `None`.
+    /// - `signature` must be a valid pointer.
+    /// - `callout` must be implemented correctly.
+    /// - `context` must be a valid pointer.
     #[doc(alias = "CFSocketCreateWithSocketSignature")]
     #[cfg(feature = "CFData")]
     #[inline]
@@ -271,6 +289,12 @@ impl CFSocket {
         ret.map(|ret| unsafe { CFRetained::from_raw(ret) })
     }
 
+    /// # Safety
+    ///
+    /// - `allocator` might not allow `None`.
+    /// - `signature` must be a valid pointer.
+    /// - `callout` must be implemented correctly.
+    /// - `context` must be a valid pointer.
     #[doc(alias = "CFSocketCreateConnectedToSocketSignature")]
     #[cfg(all(feature = "CFData", feature = "CFDate"))]
     #[inline]
@@ -308,7 +332,7 @@ impl CFSocket {
     #[doc(alias = "CFSocketSetAddress")]
     #[cfg(feature = "CFData")]
     #[inline]
-    pub fn set_address(self: &CFSocket, address: Option<&CFData>) -> CFSocketError {
+    pub fn set_address(&self, address: Option<&CFData>) -> CFSocketError {
         extern "C-unwind" {
             fn CFSocketSetAddress(s: &CFSocket, address: Option<&CFData>) -> CFSocketError;
         }
@@ -319,7 +343,7 @@ impl CFSocket {
     #[cfg(all(feature = "CFData", feature = "CFDate"))]
     #[inline]
     pub fn connect_to_address(
-        self: &CFSocket,
+        &self,
         address: Option<&CFData>,
         timeout: CFTimeInterval,
     ) -> CFSocketError {
@@ -335,7 +359,7 @@ impl CFSocket {
 
     #[doc(alias = "CFSocketInvalidate")]
     #[inline]
-    pub fn invalidate(self: &CFSocket) {
+    pub fn invalidate(&self) {
         extern "C-unwind" {
             fn CFSocketInvalidate(s: &CFSocket);
         }
@@ -344,7 +368,7 @@ impl CFSocket {
 
     #[doc(alias = "CFSocketIsValid")]
     #[inline]
-    pub fn is_valid(self: &CFSocket) -> bool {
+    pub fn is_valid(&self) -> bool {
         extern "C-unwind" {
             fn CFSocketIsValid(s: &CFSocket) -> Boolean;
         }
@@ -355,7 +379,7 @@ impl CFSocket {
     #[doc(alias = "CFSocketCopyAddress")]
     #[cfg(feature = "CFData")]
     #[inline]
-    pub fn address(self: &CFSocket) -> Option<CFRetained<CFData>> {
+    pub fn address(&self) -> Option<CFRetained<CFData>> {
         extern "C-unwind" {
             fn CFSocketCopyAddress(s: &CFSocket) -> Option<NonNull<CFData>>;
         }
@@ -366,7 +390,7 @@ impl CFSocket {
     #[doc(alias = "CFSocketCopyPeerAddress")]
     #[cfg(feature = "CFData")]
     #[inline]
-    pub fn peer_address(self: &CFSocket) -> Option<CFRetained<CFData>> {
+    pub fn peer_address(&self) -> Option<CFRetained<CFData>> {
         extern "C-unwind" {
             fn CFSocketCopyPeerAddress(s: &CFSocket) -> Option<NonNull<CFData>>;
         }
@@ -374,9 +398,12 @@ impl CFSocket {
         ret.map(|ret| unsafe { CFRetained::from_raw(ret) })
     }
 
+    /// # Safety
+    ///
+    /// `context` must be a valid pointer.
     #[doc(alias = "CFSocketGetContext")]
     #[inline]
-    pub unsafe fn context(self: &CFSocket, context: *mut CFSocketContext) {
+    pub unsafe fn context(&self, context: *mut CFSocketContext) {
         extern "C-unwind" {
             fn CFSocketGetContext(s: &CFSocket, context: *mut CFSocketContext);
         }
@@ -385,7 +412,7 @@ impl CFSocket {
 
     #[doc(alias = "CFSocketGetNative")]
     #[inline]
-    pub fn native(self: &CFSocket) -> CFSocketNativeHandle {
+    pub fn native(&self) -> CFSocketNativeHandle {
         extern "C-unwind" {
             fn CFSocketGetNative(s: &CFSocket) -> CFSocketNativeHandle;
         }
@@ -413,7 +440,7 @@ impl CFSocket {
 
     #[doc(alias = "CFSocketGetSocketFlags")]
     #[inline]
-    pub fn socket_flags(self: &CFSocket) -> CFOptionFlags {
+    pub fn socket_flags(&self) -> CFOptionFlags {
         extern "C-unwind" {
             fn CFSocketGetSocketFlags(s: &CFSocket) -> CFOptionFlags;
         }
@@ -422,7 +449,7 @@ impl CFSocket {
 
     #[doc(alias = "CFSocketSetSocketFlags")]
     #[inline]
-    pub fn set_socket_flags(self: &CFSocket, flags: CFOptionFlags) {
+    pub fn set_socket_flags(&self, flags: CFOptionFlags) {
         extern "C-unwind" {
             fn CFSocketSetSocketFlags(s: &CFSocket, flags: CFOptionFlags);
         }
@@ -431,7 +458,7 @@ impl CFSocket {
 
     #[doc(alias = "CFSocketDisableCallBacks")]
     #[inline]
-    pub fn disable_call_backs(self: &CFSocket, call_back_types: CFOptionFlags) {
+    pub fn disable_call_backs(&self, call_back_types: CFOptionFlags) {
         extern "C-unwind" {
             fn CFSocketDisableCallBacks(s: &CFSocket, call_back_types: CFOptionFlags);
         }
@@ -440,7 +467,7 @@ impl CFSocket {
 
     #[doc(alias = "CFSocketEnableCallBacks")]
     #[inline]
-    pub fn enable_call_backs(self: &CFSocket, call_back_types: CFOptionFlags) {
+    pub fn enable_call_backs(&self, call_back_types: CFOptionFlags) {
         extern "C-unwind" {
             fn CFSocketEnableCallBacks(s: &CFSocket, call_back_types: CFOptionFlags);
         }
@@ -451,7 +478,7 @@ impl CFSocket {
     #[cfg(all(feature = "CFData", feature = "CFDate"))]
     #[inline]
     pub fn send_data(
-        self: &CFSocket,
+        &self,
         address: Option<&CFData>,
         data: Option<&CFData>,
         timeout: CFTimeInterval,
@@ -467,6 +494,12 @@ impl CFSocket {
         unsafe { CFSocketSendData(self, address, data, timeout) }
     }
 
+    /// # Safety
+    ///
+    /// - `name_server_signature` must be a valid pointer.
+    /// - `name` might not allow `None`.
+    /// - `value` should be of the correct type.
+    /// - `value` might not allow `None`.
     #[doc(alias = "CFSocketRegisterValue")]
     #[cfg(all(feature = "CFData", feature = "CFDate"))]
     #[inline]
@@ -487,6 +520,12 @@ impl CFSocket {
         unsafe { CFSocketRegisterValue(name_server_signature, timeout, name, value) }
     }
 
+    /// # Safety
+    ///
+    /// - `name_server_signature` must be a valid pointer.
+    /// - `name` might not allow `None`.
+    /// - `value` must be a valid pointer.
+    /// - `name_server_address` must be a valid pointer.
     #[doc(alias = "CFSocketCopyRegisteredValue")]
     #[cfg(all(feature = "CFData", feature = "CFDate"))]
     #[inline]
@@ -517,6 +556,11 @@ impl CFSocket {
         }
     }
 
+    /// # Safety
+    ///
+    /// - `name_server_signature` must be a valid pointer.
+    /// - `name` might not allow `None`.
+    /// - `signature` must be a valid pointer.
     #[doc(alias = "CFSocketRegisterSocketSignature")]
     #[cfg(all(feature = "CFData", feature = "CFDate"))]
     #[inline]
@@ -537,6 +581,12 @@ impl CFSocket {
         unsafe { CFSocketRegisterSocketSignature(name_server_signature, timeout, name, signature) }
     }
 
+    /// # Safety
+    ///
+    /// - `name_server_signature` must be a valid pointer.
+    /// - `name` might not allow `None`.
+    /// - `signature` must be a valid pointer.
+    /// - `name_server_address` must be a valid pointer.
     #[doc(alias = "CFSocketCopyRegisteredSocketSignature")]
     #[cfg(all(feature = "CFData", feature = "CFDate"))]
     #[inline]
@@ -567,6 +617,10 @@ impl CFSocket {
         }
     }
 
+    /// # Safety
+    ///
+    /// - `name_server_signature` must be a valid pointer.
+    /// - `name` might not allow `None`.
     #[doc(alias = "CFSocketUnregister")]
     #[cfg(all(feature = "CFData", feature = "CFDate"))]
     #[inline]

@@ -91,6 +91,10 @@ impl DOMHTMLTableElement {
 
         #[cfg(feature = "DOMHTMLTableCaptionElement")]
         /// Setter for [`caption`][Self::caption].
+        ///
+        /// # Safety
+        ///
+        /// `caption` might not allow `None`.
         #[deprecated]
         #[unsafe(method(setCaption:))]
         #[unsafe(method_family = none)]
@@ -104,6 +108,10 @@ impl DOMHTMLTableElement {
 
         #[cfg(feature = "DOMHTMLTableSectionElement")]
         /// Setter for [`tHead`][Self::tHead].
+        ///
+        /// # Safety
+        ///
+        /// `t_head` might not allow `None`.
         #[deprecated]
         #[unsafe(method(setTHead:))]
         #[unsafe(method_family = none)]
@@ -117,6 +125,10 @@ impl DOMHTMLTableElement {
 
         #[cfg(feature = "DOMHTMLTableSectionElement")]
         /// Setter for [`tFoot`][Self::tFoot].
+        ///
+        /// # Safety
+        ///
+        /// `t_foot` might not allow `None`.
         #[deprecated]
         #[unsafe(method(setTFoot:))]
         #[unsafe(method_family = none)]
@@ -140,6 +152,8 @@ impl DOMHTMLTableElement {
         pub unsafe fn align(&self) -> Retained<NSString>;
 
         /// Setter for [`align`][Self::align].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[deprecated]
         #[unsafe(method(setAlign:))]
         #[unsafe(method_family = none)]
@@ -151,6 +165,8 @@ impl DOMHTMLTableElement {
         pub unsafe fn bgColor(&self) -> Retained<NSString>;
 
         /// Setter for [`bgColor`][Self::bgColor].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[deprecated]
         #[unsafe(method(setBgColor:))]
         #[unsafe(method_family = none)]
@@ -162,6 +178,8 @@ impl DOMHTMLTableElement {
         pub unsafe fn border(&self) -> Retained<NSString>;
 
         /// Setter for [`border`][Self::border].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[deprecated]
         #[unsafe(method(setBorder:))]
         #[unsafe(method_family = none)]
@@ -173,6 +191,8 @@ impl DOMHTMLTableElement {
         pub unsafe fn cellPadding(&self) -> Retained<NSString>;
 
         /// Setter for [`cellPadding`][Self::cellPadding].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[deprecated]
         #[unsafe(method(setCellPadding:))]
         #[unsafe(method_family = none)]
@@ -184,6 +204,8 @@ impl DOMHTMLTableElement {
         pub unsafe fn cellSpacing(&self) -> Retained<NSString>;
 
         /// Setter for [`cellSpacing`][Self::cellSpacing].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[deprecated]
         #[unsafe(method(setCellSpacing:))]
         #[unsafe(method_family = none)]
@@ -195,6 +217,8 @@ impl DOMHTMLTableElement {
         pub unsafe fn frameBorders(&self) -> Retained<NSString>;
 
         /// Setter for [`frameBorders`][Self::frameBorders].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[deprecated]
         #[unsafe(method(setFrameBorders:))]
         #[unsafe(method_family = none)]
@@ -206,6 +230,8 @@ impl DOMHTMLTableElement {
         pub unsafe fn rules(&self) -> Retained<NSString>;
 
         /// Setter for [`rules`][Self::rules].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[deprecated]
         #[unsafe(method(setRules:))]
         #[unsafe(method_family = none)]
@@ -217,6 +243,8 @@ impl DOMHTMLTableElement {
         pub unsafe fn summary(&self) -> Retained<NSString>;
 
         /// Setter for [`summary`][Self::summary].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[deprecated]
         #[unsafe(method(setSummary:))]
         #[unsafe(method_family = none)]
@@ -228,6 +256,8 @@ impl DOMHTMLTableElement {
         pub unsafe fn width(&self) -> Retained<NSString>;
 
         /// Setter for [`width`][Self::width].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[deprecated]
         #[unsafe(method(setWidth:))]
         #[unsafe(method_family = none)]

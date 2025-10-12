@@ -31,11 +31,11 @@ impl UIPreviewParameters {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(initWithTextLineRects:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithTextLineRects(
+        pub fn initWithTextLineRects(
             this: Allocated<Self>,
             text_line_rects: &NSArray<NSValue>,
         ) -> Retained<Self>;
@@ -43,35 +43,41 @@ impl UIPreviewParameters {
         #[cfg(feature = "UIBezierPath")]
         #[unsafe(method(visiblePath))]
         #[unsafe(method_family = none)]
-        pub unsafe fn visiblePath(&self) -> Option<Retained<UIBezierPath>>;
+        pub fn visiblePath(&self) -> Option<Retained<UIBezierPath>>;
 
         #[cfg(feature = "UIBezierPath")]
         /// Setter for [`visiblePath`][Self::visiblePath].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setVisiblePath:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setVisiblePath(&self, visible_path: Option<&UIBezierPath>);
+        pub fn setVisiblePath(&self, visible_path: Option<&UIBezierPath>);
 
         #[cfg(feature = "UIBezierPath")]
         #[unsafe(method(shadowPath))]
         #[unsafe(method_family = none)]
-        pub unsafe fn shadowPath(&self) -> Option<Retained<UIBezierPath>>;
+        pub fn shadowPath(&self) -> Option<Retained<UIBezierPath>>;
 
         #[cfg(feature = "UIBezierPath")]
         /// Setter for [`shadowPath`][Self::shadowPath].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setShadowPath:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setShadowPath(&self, shadow_path: Option<&UIBezierPath>);
+        pub fn setShadowPath(&self, shadow_path: Option<&UIBezierPath>);
 
         #[cfg(feature = "UIColor")]
         #[unsafe(method(backgroundColor))]
         #[unsafe(method_family = none)]
-        pub unsafe fn backgroundColor(&self) -> Retained<UIColor>;
+        pub fn backgroundColor(&self) -> Retained<UIColor>;
 
         #[cfg(feature = "UIColor")]
         /// Setter for [`backgroundColor`][Self::backgroundColor].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setBackgroundColor:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setBackgroundColor(&self, background_color: Option<&UIColor>);
+        pub fn setBackgroundColor(&self, background_color: Option<&UIColor>);
     );
 }
 
@@ -80,6 +86,6 @@ impl UIPreviewParameters {
     extern_methods!(
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }

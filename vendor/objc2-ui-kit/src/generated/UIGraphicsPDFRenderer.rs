@@ -42,9 +42,15 @@ impl UIGraphicsPDFRendererFormat {
     extern_methods!(
         #[unsafe(method(documentInfo))]
         #[unsafe(method_family = none)]
-        pub unsafe fn documentInfo(&self) -> Retained<NSDictionary<NSString, AnyObject>>;
+        pub fn documentInfo(&self) -> Retained<NSDictionary<NSString, AnyObject>>;
 
         /// Setter for [`documentInfo`][Self::documentInfo].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
+        ///
+        /// # Safety
+        ///
+        /// `document_info` generic should be of the correct type.
         #[unsafe(method(setDocumentInfo:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setDocumentInfo(&self, document_info: &NSDictionary<NSString, AnyObject>);
@@ -58,11 +64,11 @@ impl UIGraphicsPDFRendererFormat {
         #[deprecated]
         #[unsafe(method(defaultFormat))]
         #[unsafe(method_family = none)]
-        pub unsafe fn defaultFormat() -> Retained<Self>;
+        pub fn defaultFormat() -> Retained<Self>;
 
         #[unsafe(method(preferredFormat))]
         #[unsafe(method_family = none)]
-        pub unsafe fn preferredFormat() -> Retained<Self>;
+        pub fn preferredFormat() -> Retained<Self>;
     );
 }
 
@@ -72,12 +78,20 @@ impl UIGraphicsPDFRendererFormat {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+#[cfg(feature = "UIGraphicsRenderer")]
+impl DefaultRetained for UIGraphicsPDFRendererFormat {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }
 
 extern_class!(
@@ -99,13 +113,16 @@ impl UIGraphicsPDFRendererContext {
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(pdfContextBounds))]
         #[unsafe(method_family = none)]
-        pub unsafe fn pdfContextBounds(&self) -> CGRect;
+        pub fn pdfContextBounds(&self) -> CGRect;
 
         #[unsafe(method(beginPage))]
         #[unsafe(method_family = none)]
-        pub unsafe fn beginPage(&self);
+        pub fn beginPage(&self);
 
         #[cfg(feature = "objc2-core-foundation")]
+        /// # Safety
+        ///
+        /// `page_info` generic should be of the correct type.
         #[unsafe(method(beginPageWithBounds:pageInfo:))]
         #[unsafe(method_family = none)]
         pub unsafe fn beginPageWithBounds_pageInfo(
@@ -117,17 +134,17 @@ impl UIGraphicsPDFRendererContext {
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(setURL:forRect:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setURL_forRect(&self, url: &NSURL, rect: CGRect);
+        pub fn setURL_forRect(&self, url: &NSURL, rect: CGRect);
 
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(addDestinationWithName:atPoint:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn addDestinationWithName_atPoint(&self, name: &NSString, point: CGPoint);
+        pub fn addDestinationWithName_atPoint(&self, name: &NSString, point: CGPoint);
 
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(setDestinationWithName:forRect:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setDestinationWithName_forRect(&self, name: &NSString, rect: CGRect);
+        pub fn setDestinationWithName_forRect(&self, name: &NSString, rect: CGRect);
     );
 }
 
@@ -137,12 +154,20 @@ impl UIGraphicsPDFRendererContext {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+#[cfg(feature = "UIGraphicsRenderer")]
+impl DefaultRetained for UIGraphicsPDFRendererContext {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }
 
 extern_class!(
@@ -164,13 +189,16 @@ impl UIGraphicsPDFRenderer {
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(initWithBounds:format:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithBounds_format(
+        pub fn initWithBounds_format(
             this: Allocated<Self>,
             bounds: CGRect,
             format: &UIGraphicsPDFRendererFormat,
         ) -> Retained<Self>;
 
         #[cfg(feature = "block2")]
+        /// # Safety
+        ///
+        /// `actions` must be a valid pointer.
         #[unsafe(method(writePDFToURL:withActions:error:_))]
         #[unsafe(method_family = none)]
         pub unsafe fn writePDFToURL_withActions_error(
@@ -180,6 +208,9 @@ impl UIGraphicsPDFRenderer {
         ) -> Result<(), Retained<NSError>>;
 
         #[cfg(feature = "block2")]
+        /// # Safety
+        ///
+        /// `actions` must be a valid pointer.
         #[unsafe(method(PDFDataWithActions:))]
         #[unsafe(method_family = none)]
         pub unsafe fn PDFDataWithActions(
@@ -196,7 +227,7 @@ impl UIGraphicsPDFRenderer {
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(initWithBounds:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithBounds(this: Allocated<Self>, bounds: CGRect) -> Retained<Self>;
+        pub fn initWithBounds(this: Allocated<Self>, bounds: CGRect) -> Retained<Self>;
     );
 }
 
@@ -206,10 +237,18 @@ impl UIGraphicsPDFRenderer {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+#[cfg(feature = "UIGraphicsRenderer")]
+impl DefaultRetained for UIGraphicsPDFRenderer {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }

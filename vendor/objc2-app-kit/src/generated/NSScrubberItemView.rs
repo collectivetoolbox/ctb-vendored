@@ -72,26 +72,26 @@ impl NSScrubberArrangedView {
     extern_methods!(
         #[unsafe(method(isSelected))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isSelected(&self) -> bool;
+        pub fn isSelected(&self) -> bool;
 
         /// Setter for [`isSelected`][Self::isSelected].
         #[unsafe(method(setSelected:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setSelected(&self, selected: bool);
+        pub fn setSelected(&self, selected: bool);
 
         #[unsafe(method(isHighlighted))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isHighlighted(&self) -> bool;
+        pub fn isHighlighted(&self) -> bool;
 
         /// Setter for [`isHighlighted`][Self::isHighlighted].
         #[unsafe(method(setHighlighted:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setHighlighted(&self, highlighted: bool);
+        pub fn setHighlighted(&self, highlighted: bool);
 
         #[cfg(feature = "NSScrubberLayout")]
         #[unsafe(method(applyLayoutAttributes:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn applyLayoutAttributes(&self, layout_attributes: &NSScrubberLayoutAttributes);
+        pub fn applyLayoutAttributes(&self, layout_attributes: &NSScrubberLayoutAttributes);
     );
 }
 
@@ -101,8 +101,11 @@ impl NSScrubberArrangedView {
     extern_methods!(
         #[unsafe(method(initWithFrame:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithFrame(this: Allocated<Self>, frame_rect: NSRect) -> Retained<Self>;
+        pub fn initWithFrame(this: Allocated<Self>, frame_rect: NSRect) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -118,7 +121,7 @@ impl NSScrubberArrangedView {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
     );
 }
 
@@ -128,7 +131,7 @@ impl NSScrubberArrangedView {
     extern_methods!(
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }
 
@@ -206,8 +209,11 @@ impl NSScrubberSelectionView {
     extern_methods!(
         #[unsafe(method(initWithFrame:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithFrame(this: Allocated<Self>, frame_rect: NSRect) -> Retained<Self>;
+        pub fn initWithFrame(this: Allocated<Self>, frame_rect: NSRect) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -223,7 +229,7 @@ impl NSScrubberSelectionView {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
     );
 }
 
@@ -233,7 +239,7 @@ impl NSScrubberSelectionView {
     extern_methods!(
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }
 
@@ -311,8 +317,11 @@ impl NSScrubberItemView {
     extern_methods!(
         #[unsafe(method(initWithFrame:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithFrame(this: Allocated<Self>, frame_rect: NSRect) -> Retained<Self>;
+        pub fn initWithFrame(this: Allocated<Self>, frame_rect: NSRect) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -328,7 +337,7 @@ impl NSScrubberItemView {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
     );
 }
 
@@ -338,7 +347,7 @@ impl NSScrubberItemView {
     extern_methods!(
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }
 
@@ -417,16 +426,18 @@ impl NSScrubberTextItemView {
         #[cfg(all(feature = "NSControl", feature = "NSTextField"))]
         #[unsafe(method(textField))]
         #[unsafe(method_family = none)]
-        pub unsafe fn textField(&self) -> Retained<NSTextField>;
+        pub fn textField(&self) -> Retained<NSTextField>;
 
         #[unsafe(method(title))]
         #[unsafe(method_family = none)]
-        pub unsafe fn title(&self) -> Retained<NSString>;
+        pub fn title(&self) -> Retained<NSString>;
 
         /// Setter for [`title`][Self::title].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setTitle:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setTitle(&self, title: &NSString);
+        pub fn setTitle(&self, title: &NSString);
     );
 }
 
@@ -436,8 +447,11 @@ impl NSScrubberTextItemView {
     extern_methods!(
         #[unsafe(method(initWithFrame:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithFrame(this: Allocated<Self>, frame_rect: NSRect) -> Retained<Self>;
+        pub fn initWithFrame(this: Allocated<Self>, frame_rect: NSRect) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -453,7 +467,7 @@ impl NSScrubberTextItemView {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
     );
 }
 
@@ -463,7 +477,7 @@ impl NSScrubberTextItemView {
     extern_methods!(
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }
 
@@ -545,29 +559,31 @@ impl NSScrubberImageItemView {
         #[cfg(all(feature = "NSControl", feature = "NSImageView"))]
         #[unsafe(method(imageView))]
         #[unsafe(method_family = none)]
-        pub unsafe fn imageView(&self) -> Retained<NSImageView>;
+        pub fn imageView(&self) -> Retained<NSImageView>;
 
         #[cfg(feature = "NSImage")]
         #[unsafe(method(image))]
         #[unsafe(method_family = none)]
-        pub unsafe fn image(&self) -> Retained<NSImage>;
+        pub fn image(&self) -> Retained<NSImage>;
 
         #[cfg(feature = "NSImage")]
         /// Setter for [`image`][Self::image].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setImage:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setImage(&self, image: &NSImage);
+        pub fn setImage(&self, image: &NSImage);
 
         #[cfg(feature = "NSImageCell")]
         #[unsafe(method(imageAlignment))]
         #[unsafe(method_family = none)]
-        pub unsafe fn imageAlignment(&self) -> NSImageAlignment;
+        pub fn imageAlignment(&self) -> NSImageAlignment;
 
         #[cfg(feature = "NSImageCell")]
         /// Setter for [`imageAlignment`][Self::imageAlignment].
         #[unsafe(method(setImageAlignment:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setImageAlignment(&self, image_alignment: NSImageAlignment);
+        pub fn setImageAlignment(&self, image_alignment: NSImageAlignment);
     );
 }
 
@@ -577,8 +593,11 @@ impl NSScrubberImageItemView {
     extern_methods!(
         #[unsafe(method(initWithFrame:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithFrame(this: Allocated<Self>, frame_rect: NSRect) -> Retained<Self>;
+        pub fn initWithFrame(this: Allocated<Self>, frame_rect: NSRect) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -594,7 +613,7 @@ impl NSScrubberImageItemView {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
     );
 }
 
@@ -604,6 +623,6 @@ impl NSScrubberImageItemView {
     extern_methods!(
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }

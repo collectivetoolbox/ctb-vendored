@@ -26,7 +26,7 @@ impl NSUserScriptTask {
         #[cfg(all(feature = "NSError", feature = "NSURL"))]
         #[unsafe(method(initWithURL:error:_))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithURL_error(
+        pub fn initWithURL_error(
             this: Allocated<Self>,
             url: &NSURL,
         ) -> Result<Retained<Self>, Retained<NSError>>;
@@ -34,9 +34,12 @@ impl NSUserScriptTask {
         #[cfg(feature = "NSURL")]
         #[unsafe(method(scriptURL))]
         #[unsafe(method_family = none)]
-        pub unsafe fn scriptURL(&self) -> Retained<NSURL>;
+        pub fn scriptURL(&self) -> Retained<NSURL>;
 
         #[cfg(all(feature = "NSError", feature = "block2"))]
+        /// # Safety
+        ///
+        /// `handler` must be a valid pointer or null.
         #[unsafe(method(executeWithCompletionHandler:))]
         #[unsafe(method_family = none)]
         pub unsafe fn executeWithCompletionHandler(
@@ -51,12 +54,19 @@ impl NSUserScriptTask {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl DefaultRetained for NSUserScriptTask {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }
 
 /// [Apple's documentation](https://developer.apple.com/documentation/foundation/nsuserunixtaskcompletionhandler?language=objc)
@@ -79,35 +89,35 @@ impl NSUserUnixTask {
         #[cfg(feature = "NSFileHandle")]
         #[unsafe(method(standardInput))]
         #[unsafe(method_family = none)]
-        pub unsafe fn standardInput(&self) -> Option<Retained<NSFileHandle>>;
+        pub fn standardInput(&self) -> Option<Retained<NSFileHandle>>;
 
         #[cfg(feature = "NSFileHandle")]
         /// Setter for [`standardInput`][Self::standardInput].
         #[unsafe(method(setStandardInput:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setStandardInput(&self, standard_input: Option<&NSFileHandle>);
+        pub fn setStandardInput(&self, standard_input: Option<&NSFileHandle>);
 
         #[cfg(feature = "NSFileHandle")]
         #[unsafe(method(standardOutput))]
         #[unsafe(method_family = none)]
-        pub unsafe fn standardOutput(&self) -> Option<Retained<NSFileHandle>>;
+        pub fn standardOutput(&self) -> Option<Retained<NSFileHandle>>;
 
         #[cfg(feature = "NSFileHandle")]
         /// Setter for [`standardOutput`][Self::standardOutput].
         #[unsafe(method(setStandardOutput:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setStandardOutput(&self, standard_output: Option<&NSFileHandle>);
+        pub fn setStandardOutput(&self, standard_output: Option<&NSFileHandle>);
 
         #[cfg(feature = "NSFileHandle")]
         #[unsafe(method(standardError))]
         #[unsafe(method_family = none)]
-        pub unsafe fn standardError(&self) -> Option<Retained<NSFileHandle>>;
+        pub fn standardError(&self) -> Option<Retained<NSFileHandle>>;
 
         #[cfg(feature = "NSFileHandle")]
         /// Setter for [`standardError`][Self::standardError].
         #[unsafe(method(setStandardError:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setStandardError(&self, standard_error: Option<&NSFileHandle>);
+        pub fn setStandardError(&self, standard_error: Option<&NSFileHandle>);
 
         #[cfg(all(
             feature = "NSArray",
@@ -115,6 +125,9 @@ impl NSUserUnixTask {
             feature = "NSString",
             feature = "block2"
         ))]
+        /// # Safety
+        ///
+        /// `handler` must be a valid pointer or null.
         #[unsafe(method(executeWithArguments:completionHandler:))]
         #[unsafe(method_family = none)]
         pub unsafe fn executeWithArguments_completionHandler(
@@ -131,7 +144,7 @@ impl NSUserUnixTask {
         #[cfg(all(feature = "NSError", feature = "NSURL"))]
         #[unsafe(method(initWithURL:error:_))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithURL_error(
+        pub fn initWithURL_error(
             this: Allocated<Self>,
             url: &NSURL,
         ) -> Result<Retained<Self>, Retained<NSError>>;
@@ -143,12 +156,19 @@ impl NSUserUnixTask {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl DefaultRetained for NSUserUnixTask {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }
 
 /// [Apple's documentation](https://developer.apple.com/documentation/foundation/nsuserapplescripttaskcompletionhandler?language=objc)
@@ -178,6 +198,9 @@ impl NSUserAppleScriptTask {
             feature = "NSError",
             feature = "block2"
         ))]
+        /// # Safety
+        ///
+        /// `handler` must be a valid pointer or null.
         #[unsafe(method(executeWithAppleEvent:completionHandler:))]
         #[unsafe(method_family = none)]
         pub unsafe fn executeWithAppleEvent_completionHandler(
@@ -194,7 +217,7 @@ impl NSUserAppleScriptTask {
         #[cfg(all(feature = "NSError", feature = "NSURL"))]
         #[unsafe(method(initWithURL:error:_))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithURL_error(
+        pub fn initWithURL_error(
             this: Allocated<Self>,
             url: &NSURL,
         ) -> Result<Retained<Self>, Retained<NSError>>;
@@ -206,12 +229,19 @@ impl NSUserAppleScriptTask {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl DefaultRetained for NSUserAppleScriptTask {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }
 
 /// [Apple's documentation](https://developer.apple.com/documentation/foundation/nsuserautomatortaskcompletionhandler?language=objc)
@@ -235,15 +265,25 @@ impl NSUserAutomatorTask {
         #[cfg(all(feature = "NSDictionary", feature = "NSString"))]
         #[unsafe(method(variables))]
         #[unsafe(method_family = none)]
-        pub unsafe fn variables(&self) -> Option<Retained<NSDictionary<NSString, AnyObject>>>;
+        pub fn variables(&self) -> Option<Retained<NSDictionary<NSString, AnyObject>>>;
 
         #[cfg(all(feature = "NSDictionary", feature = "NSString"))]
         /// Setter for [`variables`][Self::variables].
+        ///
+        /// This is [copied][crate::NSCopying::copy] when set.
+        ///
+        /// # Safety
+        ///
+        /// `variables` generic should be of the correct type.
         #[unsafe(method(setVariables:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setVariables(&self, variables: Option<&NSDictionary<NSString, AnyObject>>);
 
         #[cfg(all(feature = "NSError", feature = "NSObject", feature = "block2"))]
+        /// # Safety
+        ///
+        /// - `input` should be of the correct type.
+        /// - `handler` must be a valid pointer or null.
         #[unsafe(method(executeWithInput:completionHandler:))]
         #[unsafe(method_family = none)]
         pub unsafe fn executeWithInput_completionHandler(
@@ -260,7 +300,7 @@ impl NSUserAutomatorTask {
         #[cfg(all(feature = "NSError", feature = "NSURL"))]
         #[unsafe(method(initWithURL:error:_))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithURL_error(
+        pub fn initWithURL_error(
             this: Allocated<Self>,
             url: &NSURL,
         ) -> Result<Retained<Self>, Retained<NSError>>;
@@ -272,10 +312,17 @@ impl NSUserAutomatorTask {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl DefaultRetained for NSUserAutomatorTask {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }

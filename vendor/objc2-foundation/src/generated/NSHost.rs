@@ -32,68 +32,68 @@ impl NSHost {
         #[deprecated = "Use Network framework instead, see deprecation notice in <Foundation/NSHost.h>"]
         #[unsafe(method(currentHost))]
         #[unsafe(method_family = none)]
-        pub unsafe fn currentHost() -> Retained<Self>;
+        pub fn currentHost() -> Retained<Self>;
 
         #[cfg(feature = "NSString")]
         #[deprecated = "Use Network framework instead, see deprecation notice in <Foundation/NSHost.h>"]
         #[unsafe(method(hostWithName:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn hostWithName(name: Option<&NSString>) -> Retained<Self>;
+        pub fn hostWithName(name: Option<&NSString>) -> Retained<Self>;
 
         #[cfg(feature = "NSString")]
         #[deprecated = "Use Network framework instead, see deprecation notice in <Foundation/NSHost.h>"]
         #[unsafe(method(hostWithAddress:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn hostWithAddress(address: &NSString) -> Retained<Self>;
+        pub fn hostWithAddress(address: &NSString) -> Retained<Self>;
 
         #[deprecated = "Use Network framework instead, see deprecation notice in <Foundation/NSHost.h>"]
         #[unsafe(method(isEqualToHost:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isEqualToHost(&self, a_host: &NSHost) -> bool;
+        pub fn isEqualToHost(&self, a_host: &NSHost) -> bool;
 
         #[cfg(feature = "NSString")]
         #[deprecated = "Use Network framework instead, see deprecation notice in <Foundation/NSHost.h>"]
         #[unsafe(method(name))]
         #[unsafe(method_family = none)]
-        pub unsafe fn name(&self) -> Option<Retained<NSString>>;
+        pub fn name(&self) -> Option<Retained<NSString>>;
 
         #[cfg(all(feature = "NSArray", feature = "NSString"))]
         #[deprecated = "Use Network framework instead, see deprecation notice in <Foundation/NSHost.h>"]
         #[unsafe(method(names))]
         #[unsafe(method_family = none)]
-        pub unsafe fn names(&self) -> Retained<NSArray<NSString>>;
+        pub fn names(&self) -> Retained<NSArray<NSString>>;
 
         #[cfg(feature = "NSString")]
         #[deprecated = "Use Network framework instead, see deprecation notice in <Foundation/NSHost.h>"]
         #[unsafe(method(address))]
         #[unsafe(method_family = none)]
-        pub unsafe fn address(&self) -> Option<Retained<NSString>>;
+        pub fn address(&self) -> Option<Retained<NSString>>;
 
         #[cfg(all(feature = "NSArray", feature = "NSString"))]
         #[deprecated = "Use Network framework instead, see deprecation notice in <Foundation/NSHost.h>"]
         #[unsafe(method(addresses))]
         #[unsafe(method_family = none)]
-        pub unsafe fn addresses(&self) -> Retained<NSArray<NSString>>;
+        pub fn addresses(&self) -> Retained<NSArray<NSString>>;
 
         #[cfg(feature = "NSString")]
         #[unsafe(method(localizedName))]
         #[unsafe(method_family = none)]
-        pub unsafe fn localizedName(&self) -> Option<Retained<NSString>>;
+        pub fn localizedName(&self) -> Option<Retained<NSString>>;
 
         #[deprecated = "Caching no longer supported"]
         #[unsafe(method(setHostCacheEnabled:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setHostCacheEnabled(flag: bool);
+        pub fn setHostCacheEnabled(flag: bool);
 
         #[deprecated = "Caching no longer supported"]
         #[unsafe(method(isHostCacheEnabled))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isHostCacheEnabled() -> bool;
+        pub fn isHostCacheEnabled() -> bool;
 
         #[deprecated = "Caching no longer supported"]
         #[unsafe(method(flushHostCache))]
         #[unsafe(method_family = none)]
-        pub unsafe fn flushHostCache();
+        pub fn flushHostCache();
     );
 }
 
@@ -102,10 +102,17 @@ impl NSHost {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl DefaultRetained for NSHost {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }

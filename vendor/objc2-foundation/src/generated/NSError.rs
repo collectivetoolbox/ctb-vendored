@@ -3,6 +3,8 @@
 use core::ffi::*;
 use core::ptr::NonNull;
 use objc2::__framework_prelude::*;
+#[cfg(feature = "objc2-core-foundation")]
+use objc2_core_foundation::*;
 
 use crate::*;
 
@@ -127,6 +129,22 @@ unsafe impl Send for NSError {}
 
 unsafe impl Sync for NSError {}
 
+#[cfg(feature = "objc2-core-foundation")]
+impl AsRef<NSError> for CFError {
+    #[inline]
+    fn as_ref(&self) -> &NSError {
+        unsafe { &*((self as *const Self).cast()) }
+    }
+}
+
+#[cfg(feature = "objc2-core-foundation")]
+impl AsRef<CFError> for NSError {
+    #[inline]
+    fn as_ref(&self) -> &CFError {
+        unsafe { &*((self as *const Self).cast()) }
+    }
+}
+
 #[cfg(feature = "NSObject")]
 extern_conformance!(
     unsafe impl NSCoding for NSError {}
@@ -154,6 +172,9 @@ extern_conformance!(
 impl NSError {
     extern_methods!(
         #[cfg(all(feature = "NSDictionary", feature = "NSString"))]
+        /// # Safety
+        ///
+        /// `dict` generic should be of the correct type.
         #[unsafe(method(initWithDomain:code:userInfo:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithDomain_code_userInfo(
@@ -164,6 +185,9 @@ impl NSError {
         ) -> Retained<Self>;
 
         #[cfg(all(feature = "NSDictionary", feature = "NSString"))]
+        /// # Safety
+        ///
+        /// `dict` generic should be of the correct type.
         #[unsafe(method(errorWithDomain:code:userInfo:))]
         #[unsafe(method_family = none)]
         pub unsafe fn errorWithDomain_code_userInfo(
@@ -194,33 +218,36 @@ impl NSError {
         #[cfg(feature = "NSString")]
         #[unsafe(method(localizedFailureReason))]
         #[unsafe(method_family = none)]
-        pub unsafe fn localizedFailureReason(&self) -> Option<Retained<NSString>>;
+        pub fn localizedFailureReason(&self) -> Option<Retained<NSString>>;
 
         #[cfg(feature = "NSString")]
         #[unsafe(method(localizedRecoverySuggestion))]
         #[unsafe(method_family = none)]
-        pub unsafe fn localizedRecoverySuggestion(&self) -> Option<Retained<NSString>>;
+        pub fn localizedRecoverySuggestion(&self) -> Option<Retained<NSString>>;
 
         #[cfg(all(feature = "NSArray", feature = "NSString"))]
         #[unsafe(method(localizedRecoveryOptions))]
         #[unsafe(method_family = none)]
-        pub unsafe fn localizedRecoveryOptions(&self) -> Option<Retained<NSArray<NSString>>>;
+        pub fn localizedRecoveryOptions(&self) -> Option<Retained<NSArray<NSString>>>;
 
         #[unsafe(method(recoveryAttempter))]
         #[unsafe(method_family = none)]
-        pub unsafe fn recoveryAttempter(&self) -> Option<Retained<AnyObject>>;
+        pub fn recoveryAttempter(&self) -> Option<Retained<AnyObject>>;
 
         #[cfg(feature = "NSString")]
         #[unsafe(method(helpAnchor))]
         #[unsafe(method_family = none)]
-        pub unsafe fn helpAnchor(&self) -> Option<Retained<NSString>>;
+        pub fn helpAnchor(&self) -> Option<Retained<NSString>>;
 
         #[cfg(feature = "NSArray")]
         #[unsafe(method(underlyingErrors))]
         #[unsafe(method_family = none)]
-        pub unsafe fn underlyingErrors(&self) -> Retained<NSArray<NSError>>;
+        pub fn underlyingErrors(&self) -> Retained<NSArray<NSError>>;
 
         #[cfg(all(feature = "NSString", feature = "block2"))]
+        /// # Safety
+        ///
+        /// `provider` block must be sendable.
         #[unsafe(method(setUserInfoValueProviderForDomain:provider:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setUserInfoValueProviderForDomain_provider(
@@ -233,6 +260,9 @@ impl NSError {
         );
 
         #[cfg(all(feature = "NSString", feature = "block2"))]
+        /// # Safety
+        ///
+        /// The returned block must be sendable.
         #[unsafe(method(userInfoValueProviderForDomain:))]
         #[unsafe(method_family = none)]
         pub unsafe fn userInfoValueProviderForDomain(
@@ -248,7 +278,7 @@ impl NSError {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
     );
 }
 
@@ -262,6 +292,11 @@ pub unsafe trait NSObjectNSErrorRecoveryAttempting:
     ClassType + Sized + private_NSObjectNSErrorRecoveryAttempting::Sealed
 {
     extern_methods!(
+        /// # Safety
+        ///
+        /// - `delegate` should be of the correct type.
+        /// - `did_recover_selector` must be a valid selector.
+        /// - `context_info` must be a valid pointer or null.
         #[unsafe(method(attemptRecoveryFromError:optionIndex:delegate:didRecoverSelector:contextInfo:))]
         #[unsafe(method_family = none)]
         unsafe fn attemptRecoveryFromError_optionIndex_delegate_didRecoverSelector_contextInfo(
@@ -275,7 +310,7 @@ pub unsafe trait NSObjectNSErrorRecoveryAttempting:
 
         #[unsafe(method(attemptRecoveryFromError:optionIndex:))]
         #[unsafe(method_family = none)]
-        unsafe fn attemptRecoveryFromError_optionIndex(
+        fn attemptRecoveryFromError_optionIndex(
             &self,
             error: &NSError,
             recovery_option_index: NSUInteger,

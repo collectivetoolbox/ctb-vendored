@@ -11,9 +11,9 @@
 
 [package]
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.78"
 name = "axum-extra"
-version = "0.10.1"
+version = "0.10.3"
 build = false
 autolib = false
 autobins = false
@@ -36,6 +36,9 @@ categories = [
 license = "MIT"
 repository = "https://github.com/tokio-rs/axum"
 
+[package.metadata.docs.rs]
+all-features = true
+
 [package.metadata.cargo-public-api-crates]
 allowed = [
     "axum",
@@ -51,18 +54,19 @@ allowed = [
     "http_body",
     "pin_project_lite",
     "prost",
-    "serde",
+    "serde_core",
     "tokio",
     "tokio_util",
     "tower_layer",
     "tower_service",
 ]
 
-[package.metadata.docs.rs]
-all-features = true
-
 [features]
-__private_docs = ["axum/json"]
+__private_docs = [
+    "axum/json",
+    "dep:serde",
+    "dep:tower",
+]
 async-read-body = [
     "dep:tokio-util",
     "tokio-util?/io",
@@ -130,6 +134,7 @@ scheme = []
 tracing = [
     "axum-core/tracing",
     "axum/tracing",
+    "dep:tracing",
 ]
 typed-header = ["dep:headers"]
 typed-routing = [
@@ -144,12 +149,12 @@ name = "axum_extra"
 path = "src/lib.rs"
 
 [dependencies.axum]
-version = "0.8.3"
+version = "0.8.6"
 features = ["original-uri"]
 default-features = false
 
 [dependencies.axum-core]
-version = "0.5.2"
+version = "0.5.5"
 
 [dependencies.axum-macros]
 version = "0.5.0"
@@ -212,7 +217,11 @@ optional = true
 version = "1.0.9"
 
 [dependencies.serde]
-version = "1.0"
+version = "1.0.221"
+optional = true
+
+[dependencies.serde_core]
+version = "1.0.221"
 
 [dependencies.serde_html_form]
 version = "0.2.0"
@@ -241,6 +250,7 @@ optional = true
 [dependencies.tower]
 version = "0.5.2"
 features = ["util"]
+optional = true
 default-features = false
 
 [dependencies.tower-layer]
@@ -271,7 +281,7 @@ features = [
 default-features = false
 
 [dev-dependencies.serde]
-version = "1.0"
+version = "1.0.221"
 features = ["derive"]
 
 [dev-dependencies.serde_json]
@@ -292,6 +302,9 @@ features = [
     "timeout",
 ]
 
+[dev-dependencies.tracing-subscriber]
+version = "0.3.19"
+
 [lints.clippy]
 await_holding_lock = "warn"
 dbg_macro = "warn"
@@ -306,13 +319,14 @@ inefficient_to_string = "warn"
 linkedlist = "warn"
 lossy_float_literal = "warn"
 macro_use_imports = "warn"
-match_on_vec_items = "warn"
 match_wildcard_for_single_variants = "warn"
 mem_forget = "warn"
+must_use_candidate = "warn"
 needless_borrow = "warn"
 needless_continue = "warn"
 option_option = "warn"
 rest_pat_in_fully_bound_structs = "warn"
+return_self_not_must_use = "warn"
 str_to_string = "warn"
 suboptimal_flops = "warn"
 todo = "warn"

@@ -80,17 +80,17 @@ impl NSProcessInfo {
         #[cfg(all(feature = "NSDictionary", feature = "NSString"))]
         #[unsafe(method(environment))]
         #[unsafe(method_family = none)]
-        pub unsafe fn environment(&self) -> Retained<NSDictionary<NSString, NSString>>;
+        pub fn environment(&self) -> Retained<NSDictionary<NSString, NSString>>;
 
         #[cfg(all(feature = "NSArray", feature = "NSString"))]
         #[unsafe(method(arguments))]
         #[unsafe(method_family = none)]
-        pub unsafe fn arguments(&self) -> Retained<NSArray<NSString>>;
+        pub fn arguments(&self) -> Retained<NSArray<NSString>>;
 
         #[cfg(feature = "NSString")]
         #[unsafe(method(hostName))]
         #[unsafe(method_family = none)]
-        pub unsafe fn hostName(&self) -> Retained<NSString>;
+        pub fn hostName(&self) -> Retained<NSString>;
 
         #[cfg(feature = "NSString")]
         #[unsafe(method(processName))]
@@ -99,34 +99,36 @@ impl NSProcessInfo {
 
         #[cfg(feature = "NSString")]
         /// Setter for [`processName`][Self::processName].
+        ///
+        /// This is [copied][crate::NSCopying::copy] when set.
         #[unsafe(method(setProcessName:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setProcessName(&self, process_name: &NSString);
+        pub fn setProcessName(&self, process_name: &NSString);
 
         #[unsafe(method(processIdentifier))]
         #[unsafe(method_family = none)]
-        pub unsafe fn processIdentifier(&self) -> c_int;
+        pub fn processIdentifier(&self) -> c_int;
 
         #[cfg(feature = "NSString")]
         #[unsafe(method(globallyUniqueString))]
         #[unsafe(method_family = none)]
-        pub unsafe fn globallyUniqueString(&self) -> Retained<NSString>;
+        pub fn globallyUniqueString(&self) -> Retained<NSString>;
 
         #[deprecated = "-operatingSystem always returns NSMACHOperatingSystem, use -operatingSystemVersion or -isOperatingSystemAtLeastVersion: instead"]
         #[unsafe(method(operatingSystem))]
         #[unsafe(method_family = none)]
-        pub unsafe fn operatingSystem(&self) -> NSUInteger;
+        pub fn operatingSystem(&self) -> NSUInteger;
 
         #[cfg(feature = "NSString")]
         #[deprecated = "-operatingSystemName always returns NSMACHOperatingSystem, use -operatingSystemVersionString instead"]
         #[unsafe(method(operatingSystemName))]
         #[unsafe(method_family = none)]
-        pub unsafe fn operatingSystemName(&self) -> Retained<NSString>;
+        pub fn operatingSystemName(&self) -> Retained<NSString>;
 
         #[cfg(feature = "NSString")]
         #[unsafe(method(operatingSystemVersionString))]
         #[unsafe(method_family = none)]
-        pub unsafe fn operatingSystemVersionString(&self) -> Retained<NSString>;
+        pub fn operatingSystemVersionString(&self) -> Retained<NSString>;
 
         #[unsafe(method(operatingSystemVersion))]
         #[unsafe(method_family = none)]
@@ -134,54 +136,51 @@ impl NSProcessInfo {
 
         #[unsafe(method(processorCount))]
         #[unsafe(method_family = none)]
-        pub unsafe fn processorCount(&self) -> NSUInteger;
+        pub fn processorCount(&self) -> NSUInteger;
 
         #[unsafe(method(activeProcessorCount))]
         #[unsafe(method_family = none)]
-        pub unsafe fn activeProcessorCount(&self) -> NSUInteger;
+        pub fn activeProcessorCount(&self) -> NSUInteger;
 
         #[unsafe(method(physicalMemory))]
         #[unsafe(method_family = none)]
-        pub unsafe fn physicalMemory(&self) -> c_ulonglong;
+        pub fn physicalMemory(&self) -> c_ulonglong;
 
         #[unsafe(method(isOperatingSystemAtLeastVersion:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isOperatingSystemAtLeastVersion(
-            &self,
-            version: NSOperatingSystemVersion,
-        ) -> bool;
+        pub fn isOperatingSystemAtLeastVersion(&self, version: NSOperatingSystemVersion) -> bool;
 
         #[cfg(feature = "NSDate")]
         #[unsafe(method(systemUptime))]
         #[unsafe(method_family = none)]
-        pub unsafe fn systemUptime(&self) -> NSTimeInterval;
+        pub fn systemUptime(&self) -> NSTimeInterval;
 
         #[unsafe(method(disableSuddenTermination))]
         #[unsafe(method_family = none)]
-        pub unsafe fn disableSuddenTermination(&self);
+        pub fn disableSuddenTermination(&self);
 
         #[unsafe(method(enableSuddenTermination))]
         #[unsafe(method_family = none)]
-        pub unsafe fn enableSuddenTermination(&self);
+        pub fn enableSuddenTermination(&self);
 
         #[cfg(feature = "NSString")]
         #[unsafe(method(disableAutomaticTermination:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn disableAutomaticTermination(&self, reason: &NSString);
+        pub fn disableAutomaticTermination(&self, reason: &NSString);
 
         #[cfg(feature = "NSString")]
         #[unsafe(method(enableAutomaticTermination:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn enableAutomaticTermination(&self, reason: &NSString);
+        pub fn enableAutomaticTermination(&self, reason: &NSString);
 
         #[unsafe(method(automaticTerminationSupportEnabled))]
         #[unsafe(method_family = none)]
-        pub unsafe fn automaticTerminationSupportEnabled(&self) -> bool;
+        pub fn automaticTerminationSupportEnabled(&self) -> bool;
 
         /// Setter for [`automaticTerminationSupportEnabled`][Self::automaticTerminationSupportEnabled].
         #[unsafe(method(setAutomaticTerminationSupportEnabled:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setAutomaticTerminationSupportEnabled(
+        pub fn setAutomaticTerminationSupportEnabled(
             &self,
             automatic_termination_support_enabled: bool,
         );
@@ -193,12 +192,19 @@ impl NSProcessInfo {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl DefaultRetained for NSProcessInfo {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }
 
 /// [Apple's documentation](https://developer.apple.com/documentation/foundation/nsactivityoptions?language=objc)
@@ -247,12 +253,15 @@ impl NSProcessInfo {
         #[cfg(feature = "NSString")]
         #[unsafe(method(beginActivityWithOptions:reason:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn beginActivityWithOptions_reason(
+        pub fn beginActivityWithOptions_reason(
             &self,
             options: NSActivityOptions,
             reason: &NSString,
         ) -> Retained<ProtocolObject<dyn NSObjectProtocol>>;
 
+        /// # Safety
+        ///
+        /// `activity` should be of the correct type.
         #[unsafe(method(endActivity:))]
         #[unsafe(method_family = none)]
         pub unsafe fn endActivity(&self, activity: &ProtocolObject<dyn NSObjectProtocol>);
@@ -260,7 +269,7 @@ impl NSProcessInfo {
         #[cfg(all(feature = "NSString", feature = "block2"))]
         #[unsafe(method(performActivityWithOptions:reason:usingBlock:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn performActivityWithOptions_reason_usingBlock(
+        pub fn performActivityWithOptions_reason_usingBlock(
             &self,
             options: NSActivityOptions,
             reason: &NSString,
@@ -268,6 +277,9 @@ impl NSProcessInfo {
         );
 
         #[cfg(all(feature = "NSString", feature = "block2"))]
+        /// # Safety
+        ///
+        /// `block` block must be sendable.
         #[unsafe(method(performExpiringActivityWithReason:usingBlock:))]
         #[unsafe(method_family = none)]
         pub unsafe fn performExpiringActivityWithReason_usingBlock(
@@ -284,12 +296,12 @@ impl NSProcessInfo {
         #[cfg(feature = "NSString")]
         #[unsafe(method(userName))]
         #[unsafe(method_family = none)]
-        pub unsafe fn userName(&self) -> Retained<NSString>;
+        pub fn userName(&self) -> Retained<NSString>;
 
         #[cfg(feature = "NSString")]
         #[unsafe(method(fullUserName))]
         #[unsafe(method_family = none)]
-        pub unsafe fn fullUserName(&self) -> Retained<NSString>;
+        pub fn fullUserName(&self) -> Retained<NSString>;
     );
 }
 
@@ -322,7 +334,7 @@ impl NSProcessInfo {
     extern_methods!(
         #[unsafe(method(thermalState))]
         #[unsafe(method_family = none)]
-        pub unsafe fn thermalState(&self) -> NSProcessInfoThermalState;
+        pub fn thermalState(&self) -> NSProcessInfoThermalState;
     );
 }
 
@@ -331,7 +343,7 @@ impl NSProcessInfo {
     extern_methods!(
         #[unsafe(method(isLowPowerModeEnabled))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isLowPowerModeEnabled(&self) -> bool;
+        pub fn isLowPowerModeEnabled(&self) -> bool;
     );
 }
 
@@ -352,10 +364,10 @@ impl NSProcessInfo {
     extern_methods!(
         #[unsafe(method(isMacCatalystApp))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isMacCatalystApp(&self) -> bool;
+        pub fn isMacCatalystApp(&self) -> bool;
 
         #[unsafe(method(isiOSAppOnMac))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isiOSAppOnMac(&self) -> bool;
+        pub fn isiOSAppOnMac(&self) -> bool;
     );
 }

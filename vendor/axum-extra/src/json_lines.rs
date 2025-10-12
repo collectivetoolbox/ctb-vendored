@@ -9,7 +9,7 @@ use axum::{
 use bytes::{BufMut, BytesMut};
 use futures_util::stream::{BoxStream, Stream, TryStream, TryStreamExt};
 use pin_project_lite::pin_project;
-use serde::{de::DeserializeOwned, Serialize};
+use serde_core::{de::DeserializeOwned, Serialize};
 use std::{
     convert::Infallible,
     io::{self, Write},
@@ -110,7 +110,7 @@ where
         // so we can call `AsyncRead::lines` and then convert it back to a `Stream`
         let body = req.into_body();
         let stream = body.into_data_stream();
-        let stream = stream.map_err(|err| io::Error::new(io::ErrorKind::Other, err));
+        let stream = stream.map_err(io::Error::other);
         let read = StreamReader::new(stream);
         let lines_stream = LinesStream::new(read.lines());
 
@@ -173,7 +173,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::JsonLines;
     use crate::test_helpers::*;
     use axum::{
         routing::{get, post},
@@ -181,8 +181,8 @@ mod tests {
     };
     use futures_util::StreamExt;
     use http::StatusCode;
-    use serde::Deserialize;
-    use std::error::Error;
+    use serde::{Deserialize, Serialize};
+    use std::{convert::Infallible, error::Error};
 
     #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
     struct User {

@@ -30,7 +30,7 @@ impl NSURLCredentialStorage {
         /// Returns: the shared authentication storage
         #[unsafe(method(sharedCredentialStorage))]
         #[unsafe(method_family = none)]
-        pub unsafe fn sharedCredentialStorage() -> Retained<NSURLCredentialStorage>;
+        pub fn sharedCredentialStorage() -> Retained<NSURLCredentialStorage>;
 
         #[cfg(all(
             feature = "NSDictionary",
@@ -45,7 +45,7 @@ impl NSURLCredentialStorage {
         /// Returns: A dictionary where the keys are usernames and the values are the corresponding NSURLCredentials.
         #[unsafe(method(credentialsForProtectionSpace:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn credentialsForProtectionSpace(
+        pub fn credentialsForProtectionSpace(
             &self,
             space: &NSURLProtectionSpace,
         ) -> Option<Retained<NSDictionary<NSString, NSURLCredential>>>;
@@ -63,7 +63,7 @@ impl NSURLCredentialStorage {
         /// and the values are NSURLCredentials
         #[unsafe(method(allCredentials))]
         #[unsafe(method_family = none)]
-        pub unsafe fn allCredentials(
+        pub fn allCredentials(
             &self,
         ) -> Retained<NSDictionary<NSURLProtectionSpace, NSDictionary<NSString, NSURLCredential>>>;
 
@@ -79,7 +79,7 @@ impl NSURLCredentialStorage {
         /// the new one will replace it.
         #[unsafe(method(setCredential:forProtectionSpace:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setCredential_forProtectionSpace(
+        pub fn setCredential_forProtectionSpace(
             &self,
             credential: &NSURLCredential,
             space: &NSURLProtectionSpace,
@@ -97,7 +97,7 @@ impl NSURLCredentialStorage {
         /// See removeCredential:forProtectionSpace:options.
         #[unsafe(method(removeCredential:forProtectionSpace:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn removeCredential_forProtectionSpace(
+        pub fn removeCredential_forProtectionSpace(
             &self,
             credential: &NSURLCredential,
             space: &NSURLProtectionSpace,
@@ -121,6 +121,10 @@ impl NSURLCredentialStorage {
         /// are removed, the credential will be removed on all devices that contain this credential.
         ///
         /// The credential is removed from both persistent and temporary storage.
+        ///
+        /// # Safety
+        ///
+        /// `options` generic should be of the correct type.
         #[unsafe(method(removeCredential:forProtectionSpace:options:))]
         #[unsafe(method_family = none)]
         pub unsafe fn removeCredential_forProtectionSpace_options(
@@ -136,7 +140,7 @@ impl NSURLCredentialStorage {
         /// Parameter `space`: The protection space for which to get the default credential.
         #[unsafe(method(defaultCredentialForProtectionSpace:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn defaultCredentialForProtectionSpace(
+        pub fn defaultCredentialForProtectionSpace(
             &self,
             space: &NSURLProtectionSpace,
         ) -> Option<Retained<NSURLCredential>>;
@@ -151,7 +155,7 @@ impl NSURLCredentialStorage {
         /// If the credential is not yet in the set for the protection space, it will be added to it.
         #[unsafe(method(setDefaultCredential:forProtectionSpace:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setDefaultCredential_forProtectionSpace(
+        pub fn setDefaultCredential_forProtectionSpace(
             &self,
             credential: &NSURLCredential,
             space: &NSURLProtectionSpace,
@@ -164,12 +168,19 @@ impl NSURLCredentialStorage {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl DefaultRetained for NSURLCredentialStorage {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }
 
 /// NSURLSessionTaskAdditions.
@@ -183,6 +194,9 @@ impl NSURLCredentialStorage {
             feature = "NSURLSession",
             feature = "block2"
         ))]
+        /// # Safety
+        ///
+        /// `completion_handler` block must be sendable.
         #[unsafe(method(getCredentialsForProtectionSpace:task:completionHandler:))]
         #[unsafe(method_family = none)]
         pub unsafe fn getCredentialsForProtectionSpace_task_completionHandler(
@@ -201,7 +215,7 @@ impl NSURLCredentialStorage {
         ))]
         #[unsafe(method(setCredential:forProtectionSpace:task:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setCredential_forProtectionSpace_task(
+        pub fn setCredential_forProtectionSpace_task(
             &self,
             credential: &NSURLCredential,
             protection_space: &NSURLProtectionSpace,
@@ -215,6 +229,9 @@ impl NSURLCredentialStorage {
             feature = "NSURLProtectionSpace",
             feature = "NSURLSession"
         ))]
+        /// # Safety
+        ///
+        /// `options` generic should be of the correct type.
         #[unsafe(method(removeCredential:forProtectionSpace:options:task:))]
         #[unsafe(method_family = none)]
         pub unsafe fn removeCredential_forProtectionSpace_options_task(
@@ -231,6 +248,9 @@ impl NSURLCredentialStorage {
             feature = "NSURLSession",
             feature = "block2"
         ))]
+        /// # Safety
+        ///
+        /// `completion_handler` block must be sendable.
         #[unsafe(method(getDefaultCredentialForProtectionSpace:task:completionHandler:))]
         #[unsafe(method_family = none)]
         pub unsafe fn getDefaultCredentialForProtectionSpace_task_completionHandler(
@@ -247,7 +267,7 @@ impl NSURLCredentialStorage {
         ))]
         #[unsafe(method(setDefaultCredential:forProtectionSpace:task:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setDefaultCredential_forProtectionSpace_task(
+        pub fn setDefaultCredential_forProtectionSpace_task(
             &self,
             credential: &NSURLCredential,
             protection_space: &NSURLProtectionSpace,
@@ -262,6 +282,7 @@ extern "C" {
     ///
     /// See also [Apple's documentation](https://developer.apple.com/documentation/foundation/nsurlcredentialstoragechangednotification?language=objc)
     #[cfg(all(feature = "NSNotification", feature = "NSString"))]
+    #[deprecated = "Notification is never posted"]
     pub static NSURLCredentialStorageChangedNotification: &'static NSNotificationName;
 }
 

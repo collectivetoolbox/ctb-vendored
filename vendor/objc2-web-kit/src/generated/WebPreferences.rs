@@ -58,6 +58,7 @@ unsafe impl RefEncode for WebCacheModel {
 
 extern "C" {
     /// [Apple's documentation](https://developer.apple.com/documentation/webkit/webpreferenceschangednotification?language=objc)
+    #[deprecated]
     pub static WebPreferencesChangedNotification: Option<&'static NSString>;
 }
 
@@ -92,6 +93,10 @@ impl WebPreferences {
         /// for the WebPreferences.
         ///
         /// Returns: Returns a new instance of WebPreferences or a previously allocated instance with the same identifier.
+        ///
+        /// # Safety
+        ///
+        /// `an_identifier` might not allow `None`.
         #[deprecated]
         #[unsafe(method(initWithIdentifier:))]
         #[unsafe(method_family = init)]
@@ -112,6 +117,8 @@ impl WebPreferences {
         pub unsafe fn standardFontFamily(&self) -> Retained<NSString>;
 
         /// Setter for [`standardFontFamily`][Self::standardFontFamily].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[deprecated]
         #[unsafe(method(setStandardFontFamily:))]
         #[unsafe(method_family = none)]
@@ -123,6 +130,8 @@ impl WebPreferences {
         pub unsafe fn fixedFontFamily(&self) -> Retained<NSString>;
 
         /// Setter for [`fixedFontFamily`][Self::fixedFontFamily].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[deprecated]
         #[unsafe(method(setFixedFontFamily:))]
         #[unsafe(method_family = none)]
@@ -134,6 +143,8 @@ impl WebPreferences {
         pub unsafe fn serifFontFamily(&self) -> Retained<NSString>;
 
         /// Setter for [`serifFontFamily`][Self::serifFontFamily].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[deprecated]
         #[unsafe(method(setSerifFontFamily:))]
         #[unsafe(method_family = none)]
@@ -145,6 +156,8 @@ impl WebPreferences {
         pub unsafe fn sansSerifFontFamily(&self) -> Retained<NSString>;
 
         /// Setter for [`sansSerifFontFamily`][Self::sansSerifFontFamily].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[deprecated]
         #[unsafe(method(setSansSerifFontFamily:))]
         #[unsafe(method_family = none)]
@@ -156,6 +169,8 @@ impl WebPreferences {
         pub unsafe fn cursiveFontFamily(&self) -> Retained<NSString>;
 
         /// Setter for [`cursiveFontFamily`][Self::cursiveFontFamily].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[deprecated]
         #[unsafe(method(setCursiveFontFamily:))]
         #[unsafe(method_family = none)]
@@ -167,6 +182,8 @@ impl WebPreferences {
         pub unsafe fn fantasyFontFamily(&self) -> Retained<NSString>;
 
         /// Setter for [`fantasyFontFamily`][Self::fantasyFontFamily].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[deprecated]
         #[unsafe(method(setFantasyFontFamily:))]
         #[unsafe(method_family = none)]
@@ -222,6 +239,8 @@ impl WebPreferences {
         pub unsafe fn defaultTextEncodingName(&self) -> Retained<NSString>;
 
         /// Setter for [`defaultTextEncodingName`][Self::defaultTextEncodingName].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[deprecated]
         #[unsafe(method(setDefaultTextEncodingName:))]
         #[unsafe(method_family = none)]
@@ -248,6 +267,10 @@ impl WebPreferences {
         pub unsafe fn userStyleSheetLocation(&self) -> Option<Retained<NSURL>>;
 
         /// Setter for [`userStyleSheetLocation`][Self::userStyleSheetLocation].
+        ///
+        /// # Safety
+        ///
+        /// `user_style_sheet_location` might not allow `None`.
         #[deprecated]
         #[unsafe(method(setUserStyleSheetLocation:))]
         #[unsafe(method_family = none)]

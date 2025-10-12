@@ -186,6 +186,10 @@ extern_conformance!(
 
 impl NSLayoutConstraint {
     extern_methods!(
+        /// # Safety
+        ///
+        /// - `metrics` generic should be of the correct type.
+        /// - `views` generic should be of the correct type.
         #[unsafe(method(constraintsWithVisualFormat:options:metrics:views:))]
         #[unsafe(method_family = none)]
         pub unsafe fn constraintsWithVisualFormat_options_metrics_views(
@@ -197,6 +201,10 @@ impl NSLayoutConstraint {
         ) -> Retained<NSArray<NSLayoutConstraint>>;
 
         #[cfg(feature = "objc2-core-foundation")]
+        /// # Safety
+        ///
+        /// - `view1` should be of the correct type.
+        /// - `view2` should be of the correct type.
         #[unsafe(method(constraintWithItem:attribute:relatedBy:toItem:attribute:multiplier:constant:))]
         #[unsafe(method_family = none)]
         pub unsafe fn constraintWithItem_attribute_relatedBy_toItem_attribute_multiplier_constant(
@@ -212,87 +220,93 @@ impl NSLayoutConstraint {
 
         #[unsafe(method(priority))]
         #[unsafe(method_family = none)]
-        pub unsafe fn priority(&self) -> UILayoutPriority;
+        pub fn priority(&self) -> UILayoutPriority;
 
         /// Setter for [`priority`][Self::priority].
         #[unsafe(method(setPriority:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setPriority(&self, priority: UILayoutPriority);
+        pub fn setPriority(&self, priority: UILayoutPriority);
 
         #[unsafe(method(shouldBeArchived))]
         #[unsafe(method_family = none)]
-        pub unsafe fn shouldBeArchived(&self) -> bool;
+        pub fn shouldBeArchived(&self) -> bool;
 
         /// Setter for [`shouldBeArchived`][Self::shouldBeArchived].
         #[unsafe(method(setShouldBeArchived:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setShouldBeArchived(&self, should_be_archived: bool);
+        pub fn setShouldBeArchived(&self, should_be_archived: bool);
 
+        /// # Safety
+        ///
+        /// This is not retained internally, you must ensure the object is still alive.
         #[unsafe(method(firstItem))]
         #[unsafe(method_family = none)]
         pub unsafe fn firstItem(&self) -> Option<Retained<AnyObject>>;
 
+        /// # Safety
+        ///
+        /// This is not retained internally, you must ensure the object is still alive.
         #[unsafe(method(secondItem))]
         #[unsafe(method_family = none)]
         pub unsafe fn secondItem(&self) -> Option<Retained<AnyObject>>;
 
         #[unsafe(method(firstAttribute))]
         #[unsafe(method_family = none)]
-        pub unsafe fn firstAttribute(&self) -> NSLayoutAttribute;
+        pub fn firstAttribute(&self) -> NSLayoutAttribute;
 
         #[unsafe(method(secondAttribute))]
         #[unsafe(method_family = none)]
-        pub unsafe fn secondAttribute(&self) -> NSLayoutAttribute;
+        pub fn secondAttribute(&self) -> NSLayoutAttribute;
 
         #[cfg(feature = "NSLayoutAnchor")]
         #[unsafe(method(firstAnchor))]
         #[unsafe(method_family = none)]
-        pub unsafe fn firstAnchor(&self) -> Retained<NSLayoutAnchor>;
+        pub fn firstAnchor(&self) -> Retained<NSLayoutAnchor>;
 
         #[cfg(feature = "NSLayoutAnchor")]
         #[unsafe(method(secondAnchor))]
         #[unsafe(method_family = none)]
-        pub unsafe fn secondAnchor(&self) -> Option<Retained<NSLayoutAnchor>>;
+        pub fn secondAnchor(&self) -> Option<Retained<NSLayoutAnchor>>;
 
         #[unsafe(method(relation))]
         #[unsafe(method_family = none)]
-        pub unsafe fn relation(&self) -> NSLayoutRelation;
+        pub fn relation(&self) -> NSLayoutRelation;
 
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(multiplier))]
         #[unsafe(method_family = none)]
-        pub unsafe fn multiplier(&self) -> CGFloat;
+        pub fn multiplier(&self) -> CGFloat;
 
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(constant))]
         #[unsafe(method_family = none)]
-        pub unsafe fn constant(&self) -> CGFloat;
+        pub fn constant(&self) -> CGFloat;
 
         #[cfg(feature = "objc2-core-foundation")]
         /// Setter for [`constant`][Self::constant].
         #[unsafe(method(setConstant:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setConstant(&self, constant: CGFloat);
+        pub fn setConstant(&self, constant: CGFloat);
 
         #[unsafe(method(isActive))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isActive(&self) -> bool;
+        pub fn isActive(&self) -> bool;
 
         /// Setter for [`isActive`][Self::isActive].
         #[unsafe(method(setActive:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setActive(&self, active: bool);
+        pub fn setActive(&self, active: bool);
 
         #[unsafe(method(activateConstraints:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn activateConstraints(
+        pub fn activateConstraints(
             constraints: &NSArray<NSLayoutConstraint>,
             mtm: MainThreadMarker,
         );
 
         #[unsafe(method(deactivateConstraints:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn deactivateConstraints(
+        pub fn deactivateConstraints(
             constraints: &NSArray<NSLayoutConstraint>,
             mtm: MainThreadMarker,
         );
@@ -304,11 +318,11 @@ impl NSLayoutConstraint {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }
 
@@ -317,12 +331,14 @@ impl NSLayoutConstraint {
     extern_methods!(
         #[unsafe(method(identifier))]
         #[unsafe(method_family = none)]
-        pub unsafe fn identifier(&self) -> Option<Retained<NSString>>;
+        pub fn identifier(&self) -> Option<Retained<NSString>>;
 
         /// Setter for [`identifier`][Self::identifier].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setIdentifier:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setIdentifier(&self, identifier: Option<&NSString>);
+        pub fn setIdentifier(&self, identifier: Option<&NSString>);
     );
 }
 
@@ -332,21 +348,21 @@ extern_protocol!(
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(length))]
         #[unsafe(method_family = none)]
-        unsafe fn length(&self) -> CGFloat;
+        fn length(&self) -> CGFloat;
 
         #[cfg(feature = "NSLayoutAnchor")]
         #[unsafe(method(topAnchor))]
         #[unsafe(method_family = none)]
-        unsafe fn topAnchor(&self) -> Retained<NSLayoutYAxisAnchor>;
+        fn topAnchor(&self) -> Retained<NSLayoutYAxisAnchor>;
 
         #[cfg(feature = "NSLayoutAnchor")]
         #[unsafe(method(bottomAnchor))]
         #[unsafe(method_family = none)]
-        unsafe fn bottomAnchor(&self) -> Retained<NSLayoutYAxisAnchor>;
+        fn bottomAnchor(&self) -> Retained<NSLayoutYAxisAnchor>;
 
         #[cfg(feature = "NSLayoutAnchor")]
         #[unsafe(method(heightAnchor))]
         #[unsafe(method_family = none)]
-        unsafe fn heightAnchor(&self) -> Retained<NSLayoutDimension>;
+        fn heightAnchor(&self) -> Retained<NSLayoutDimension>;
     }
 );

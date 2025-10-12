@@ -96,7 +96,7 @@ use crate::{body::Bytes, response::Response, Error};
 use axum_core::body::Body;
 use futures_util::{
     sink::{Sink, SinkExt},
-    stream::{Stream, StreamExt},
+    stream::{FusedStream, Stream, StreamExt},
 };
 use http::{
     header::{self, HeaderMap, HeaderName, HeaderValue},
@@ -129,6 +129,7 @@ use tokio_tungstenite::{
 ///
 /// [`MethodFilter`]: crate::routing::MethodFilter
 #[cfg_attr(docsrs, doc(cfg(feature = "ws")))]
+#[must_use]
 pub struct WebSocketUpgrade<F = DefaultOnFailedUpgrade> {
     config: WebSocketConfig,
     /// The chosen protocol sent in the `Sec-WebSocket-Protocol` header of the response.
@@ -532,6 +533,13 @@ impl WebSocket {
     }
 }
 
+impl FusedStream for WebSocket {
+    /// Returns true if the websocket has been terminated.
+    fn is_terminated(&self) -> bool {
+        self.inner.is_terminated()
+    }
+}
+
 impl Stream for WebSocket {
     type Item = Result<Message, Error>;
 
@@ -581,6 +589,7 @@ pub struct Utf8Bytes(ts::Utf8Bytes);
 impl Utf8Bytes {
     /// Creates from a static str.
     #[inline]
+    #[must_use]
     pub const fn from_static(str: &'static str) -> Self {
         Self(ts::Utf8Bytes::from_static(str))
     }

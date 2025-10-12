@@ -99,6 +99,8 @@ impl WKWebExtensionControllerConfiguration {
 
         #[cfg(feature = "WKWebViewConfiguration")]
         /// Setter for [`webViewConfiguration`][Self::webViewConfiguration].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setWebViewConfiguration:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setWebViewConfiguration(
@@ -119,6 +121,10 @@ impl WKWebExtensionControllerConfiguration {
 
         #[cfg(feature = "WKWebsiteDataStore")]
         /// Setter for [`defaultWebsiteDataStore`][Self::defaultWebsiteDataStore].
+        ///
+        /// # Safety
+        ///
+        /// `default_website_data_store` might not allow `None`.
         #[unsafe(method(setDefaultWebsiteDataStore:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setDefaultWebsiteDataStore(

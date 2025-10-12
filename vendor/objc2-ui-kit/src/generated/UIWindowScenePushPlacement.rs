@@ -48,7 +48,7 @@ impl UIWindowScenePushPlacement {
         /// - Parameter targetSceneSession: The scene session of the window scene that will be backgrounded.
         #[unsafe(method(placementTargetingSceneSession:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn placementTargetingSceneSession(
+        pub fn placementTargetingSceneSession(
             target_scene_session: &UISceneSession,
         ) -> Retained<Self>;
     );

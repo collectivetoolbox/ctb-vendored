@@ -19,15 +19,14 @@ extern_protocol!(
     {
         #[unsafe(method(textDropDelegate))]
         #[unsafe(method_family = none)]
-        unsafe fn textDropDelegate(
-            &self,
-        ) -> Option<Retained<ProtocolObject<dyn UITextDropDelegate>>>;
+        fn textDropDelegate(&self) -> Option<Retained<ProtocolObject<dyn UITextDropDelegate>>>;
 
-        /// This is a [weak property][objc2::topics::weak_property].
         /// Setter for [`textDropDelegate`][Self::textDropDelegate].
+        ///
+        /// This is a [weak property][objc2::topics::weak_property].
         #[unsafe(method(setTextDropDelegate:))]
         #[unsafe(method_family = none)]
-        unsafe fn setTextDropDelegate(
+        fn setTextDropDelegate(
             &self,
             text_drop_delegate: Option<&ProtocolObject<dyn UITextDropDelegate>>,
         );
@@ -35,11 +34,11 @@ extern_protocol!(
         #[cfg(feature = "UIDropInteraction")]
         #[unsafe(method(textDropInteraction))]
         #[unsafe(method_family = none)]
-        unsafe fn textDropInteraction(&self) -> Option<Retained<UIDropInteraction>>;
+        fn textDropInteraction(&self) -> Option<Retained<UIDropInteraction>>;
 
         #[unsafe(method(isTextDropActive))]
         #[unsafe(method_family = none)]
-        unsafe fn isTextDropActive(&self) -> bool;
+        fn isTextDropActive(&self) -> bool;
     }
 );
 
@@ -76,6 +75,9 @@ extern_protocol!(
             feature = "UITextPasteConfigurationSupporting",
             feature = "UIView"
         ))]
+        /// # Safety
+        ///
+        /// `text_droppable_view` must implement UITextDroppable.
         #[optional]
         #[unsafe(method(textDroppableView:willBecomeEditableForDrop:))]
         #[unsafe(method_family = none)]
@@ -95,6 +97,9 @@ extern_protocol!(
             feature = "UITextPasteConfigurationSupporting",
             feature = "UIView"
         ))]
+        /// # Safety
+        ///
+        /// `text_droppable_view` must implement UITextDroppable.
         #[optional]
         #[unsafe(method(textDroppableView:proposalForDrop:))]
         #[unsafe(method_family = none)]
@@ -112,6 +117,9 @@ extern_protocol!(
             feature = "UITextPasteConfigurationSupporting",
             feature = "UIView"
         ))]
+        /// # Safety
+        ///
+        /// `text_droppable_view` must implement UITextDroppable.
         #[optional]
         #[unsafe(method(textDroppableView:willPerformDrop:))]
         #[unsafe(method_family = none)]
@@ -131,6 +139,9 @@ extern_protocol!(
             feature = "UITextPasteConfigurationSupporting",
             feature = "UIView"
         ))]
+        /// # Safety
+        ///
+        /// `text_droppable_view` must implement UITextDroppable.
         #[optional]
         #[unsafe(method(textDroppableView:previewForDroppingAllItemsWithDefault:))]
         #[unsafe(method_family = none)]
@@ -149,6 +160,9 @@ extern_protocol!(
             feature = "UITextPasteConfigurationSupporting",
             feature = "UIView"
         ))]
+        /// # Safety
+        ///
+        /// `text_droppable_view` must implement UITextDroppable.
         #[optional]
         #[unsafe(method(textDroppableView:dropSessionDidEnter:))]
         #[unsafe(method_family = none)]
@@ -167,6 +181,9 @@ extern_protocol!(
             feature = "UITextPasteConfigurationSupporting",
             feature = "UIView"
         ))]
+        /// # Safety
+        ///
+        /// `text_droppable_view` must implement UITextDroppable.
         #[optional]
         #[unsafe(method(textDroppableView:dropSessionDidUpdate:))]
         #[unsafe(method_family = none)]
@@ -185,6 +202,9 @@ extern_protocol!(
             feature = "UITextPasteConfigurationSupporting",
             feature = "UIView"
         ))]
+        /// # Safety
+        ///
+        /// `text_droppable_view` must implement UITextDroppable.
         #[optional]
         #[unsafe(method(textDroppableView:dropSessionDidExit:))]
         #[unsafe(method_family = none)]
@@ -203,6 +223,9 @@ extern_protocol!(
             feature = "UITextPasteConfigurationSupporting",
             feature = "UIView"
         ))]
+        /// # Safety
+        ///
+        /// `text_droppable_view` must implement UITextDroppable.
         #[optional]
         #[unsafe(method(textDroppableView:dropSessionDidEnd:))]
         #[unsafe(method_family = none)]
@@ -220,20 +243,20 @@ extern_protocol!(
         #[cfg(feature = "UITextInput")]
         #[unsafe(method(dropPosition))]
         #[unsafe(method_family = none)]
-        unsafe fn dropPosition(&self) -> Retained<UITextPosition>;
+        fn dropPosition(&self) -> Retained<UITextPosition>;
 
         #[cfg(all(feature = "UIDropInteraction", feature = "UITextDropProposal"))]
         #[unsafe(method(suggestedProposal))]
         #[unsafe(method_family = none)]
-        unsafe fn suggestedProposal(&self) -> Retained<UITextDropProposal>;
+        fn suggestedProposal(&self) -> Retained<UITextDropProposal>;
 
         #[unsafe(method(isSameView))]
         #[unsafe(method_family = none)]
-        unsafe fn isSameView(&self) -> bool;
+        fn isSameView(&self) -> bool;
 
         #[cfg(feature = "UIDragSession")]
         #[unsafe(method(dropSession))]
         #[unsafe(method_family = none)]
-        unsafe fn dropSession(&self) -> Retained<ProtocolObject<dyn UIDropSession>>;
+        fn dropSession(&self) -> Retained<ProtocolObject<dyn UIDropSession>>;
     }
 );

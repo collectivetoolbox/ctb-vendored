@@ -44,7 +44,6 @@ default = [
     "CFAttributedString",
     "CFAvailability",
     "CFBag",
-    "CFBase",
     "CFBinaryHeap",
     "CFBitVector",
     "CFBundle",
@@ -104,6 +103,7 @@ objc2 = [
     "dep:objc2",
     "dispatch2?/objc2",
 ]
+unstable-darwin-objc = []
 
 CFArray = []
 CFAttributedString = []
@@ -153,10 +153,3 @@ CFXMLParser = ["bitflags"]
 
 [dev-dependencies]
 static_assertions = "1.1.0"
-
-[[example]]
-name = "run_loop"
-required-features = [
-    "CFDate",
-    "CFRunLoop",
-]

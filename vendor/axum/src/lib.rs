@@ -134,13 +134,13 @@
 //! it is simple to convert errors into responses and you are guaranteed that
 //! all errors are handled.
 //!
-//! See [`error_handling`](crate::error_handling) for more details on axum's
+//! See [`error_handling`] for more details on axum's
 //! error handling model and how to handle errors gracefully.
 //!
 //! # Middleware
 //!
 //! There are several different ways to write middleware for axum. See
-//! [`middleware`](crate::middleware) for more details.
+//! [`middleware`] for more details.
 //!
 //! # Sharing state with handlers
 //!
@@ -190,7 +190,7 @@
 //!
 //! ## Using request extensions
 //!
-//! Another way to share state with handlers is using [`Extension`](crate::extract::Extension) as
+//! Another way to share state with handlers is using [`Extension`] as
 //! layer and extractor:
 //!
 //! ```rust,no_run
@@ -275,7 +275,7 @@
 //! # let _: Router = app;
 //! ```
 //!
-//! The downside to this approach is that it's a the most verbose approach.
+//! The downside to this approach is that it's the most verbose approach.
 //!
 //! ## Using task-local variables
 //!
@@ -427,7 +427,7 @@
 //! [`axum-core`]: http://crates.io/crates/axum-core
 //! [`State`]: crate::extract::State
 
-#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(test, allow(clippy::float_cmp))]
 #![cfg_attr(not(test), warn(clippy::print_stdout, clippy::dbg_macro))]
 

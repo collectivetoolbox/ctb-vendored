@@ -46,8 +46,11 @@ impl UITraitCollection {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -58,26 +61,28 @@ impl UITraitCollection {
         #[deprecated = "Compare values for specific traits in the trait collections instead"]
         #[unsafe(method(containsTraitsInCollection:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn containsTraitsInCollection(
-            &self,
-            r#trait: Option<&UITraitCollection>,
-        ) -> bool;
+        pub fn containsTraitsInCollection(&self, r#trait: Option<&UITraitCollection>) -> bool;
 
         #[deprecated = "Use +[UITraitCollection traitCollectionWithTraits:] and -[UITraitCollection traitCollectionByModifyingTraits:] to create and modify trait collections"]
         #[unsafe(method(traitCollectionWithTraitsFromCollections:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn traitCollectionWithTraitsFromCollections(
+        pub fn traitCollectionWithTraitsFromCollections(
             trait_collections: &NSArray<UITraitCollection>,
         ) -> Retained<UITraitCollection>;
 
         #[cfg(feature = "UIDevice")]
         #[unsafe(method(traitCollectionWithUserInterfaceIdiom:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn traitCollectionWithUserInterfaceIdiom(
+        pub fn traitCollectionWithUserInterfaceIdiom(
             idiom: UIUserInterfaceIdiom,
         ) -> Retained<UITraitCollection>;
 
         #[cfg(feature = "UIDevice")]
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
         #[unsafe(method(userInterfaceIdiom))]
         #[unsafe(method_family = none)]
         pub unsafe fn userInterfaceIdiom(&self) -> UIUserInterfaceIdiom;
@@ -85,11 +90,16 @@ impl UITraitCollection {
         #[cfg(feature = "UIInterface")]
         #[unsafe(method(traitCollectionWithUserInterfaceStyle:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn traitCollectionWithUserInterfaceStyle(
+        pub fn traitCollectionWithUserInterfaceStyle(
             user_interface_style: UIUserInterfaceStyle,
         ) -> Retained<UITraitCollection>;
 
         #[cfg(feature = "UIInterface")]
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
         #[unsafe(method(userInterfaceStyle))]
         #[unsafe(method_family = none)]
         pub unsafe fn userInterfaceStyle(&self) -> UIUserInterfaceStyle;
@@ -97,11 +107,16 @@ impl UITraitCollection {
         #[cfg(feature = "UIInterface")]
         #[unsafe(method(traitCollectionWithLayoutDirection:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn traitCollectionWithLayoutDirection(
+        pub fn traitCollectionWithLayoutDirection(
             layout_direction: UITraitEnvironmentLayoutDirection,
         ) -> Retained<UITraitCollection>;
 
         #[cfg(feature = "UIInterface")]
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
         #[unsafe(method(layoutDirection))]
         #[unsafe(method_family = none)]
         pub unsafe fn layoutDirection(&self) -> UITraitEnvironmentLayoutDirection;
@@ -109,11 +124,14 @@ impl UITraitCollection {
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(traitCollectionWithDisplayScale:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn traitCollectionWithDisplayScale(
-            scale: CGFloat,
-        ) -> Retained<UITraitCollection>;
+        pub fn traitCollectionWithDisplayScale(scale: CGFloat) -> Retained<UITraitCollection>;
 
         #[cfg(feature = "objc2-core-foundation")]
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
         #[unsafe(method(displayScale))]
         #[unsafe(method_family = none)]
         pub unsafe fn displayScale(&self) -> CGFloat;
@@ -121,11 +139,16 @@ impl UITraitCollection {
         #[cfg(feature = "UIInterface")]
         #[unsafe(method(traitCollectionWithHorizontalSizeClass:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn traitCollectionWithHorizontalSizeClass(
+        pub fn traitCollectionWithHorizontalSizeClass(
             horizontal_size_class: UIUserInterfaceSizeClass,
         ) -> Retained<UITraitCollection>;
 
         #[cfg(feature = "UIInterface")]
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
         #[unsafe(method(horizontalSizeClass))]
         #[unsafe(method_family = none)]
         pub unsafe fn horizontalSizeClass(&self) -> UIUserInterfaceSizeClass;
@@ -133,11 +156,16 @@ impl UITraitCollection {
         #[cfg(feature = "UIInterface")]
         #[unsafe(method(traitCollectionWithVerticalSizeClass:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn traitCollectionWithVerticalSizeClass(
+        pub fn traitCollectionWithVerticalSizeClass(
             vertical_size_class: UIUserInterfaceSizeClass,
         ) -> Retained<UITraitCollection>;
 
         #[cfg(feature = "UIInterface")]
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
         #[unsafe(method(verticalSizeClass))]
         #[unsafe(method_family = none)]
         pub unsafe fn verticalSizeClass(&self) -> UIUserInterfaceSizeClass;
@@ -145,11 +173,12 @@ impl UITraitCollection {
         #[cfg(feature = "UITouch")]
         #[unsafe(method(traitCollectionWithForceTouchCapability:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn traitCollectionWithForceTouchCapability(
+        pub fn traitCollectionWithForceTouchCapability(
             capability: UIForceTouchCapability,
         ) -> Retained<UITraitCollection>;
 
         #[cfg(feature = "UITouch")]
+        /// This property is not atomic.
         #[unsafe(method(forceTouchCapability))]
         #[unsafe(method_family = none)]
         pub fn forceTouchCapability(&self) -> UIForceTouchCapability;
@@ -157,11 +186,16 @@ impl UITraitCollection {
         #[cfg(feature = "UIContentSizeCategory")]
         #[unsafe(method(traitCollectionWithPreferredContentSizeCategory:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn traitCollectionWithPreferredContentSizeCategory(
+        pub fn traitCollectionWithPreferredContentSizeCategory(
             preferred_content_size_category: &UIContentSizeCategory,
         ) -> Retained<UITraitCollection>;
 
         #[cfg(feature = "UIContentSizeCategory")]
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
         #[unsafe(method(preferredContentSizeCategory))]
         #[unsafe(method_family = none)]
         pub unsafe fn preferredContentSizeCategory(&self) -> Retained<UIContentSizeCategory>;
@@ -169,11 +203,16 @@ impl UITraitCollection {
         #[cfg(feature = "UIInterface")]
         #[unsafe(method(traitCollectionWithDisplayGamut:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn traitCollectionWithDisplayGamut(
+        pub fn traitCollectionWithDisplayGamut(
             display_gamut: UIDisplayGamut,
         ) -> Retained<UITraitCollection>;
 
         #[cfg(feature = "UIInterface")]
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
         #[unsafe(method(displayGamut))]
         #[unsafe(method_family = none)]
         pub unsafe fn displayGamut(&self) -> UIDisplayGamut;
@@ -181,11 +220,16 @@ impl UITraitCollection {
         #[cfg(feature = "UIInterface")]
         #[unsafe(method(traitCollectionWithAccessibilityContrast:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn traitCollectionWithAccessibilityContrast(
+        pub fn traitCollectionWithAccessibilityContrast(
             accessibility_contrast: UIAccessibilityContrast,
         ) -> Retained<UITraitCollection>;
 
         #[cfg(feature = "UIInterface")]
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
         #[unsafe(method(accessibilityContrast))]
         #[unsafe(method_family = none)]
         pub unsafe fn accessibilityContrast(&self) -> UIAccessibilityContrast;
@@ -193,11 +237,16 @@ impl UITraitCollection {
         #[cfg(feature = "UIInterface")]
         #[unsafe(method(traitCollectionWithUserInterfaceLevel:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn traitCollectionWithUserInterfaceLevel(
+        pub fn traitCollectionWithUserInterfaceLevel(
             user_interface_level: UIUserInterfaceLevel,
         ) -> Retained<UITraitCollection>;
 
         #[cfg(feature = "UIInterface")]
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
         #[unsafe(method(userInterfaceLevel))]
         #[unsafe(method_family = none)]
         pub unsafe fn userInterfaceLevel(&self) -> UIUserInterfaceLevel;
@@ -205,11 +254,16 @@ impl UITraitCollection {
         #[cfg(feature = "UIInterface")]
         #[unsafe(method(traitCollectionWithLegibilityWeight:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn traitCollectionWithLegibilityWeight(
+        pub fn traitCollectionWithLegibilityWeight(
             legibility_weight: UILegibilityWeight,
         ) -> Retained<UITraitCollection>;
 
         #[cfg(feature = "UIInterface")]
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
         #[unsafe(method(legibilityWeight))]
         #[unsafe(method_family = none)]
         pub unsafe fn legibilityWeight(&self) -> UILegibilityWeight;
@@ -217,11 +271,16 @@ impl UITraitCollection {
         #[cfg(feature = "UIInterface")]
         #[unsafe(method(traitCollectionWithActiveAppearance:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn traitCollectionWithActiveAppearance(
+        pub fn traitCollectionWithActiveAppearance(
             user_interface_active_appearance: UIUserInterfaceActiveAppearance,
         ) -> Retained<UITraitCollection>;
 
         #[cfg(feature = "UIInterface")]
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
         #[unsafe(method(activeAppearance))]
         #[unsafe(method_family = none)]
         pub unsafe fn activeAppearance(&self) -> UIUserInterfaceActiveAppearance;
@@ -229,11 +288,16 @@ impl UITraitCollection {
         #[cfg(feature = "UIInterface")]
         #[unsafe(method(traitCollectionWithToolbarItemPresentationSize:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn traitCollectionWithToolbarItemPresentationSize(
+        pub fn traitCollectionWithToolbarItemPresentationSize(
             toolbar_item_presentation_size: UINSToolbarItemPresentationSize,
         ) -> Retained<UITraitCollection>;
 
         #[cfg(feature = "UIInterface")]
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
         #[unsafe(method(toolbarItemPresentationSize))]
         #[unsafe(method_family = none)]
         pub unsafe fn toolbarItemPresentationSize(&self) -> UINSToolbarItemPresentationSize;
@@ -242,22 +306,33 @@ impl UITraitCollection {
         /// Construct a new trait collection with the given image content dynamic range.
         #[unsafe(method(traitCollectionWithImageDynamicRange:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn traitCollectionWithImageDynamicRange(
+        pub fn traitCollectionWithImageDynamicRange(
             image_dynamic_range: UIImageDynamicRange,
         ) -> Retained<UITraitCollection>;
 
         #[cfg(feature = "UIInterface")]
         /// The imageDynamicRange determines how HDR images will render in the given trait environment. SDR images are unaffected.
+        ///
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
         #[unsafe(method(imageDynamicRange))]
         #[unsafe(method_family = none)]
         pub unsafe fn imageDynamicRange(&self) -> UIImageDynamicRange;
 
         #[unsafe(method(traitCollectionWithTypesettingLanguage:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn traitCollectionWithTypesettingLanguage(
+        pub fn traitCollectionWithTypesettingLanguage(
             language: &NSString,
         ) -> Retained<UITraitCollection>;
 
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
         #[unsafe(method(typesettingLanguage))]
         #[unsafe(method_family = none)]
         pub unsafe fn typesettingLanguage(&self) -> Retained<NSString>;
@@ -266,12 +341,18 @@ impl UITraitCollection {
         /// Construct a new trait collection with the given scene capture state.
         #[unsafe(method(traitCollectionWithSceneCaptureState:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn traitCollectionWithSceneCaptureState(
+        pub fn traitCollectionWithSceneCaptureState(
             scene_capture_state: UISceneCaptureState,
         ) -> Retained<UITraitCollection>;
 
         #[cfg(feature = "UISceneDefinitions")]
         /// Scene capture state represents whether a scene is currently being mirrored or recorded.
+        ///
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
         #[unsafe(method(sceneCaptureState))]
         #[unsafe(method_family = none)]
         pub unsafe fn sceneCaptureState(&self) -> UISceneCaptureState;
@@ -280,15 +361,93 @@ impl UITraitCollection {
         /// Construct a new trait collection with the given `listEnvironment`.
         #[unsafe(method(traitCollectionWithListEnvironment:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn traitCollectionWithListEnvironment(
+        pub fn traitCollectionWithListEnvironment(
             list_environment: UIListEnvironment,
         ) -> Retained<UITraitCollection>;
 
         #[cfg(feature = "UITraitListEnvironment")]
         /// The list environment represents whether a given trait collection is from a view in a UITableView or a UICollectionView list section.
+        ///
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
         #[unsafe(method(listEnvironment))]
         #[unsafe(method_family = none)]
         pub unsafe fn listEnvironment(&self) -> UIListEnvironment;
+
+        #[cfg(feature = "UITabAccessory")]
+        /// Constructs a new trait collection with the given `tabAccessoryEnvironment`.
+        #[unsafe(method(traitCollectionWithTabAccessoryEnvironment:))]
+        #[unsafe(method_family = none)]
+        pub fn traitCollectionWithTabAccessoryEnvironment(
+            tab_accessory_environment: UITabAccessoryEnvironment,
+        ) -> Retained<UITraitCollection>;
+
+        #[cfg(feature = "UITabAccessory")]
+        /// The tab accessory environment represents whether a given trait collection is from a view in a `UITabAccessory` content view.
+        ///
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
+        #[unsafe(method(tabAccessoryEnvironment))]
+        #[unsafe(method_family = none)]
+        pub unsafe fn tabAccessoryEnvironment(&self) -> UITabAccessoryEnvironment;
+
+        #[cfg(feature = "UISplitViewControllerLayoutEnvironment")]
+        /// The split view controller layout environment represents whether an ancestor split view controller is expanded or collapsed.
+        ///
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
+        #[unsafe(method(splitViewControllerLayoutEnvironment))]
+        #[unsafe(method_family = none)]
+        pub unsafe fn splitViewControllerLayoutEnvironment(
+            &self,
+        ) -> UISplitViewControllerLayoutEnvironment;
+
+        #[cfg(feature = "UIInterface")]
+        /// If HDR headroom should be used for the current UI configuration. Headroom usage is disabled in certain UI configurations, such as when all an application's windows are in the background.
+        ///
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
+        #[unsafe(method(hdrHeadroomUsageLimit))]
+        #[unsafe(method_family = none)]
+        pub unsafe fn hdrHeadroomUsageLimit(&self) -> UIHDRHeadroomUsageLimit;
+
+        #[cfg(feature = "UIInterface")]
+        #[unsafe(method(traitCollectionWithHDRHeadroomUsageLimit:))]
+        #[unsafe(method_family = none)]
+        pub fn traitCollectionWithHDRHeadroomUsageLimit(
+            hdr_headroom_usage_limit: UIHDRHeadroomUsageLimit,
+        ) -> Retained<UITraitCollection>;
+
+        #[unsafe(method(traitCollectionWithResolvesNaturalAlignmentWithBaseWritingDirection:))]
+        #[unsafe(method_family = none)]
+        pub fn traitCollectionWithResolvesNaturalAlignmentWithBaseWritingDirection(
+            resolves_natural_alignment_with_base_writing_direction: bool,
+        ) -> Retained<UITraitCollection>;
+
+        /// Specifies the behavior for resolving ``NSTextAlignment.natural`` to the visual alignment.
+        ///
+        /// When set to ``true``, the resolved visual alignment is determined by the resolved base writing direction; otherwise, it is using the user’s preferred language.
+        ///
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
+        #[unsafe(method(resolvesNaturalAlignmentWithBaseWritingDirection))]
+        #[unsafe(method_family = none)]
+        pub unsafe fn resolvesNaturalAlignmentWithBaseWritingDirection(&self) -> bool;
     );
 }
 
@@ -297,34 +456,57 @@ impl UITraitCollection {
     extern_methods!(
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl DefaultRetained for UITraitCollection {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }
 
 extern_protocol!(
     /// [Apple's documentation](https://developer.apple.com/documentation/uikit/uimutabletraits?language=objc)
     pub unsafe trait UIMutableTraits: NSObjectProtocol + MainThreadOnly {
         #[cfg(all(feature = "UITrait", feature = "objc2-core-foundation"))]
+        /// # Safety
+        ///
+        /// `trait` must implement UICGFloatTraitDefinition.
         #[unsafe(method(setCGFloatValue:forTrait:))]
         #[unsafe(method_family = none)]
         unsafe fn setCGFloatValue_forTrait(&self, value: CGFloat, r#trait: &UICGFloatTrait);
 
         #[cfg(all(feature = "UITrait", feature = "objc2-core-foundation"))]
+        /// # Safety
+        ///
+        /// `trait` must implement UICGFloatTraitDefinition.
         #[unsafe(method(valueForCGFloatTrait:))]
         #[unsafe(method_family = none)]
         unsafe fn valueForCGFloatTrait(&self, r#trait: &UICGFloatTrait) -> CGFloat;
 
         #[cfg(feature = "UITrait")]
+        /// # Safety
+        ///
+        /// `trait` must implement UINSIntegerTraitDefinition.
         #[unsafe(method(setNSIntegerValue:forTrait:))]
         #[unsafe(method_family = none)]
         unsafe fn setNSIntegerValue_forTrait(&self, value: NSInteger, r#trait: &UINSIntegerTrait);
 
         #[cfg(feature = "UITrait")]
+        /// # Safety
+        ///
+        /// `trait` must implement UINSIntegerTraitDefinition.
         #[unsafe(method(valueForNSIntegerTrait:))]
         #[unsafe(method_family = none)]
         unsafe fn valueForNSIntegerTrait(&self, r#trait: &UINSIntegerTrait) -> NSInteger;
 
         #[cfg(feature = "UITrait")]
+        /// # Safety
+        ///
+        /// - `object` should be of the correct type.
+        /// - `trait` must implement UIObjectTraitDefinition.
         #[unsafe(method(setObject:forTrait:))]
         #[unsafe(method_family = none)]
         unsafe fn setObject_forTrait(
@@ -334,6 +516,9 @@ extern_protocol!(
         );
 
         #[cfg(feature = "UITrait")]
+        /// # Safety
+        ///
+        /// `trait` must implement UIObjectTraitDefinition.
         #[unsafe(method(objectForTrait:))]
         #[unsafe(method_family = none)]
         unsafe fn objectForTrait(
@@ -344,90 +529,92 @@ extern_protocol!(
         #[cfg(feature = "UIDevice")]
         #[unsafe(method(userInterfaceIdiom))]
         #[unsafe(method_family = none)]
-        unsafe fn userInterfaceIdiom(&self) -> UIUserInterfaceIdiom;
+        fn userInterfaceIdiom(&self) -> UIUserInterfaceIdiom;
 
         #[cfg(feature = "UIDevice")]
         /// Setter for [`userInterfaceIdiom`][Self::userInterfaceIdiom].
         #[unsafe(method(setUserInterfaceIdiom:))]
         #[unsafe(method_family = none)]
-        unsafe fn setUserInterfaceIdiom(&self, user_interface_idiom: UIUserInterfaceIdiom);
+        fn setUserInterfaceIdiom(&self, user_interface_idiom: UIUserInterfaceIdiom);
 
         #[cfg(feature = "UIInterface")]
         #[unsafe(method(userInterfaceStyle))]
         #[unsafe(method_family = none)]
-        unsafe fn userInterfaceStyle(&self) -> UIUserInterfaceStyle;
+        fn userInterfaceStyle(&self) -> UIUserInterfaceStyle;
 
         #[cfg(feature = "UIInterface")]
         /// Setter for [`userInterfaceStyle`][Self::userInterfaceStyle].
         #[unsafe(method(setUserInterfaceStyle:))]
         #[unsafe(method_family = none)]
-        unsafe fn setUserInterfaceStyle(&self, user_interface_style: UIUserInterfaceStyle);
+        fn setUserInterfaceStyle(&self, user_interface_style: UIUserInterfaceStyle);
 
         #[cfg(feature = "UIInterface")]
         #[unsafe(method(layoutDirection))]
         #[unsafe(method_family = none)]
-        unsafe fn layoutDirection(&self) -> UITraitEnvironmentLayoutDirection;
+        fn layoutDirection(&self) -> UITraitEnvironmentLayoutDirection;
 
         #[cfg(feature = "UIInterface")]
         /// Setter for [`layoutDirection`][Self::layoutDirection].
         #[unsafe(method(setLayoutDirection:))]
         #[unsafe(method_family = none)]
-        unsafe fn setLayoutDirection(&self, layout_direction: UITraitEnvironmentLayoutDirection);
+        fn setLayoutDirection(&self, layout_direction: UITraitEnvironmentLayoutDirection);
 
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(displayScale))]
         #[unsafe(method_family = none)]
-        unsafe fn displayScale(&self) -> CGFloat;
+        fn displayScale(&self) -> CGFloat;
 
         #[cfg(feature = "objc2-core-foundation")]
         /// Setter for [`displayScale`][Self::displayScale].
         #[unsafe(method(setDisplayScale:))]
         #[unsafe(method_family = none)]
-        unsafe fn setDisplayScale(&self, display_scale: CGFloat);
+        fn setDisplayScale(&self, display_scale: CGFloat);
 
         #[cfg(feature = "UIInterface")]
         #[unsafe(method(horizontalSizeClass))]
         #[unsafe(method_family = none)]
-        unsafe fn horizontalSizeClass(&self) -> UIUserInterfaceSizeClass;
+        fn horizontalSizeClass(&self) -> UIUserInterfaceSizeClass;
 
         #[cfg(feature = "UIInterface")]
         /// Setter for [`horizontalSizeClass`][Self::horizontalSizeClass].
         #[unsafe(method(setHorizontalSizeClass:))]
         #[unsafe(method_family = none)]
-        unsafe fn setHorizontalSizeClass(&self, horizontal_size_class: UIUserInterfaceSizeClass);
+        fn setHorizontalSizeClass(&self, horizontal_size_class: UIUserInterfaceSizeClass);
 
         #[cfg(feature = "UIInterface")]
         #[unsafe(method(verticalSizeClass))]
         #[unsafe(method_family = none)]
-        unsafe fn verticalSizeClass(&self) -> UIUserInterfaceSizeClass;
+        fn verticalSizeClass(&self) -> UIUserInterfaceSizeClass;
 
         #[cfg(feature = "UIInterface")]
         /// Setter for [`verticalSizeClass`][Self::verticalSizeClass].
         #[unsafe(method(setVerticalSizeClass:))]
         #[unsafe(method_family = none)]
-        unsafe fn setVerticalSizeClass(&self, vertical_size_class: UIUserInterfaceSizeClass);
+        fn setVerticalSizeClass(&self, vertical_size_class: UIUserInterfaceSizeClass);
 
         #[cfg(feature = "UITouch")]
         #[unsafe(method(forceTouchCapability))]
         #[unsafe(method_family = none)]
-        unsafe fn forceTouchCapability(&self) -> UIForceTouchCapability;
+        fn forceTouchCapability(&self) -> UIForceTouchCapability;
 
         #[cfg(feature = "UITouch")]
         /// Setter for [`forceTouchCapability`][Self::forceTouchCapability].
         #[unsafe(method(setForceTouchCapability:))]
         #[unsafe(method_family = none)]
-        unsafe fn setForceTouchCapability(&self, force_touch_capability: UIForceTouchCapability);
+        fn setForceTouchCapability(&self, force_touch_capability: UIForceTouchCapability);
 
         #[cfg(feature = "UIContentSizeCategory")]
         #[unsafe(method(preferredContentSizeCategory))]
         #[unsafe(method_family = none)]
-        unsafe fn preferredContentSizeCategory(&self) -> Retained<UIContentSizeCategory>;
+        fn preferredContentSizeCategory(&self) -> Retained<UIContentSizeCategory>;
 
         #[cfg(feature = "UIContentSizeCategory")]
         /// Setter for [`preferredContentSizeCategory`][Self::preferredContentSizeCategory].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setPreferredContentSizeCategory:))]
         #[unsafe(method_family = none)]
-        unsafe fn setPreferredContentSizeCategory(
+        fn setPreferredContentSizeCategory(
             &self,
             preferred_content_size_category: &UIContentSizeCategory,
         );
@@ -435,68 +622,68 @@ extern_protocol!(
         #[cfg(feature = "UIInterface")]
         #[unsafe(method(displayGamut))]
         #[unsafe(method_family = none)]
-        unsafe fn displayGamut(&self) -> UIDisplayGamut;
+        fn displayGamut(&self) -> UIDisplayGamut;
 
         #[cfg(feature = "UIInterface")]
         /// Setter for [`displayGamut`][Self::displayGamut].
         #[unsafe(method(setDisplayGamut:))]
         #[unsafe(method_family = none)]
-        unsafe fn setDisplayGamut(&self, display_gamut: UIDisplayGamut);
+        fn setDisplayGamut(&self, display_gamut: UIDisplayGamut);
 
         #[cfg(feature = "UIInterface")]
         #[unsafe(method(accessibilityContrast))]
         #[unsafe(method_family = none)]
-        unsafe fn accessibilityContrast(&self) -> UIAccessibilityContrast;
+        fn accessibilityContrast(&self) -> UIAccessibilityContrast;
 
         #[cfg(feature = "UIInterface")]
         /// Setter for [`accessibilityContrast`][Self::accessibilityContrast].
         #[unsafe(method(setAccessibilityContrast:))]
         #[unsafe(method_family = none)]
-        unsafe fn setAccessibilityContrast(&self, accessibility_contrast: UIAccessibilityContrast);
+        fn setAccessibilityContrast(&self, accessibility_contrast: UIAccessibilityContrast);
 
         #[cfg(feature = "UIInterface")]
         #[unsafe(method(userInterfaceLevel))]
         #[unsafe(method_family = none)]
-        unsafe fn userInterfaceLevel(&self) -> UIUserInterfaceLevel;
+        fn userInterfaceLevel(&self) -> UIUserInterfaceLevel;
 
         #[cfg(feature = "UIInterface")]
         /// Setter for [`userInterfaceLevel`][Self::userInterfaceLevel].
         #[unsafe(method(setUserInterfaceLevel:))]
         #[unsafe(method_family = none)]
-        unsafe fn setUserInterfaceLevel(&self, user_interface_level: UIUserInterfaceLevel);
+        fn setUserInterfaceLevel(&self, user_interface_level: UIUserInterfaceLevel);
 
         #[cfg(feature = "UIInterface")]
         #[unsafe(method(legibilityWeight))]
         #[unsafe(method_family = none)]
-        unsafe fn legibilityWeight(&self) -> UILegibilityWeight;
+        fn legibilityWeight(&self) -> UILegibilityWeight;
 
         #[cfg(feature = "UIInterface")]
         /// Setter for [`legibilityWeight`][Self::legibilityWeight].
         #[unsafe(method(setLegibilityWeight:))]
         #[unsafe(method_family = none)]
-        unsafe fn setLegibilityWeight(&self, legibility_weight: UILegibilityWeight);
+        fn setLegibilityWeight(&self, legibility_weight: UILegibilityWeight);
 
         #[cfg(feature = "UIInterface")]
         #[unsafe(method(activeAppearance))]
         #[unsafe(method_family = none)]
-        unsafe fn activeAppearance(&self) -> UIUserInterfaceActiveAppearance;
+        fn activeAppearance(&self) -> UIUserInterfaceActiveAppearance;
 
         #[cfg(feature = "UIInterface")]
         /// Setter for [`activeAppearance`][Self::activeAppearance].
         #[unsafe(method(setActiveAppearance:))]
         #[unsafe(method_family = none)]
-        unsafe fn setActiveAppearance(&self, active_appearance: UIUserInterfaceActiveAppearance);
+        fn setActiveAppearance(&self, active_appearance: UIUserInterfaceActiveAppearance);
 
         #[cfg(feature = "UIInterface")]
         #[unsafe(method(toolbarItemPresentationSize))]
         #[unsafe(method_family = none)]
-        unsafe fn toolbarItemPresentationSize(&self) -> UINSToolbarItemPresentationSize;
+        fn toolbarItemPresentationSize(&self) -> UINSToolbarItemPresentationSize;
 
         #[cfg(feature = "UIInterface")]
         /// Setter for [`toolbarItemPresentationSize`][Self::toolbarItemPresentationSize].
         #[unsafe(method(setToolbarItemPresentationSize:))]
         #[unsafe(method_family = none)]
-        unsafe fn setToolbarItemPresentationSize(
+        fn setToolbarItemPresentationSize(
             &self,
             toolbar_item_presentation_size: UINSToolbarItemPresentationSize,
         );
@@ -504,44 +691,83 @@ extern_protocol!(
         #[cfg(feature = "UIInterface")]
         #[unsafe(method(imageDynamicRange))]
         #[unsafe(method_family = none)]
-        unsafe fn imageDynamicRange(&self) -> UIImageDynamicRange;
+        fn imageDynamicRange(&self) -> UIImageDynamicRange;
 
         #[cfg(feature = "UIInterface")]
         /// Setter for [`imageDynamicRange`][Self::imageDynamicRange].
         #[unsafe(method(setImageDynamicRange:))]
         #[unsafe(method_family = none)]
-        unsafe fn setImageDynamicRange(&self, image_dynamic_range: UIImageDynamicRange);
+        fn setImageDynamicRange(&self, image_dynamic_range: UIImageDynamicRange);
 
         #[cfg(feature = "UISceneDefinitions")]
         #[unsafe(method(sceneCaptureState))]
         #[unsafe(method_family = none)]
-        unsafe fn sceneCaptureState(&self) -> UISceneCaptureState;
+        fn sceneCaptureState(&self) -> UISceneCaptureState;
 
         #[cfg(feature = "UISceneDefinitions")]
         /// Setter for [`sceneCaptureState`][Self::sceneCaptureState].
         #[unsafe(method(setSceneCaptureState:))]
         #[unsafe(method_family = none)]
-        unsafe fn setSceneCaptureState(&self, scene_capture_state: UISceneCaptureState);
+        fn setSceneCaptureState(&self, scene_capture_state: UISceneCaptureState);
 
         #[unsafe(method(typesettingLanguage))]
         #[unsafe(method_family = none)]
-        unsafe fn typesettingLanguage(&self) -> Retained<NSString>;
+        fn typesettingLanguage(&self) -> Retained<NSString>;
 
         /// Setter for [`typesettingLanguage`][Self::typesettingLanguage].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setTypesettingLanguage:))]
         #[unsafe(method_family = none)]
-        unsafe fn setTypesettingLanguage(&self, typesetting_language: &NSString);
+        fn setTypesettingLanguage(&self, typesetting_language: &NSString);
 
         #[cfg(feature = "UITraitListEnvironment")]
         #[unsafe(method(listEnvironment))]
         #[unsafe(method_family = none)]
-        unsafe fn listEnvironment(&self) -> UIListEnvironment;
+        fn listEnvironment(&self) -> UIListEnvironment;
 
         #[cfg(feature = "UITraitListEnvironment")]
         /// Setter for [`listEnvironment`][Self::listEnvironment].
         #[unsafe(method(setListEnvironment:))]
         #[unsafe(method_family = none)]
-        unsafe fn setListEnvironment(&self, list_environment: UIListEnvironment);
+        fn setListEnvironment(&self, list_environment: UIListEnvironment);
+
+        #[cfg(feature = "UITabAccessory")]
+        #[unsafe(method(tabAccessoryEnvironment))]
+        #[unsafe(method_family = none)]
+        fn tabAccessoryEnvironment(&self) -> UITabAccessoryEnvironment;
+
+        #[cfg(feature = "UITabAccessory")]
+        /// Setter for [`tabAccessoryEnvironment`][Self::tabAccessoryEnvironment].
+        #[unsafe(method(setTabAccessoryEnvironment:))]
+        #[unsafe(method_family = none)]
+        fn setTabAccessoryEnvironment(&self, tab_accessory_environment: UITabAccessoryEnvironment);
+
+        #[cfg(feature = "UISplitViewControllerLayoutEnvironment")]
+        #[unsafe(method(splitViewControllerLayoutEnvironment))]
+        #[unsafe(method_family = none)]
+        fn splitViewControllerLayoutEnvironment(&self) -> UISplitViewControllerLayoutEnvironment;
+
+        #[cfg(feature = "UISplitViewControllerLayoutEnvironment")]
+        /// Setter for [`splitViewControllerLayoutEnvironment`][Self::splitViewControllerLayoutEnvironment].
+        #[unsafe(method(setSplitViewControllerLayoutEnvironment:))]
+        #[unsafe(method_family = none)]
+        fn setSplitViewControllerLayoutEnvironment(
+            &self,
+            split_view_controller_layout_environment: UISplitViewControllerLayoutEnvironment,
+        );
+
+        #[unsafe(method(resolvesNaturalAlignmentWithBaseWritingDirection))]
+        #[unsafe(method_family = none)]
+        fn resolvesNaturalAlignmentWithBaseWritingDirection(&self) -> bool;
+
+        /// Setter for [`resolvesNaturalAlignmentWithBaseWritingDirection`][Self::resolvesNaturalAlignmentWithBaseWritingDirection].
+        #[unsafe(method(setResolvesNaturalAlignmentWithBaseWritingDirection:))]
+        #[unsafe(method_family = none)]
+        fn setResolvesNaturalAlignmentWithBaseWritingDirection(
+            &self,
+            resolves_natural_alignment_with_base_writing_direction: bool,
+        );
     }
 );
 
@@ -553,6 +779,9 @@ pub type UITraitMutations =
 impl UITraitCollection {
     extern_methods!(
         #[cfg(feature = "block2")]
+        /// # Safety
+        ///
+        /// `mutations` must be a valid pointer.
         #[unsafe(method(traitCollectionWithTraits:))]
         #[unsafe(method_family = none)]
         pub unsafe fn traitCollectionWithTraits(
@@ -560,6 +789,9 @@ impl UITraitCollection {
         ) -> Retained<UITraitCollection>;
 
         #[cfg(feature = "block2")]
+        /// # Safety
+        ///
+        /// `mutations` must be a valid pointer.
         #[unsafe(method(traitCollectionByModifyingTraits:))]
         #[unsafe(method_family = none)]
         pub unsafe fn traitCollectionByModifyingTraits(
@@ -568,6 +800,9 @@ impl UITraitCollection {
         ) -> Retained<UITraitCollection>;
 
         #[cfg(all(feature = "UITrait", feature = "objc2-core-foundation"))]
+        /// # Safety
+        ///
+        /// `trait` must implement UICGFloatTraitDefinition.
         #[unsafe(method(traitCollectionWithCGFloatValue:forTrait:))]
         #[unsafe(method_family = none)]
         pub unsafe fn traitCollectionWithCGFloatValue_forTrait(
@@ -576,6 +811,9 @@ impl UITraitCollection {
         ) -> Retained<UITraitCollection>;
 
         #[cfg(all(feature = "UITrait", feature = "objc2-core-foundation"))]
+        /// # Safety
+        ///
+        /// `trait` must implement UICGFloatTraitDefinition.
         #[unsafe(method(traitCollectionByReplacingCGFloatValue:forTrait:))]
         #[unsafe(method_family = none)]
         pub unsafe fn traitCollectionByReplacingCGFloatValue_forTrait(
@@ -585,11 +823,17 @@ impl UITraitCollection {
         ) -> Retained<UITraitCollection>;
 
         #[cfg(all(feature = "UITrait", feature = "objc2-core-foundation"))]
+        /// # Safety
+        ///
+        /// `trait` must implement UICGFloatTraitDefinition.
         #[unsafe(method(valueForCGFloatTrait:))]
         #[unsafe(method_family = none)]
         pub unsafe fn valueForCGFloatTrait(&self, r#trait: &UICGFloatTrait) -> CGFloat;
 
         #[cfg(feature = "UITrait")]
+        /// # Safety
+        ///
+        /// `trait` must implement UINSIntegerTraitDefinition.
         #[unsafe(method(traitCollectionWithNSIntegerValue:forTrait:))]
         #[unsafe(method_family = none)]
         pub unsafe fn traitCollectionWithNSIntegerValue_forTrait(
@@ -598,6 +842,9 @@ impl UITraitCollection {
         ) -> Retained<UITraitCollection>;
 
         #[cfg(feature = "UITrait")]
+        /// # Safety
+        ///
+        /// `trait` must implement UINSIntegerTraitDefinition.
         #[unsafe(method(traitCollectionByReplacingNSIntegerValue:forTrait:))]
         #[unsafe(method_family = none)]
         pub unsafe fn traitCollectionByReplacingNSIntegerValue_forTrait(
@@ -607,11 +854,18 @@ impl UITraitCollection {
         ) -> Retained<UITraitCollection>;
 
         #[cfg(feature = "UITrait")]
+        /// # Safety
+        ///
+        /// `trait` must implement UINSIntegerTraitDefinition.
         #[unsafe(method(valueForNSIntegerTrait:))]
         #[unsafe(method_family = none)]
         pub unsafe fn valueForNSIntegerTrait(&self, r#trait: &UINSIntegerTrait) -> NSInteger;
 
         #[cfg(feature = "UITrait")]
+        /// # Safety
+        ///
+        /// - `object` should be of the correct type.
+        /// - `trait` must implement UIObjectTraitDefinition.
         #[unsafe(method(traitCollectionWithObject:forTrait:))]
         #[unsafe(method_family = none)]
         pub unsafe fn traitCollectionWithObject_forTrait(
@@ -620,6 +874,10 @@ impl UITraitCollection {
         ) -> Retained<UITraitCollection>;
 
         #[cfg(feature = "UITrait")]
+        /// # Safety
+        ///
+        /// - `object` should be of the correct type.
+        /// - `trait` must implement UIObjectTraitDefinition.
         #[unsafe(method(traitCollectionByReplacingObject:forTrait:))]
         #[unsafe(method_family = none)]
         pub unsafe fn traitCollectionByReplacingObject_forTrait(
@@ -629,6 +887,9 @@ impl UITraitCollection {
         ) -> Retained<UITraitCollection>;
 
         #[cfg(feature = "UITrait")]
+        /// # Safety
+        ///
+        /// `trait` must implement UIObjectTraitDefinition.
         #[unsafe(method(objectForTrait:))]
         #[unsafe(method_family = none)]
         pub unsafe fn objectForTrait(
@@ -651,10 +912,7 @@ extern_protocol!(
         #[deprecated = "Use the trait change registration APIs declared in the UITraitChangeObservable protocol"]
         #[unsafe(method(traitCollectionDidChange:))]
         #[unsafe(method_family = none)]
-        unsafe fn traitCollectionDidChange(
-            &self,
-            previous_trait_collection: Option<&UITraitCollection>,
-        );
+        fn traitCollectionDidChange(&self, previous_trait_collection: Option<&UITraitCollection>);
     }
 );
 
@@ -676,11 +934,17 @@ extern_protocol!(
     /// [Apple's documentation](https://developer.apple.com/documentation/uikit/uitraitoverrides?language=objc)
     pub unsafe trait UITraitOverrides: UIMutableTraits + MainThreadOnly {
         #[cfg(feature = "UITrait")]
+        /// # Safety
+        ///
+        /// `trait` must implement UITraitDefinition.
         #[unsafe(method(containsTrait:))]
         #[unsafe(method_family = none)]
         unsafe fn containsTrait(&self, r#trait: &UITrait) -> bool;
 
         #[cfg(feature = "UITrait")]
+        /// # Safety
+        ///
+        /// `trait` must implement UITraitDefinition.
         #[unsafe(method(removeTrait:))]
         #[unsafe(method_family = none)]
         unsafe fn removeTrait(&self, r#trait: &UITrait);
@@ -692,7 +956,7 @@ extern_protocol!(
     pub unsafe trait UITraitChangeObservable: MainThreadOnly {
         #[unsafe(method(unregisterForTraitChanges:))]
         #[unsafe(method_family = none)]
-        unsafe fn unregisterForTraitChanges(
+        fn unregisterForTraitChanges(
             &self,
             registration: &ProtocolObject<dyn UITraitChangeRegistration>,
         );
@@ -702,11 +966,20 @@ extern_protocol!(
 /// CurrentTraitCollection.
 impl UITraitCollection {
     extern_methods!(
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
         #[unsafe(method(currentTraitCollection))]
         #[unsafe(method_family = none)]
         pub unsafe fn currentTraitCollection() -> Retained<UITraitCollection>;
 
         /// Setter for [`currentTraitCollection`][Self::currentTraitCollection].
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
         #[unsafe(method(setCurrentTraitCollection:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setCurrentTraitCollection(current_trait_collection: &UITraitCollection);
@@ -714,10 +987,7 @@ impl UITraitCollection {
         #[cfg(feature = "block2")]
         #[unsafe(method(performAsCurrentTraitCollection:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn performAsCurrentTraitCollection(
-            &self,
-            actions: &block2::DynBlock<dyn Fn() + '_>,
-        );
+        pub fn performAsCurrentTraitCollection(&self, actions: &block2::DynBlock<dyn Fn() + '_>);
     );
 }
 
@@ -726,7 +996,7 @@ impl UITraitCollection {
     extern_methods!(
         #[unsafe(method(hasDifferentColorAppearanceComparedToTraitCollection:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn hasDifferentColorAppearanceComparedToTraitCollection(
+        pub fn hasDifferentColorAppearanceComparedToTraitCollection(
             &self,
             trait_collection: Option<&UITraitCollection>,
         ) -> bool;
@@ -737,6 +1007,11 @@ impl UITraitCollection {
 impl UITraitCollection {
     extern_methods!(
         #[cfg(feature = "UIImageConfiguration")]
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
         #[unsafe(method(imageConfiguration))]
         #[unsafe(method_family = none)]
         pub unsafe fn imageConfiguration(&self) -> Retained<UIImageConfiguration>;

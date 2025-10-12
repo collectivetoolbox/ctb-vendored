@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.71"
 name = "block2"
-version = "0.6.1"
+version = "0.6.2"
 authors = ["Mads Marquart <mads@marquart.dk>"]
 build = false
 autolib = false
@@ -59,7 +59,7 @@ targets = [
 
 [package.metadata.release]
 shared-version = false
-tag-prefix = "block"
+tag-prefix = "block2"
 
 [features]
 alloc = []
@@ -93,7 +93,7 @@ name = "block2"
 path = "src/lib.rs"
 
 [dependencies.objc2]
-version = ">=0.6.1, <0.8.0"
+version = ">=0.6.2, <0.8.0"
 features = ["std"]
 default-features = false
 

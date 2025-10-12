@@ -26,34 +26,42 @@ impl NSDictionaryControllerKeyValuePair {
 
         #[unsafe(method(key))]
         #[unsafe(method_family = none)]
-        pub unsafe fn key(&self) -> Option<Retained<NSString>>;
+        pub fn key(&self) -> Option<Retained<NSString>>;
 
         /// Setter for [`key`][Self::key].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setKey:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setKey(&self, key: Option<&NSString>);
+        pub fn setKey(&self, key: Option<&NSString>);
 
         #[unsafe(method(value))]
         #[unsafe(method_family = none)]
-        pub unsafe fn value(&self) -> Option<Retained<AnyObject>>;
+        pub fn value(&self) -> Option<Retained<AnyObject>>;
 
         /// Setter for [`value`][Self::value].
+        ///
+        /// # Safety
+        ///
+        /// `value` should be of the correct type.
         #[unsafe(method(setValue:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setValue(&self, value: Option<&AnyObject>);
 
         #[unsafe(method(localizedKey))]
         #[unsafe(method_family = none)]
-        pub unsafe fn localizedKey(&self) -> Option<Retained<NSString>>;
+        pub fn localizedKey(&self) -> Option<Retained<NSString>>;
 
         /// Setter for [`localizedKey`][Self::localizedKey].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setLocalizedKey:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setLocalizedKey(&self, localized_key: Option<&NSString>);
+        pub fn setLocalizedKey(&self, localized_key: Option<&NSString>);
 
         #[unsafe(method(isExplicitlyIncluded))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isExplicitlyIncluded(&self) -> bool;
+        pub fn isExplicitlyIncluded(&self) -> bool;
     );
 }
 
@@ -126,64 +134,78 @@ impl NSDictionaryController {
     extern_methods!(
         #[unsafe(method(newObject))]
         #[unsafe(method_family = new)]
-        pub unsafe fn newObject(&self) -> Retained<NSDictionaryControllerKeyValuePair>;
+        pub fn newObject(&self) -> Retained<NSDictionaryControllerKeyValuePair>;
 
         #[unsafe(method(initialKey))]
         #[unsafe(method_family = none)]
-        pub unsafe fn initialKey(&self) -> Retained<NSString>;
+        pub fn initialKey(&self) -> Retained<NSString>;
 
         /// Setter for [`initialKey`][Self::initialKey].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setInitialKey:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setInitialKey(&self, initial_key: &NSString);
+        pub fn setInitialKey(&self, initial_key: &NSString);
 
         #[unsafe(method(initialValue))]
         #[unsafe(method_family = none)]
-        pub unsafe fn initialValue(&self) -> Retained<AnyObject>;
+        pub fn initialValue(&self) -> Retained<AnyObject>;
 
         /// Setter for [`initialValue`][Self::initialValue].
+        ///
+        /// # Safety
+        ///
+        /// `initial_value` should be of the correct type.
         #[unsafe(method(setInitialValue:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setInitialValue(&self, initial_value: &AnyObject);
 
         #[unsafe(method(includedKeys))]
         #[unsafe(method_family = none)]
-        pub unsafe fn includedKeys(&self) -> Retained<NSArray<NSString>>;
+        pub fn includedKeys(&self) -> Retained<NSArray<NSString>>;
 
         /// Setter for [`includedKeys`][Self::includedKeys].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setIncludedKeys:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setIncludedKeys(&self, included_keys: &NSArray<NSString>);
+        pub fn setIncludedKeys(&self, included_keys: &NSArray<NSString>);
 
         #[unsafe(method(excludedKeys))]
         #[unsafe(method_family = none)]
-        pub unsafe fn excludedKeys(&self) -> Retained<NSArray<NSString>>;
+        pub fn excludedKeys(&self) -> Retained<NSArray<NSString>>;
 
         /// Setter for [`excludedKeys`][Self::excludedKeys].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setExcludedKeys:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setExcludedKeys(&self, excluded_keys: &NSArray<NSString>);
+        pub fn setExcludedKeys(&self, excluded_keys: &NSArray<NSString>);
 
         #[unsafe(method(localizedKeyDictionary))]
         #[unsafe(method_family = none)]
-        pub unsafe fn localizedKeyDictionary(&self) -> Retained<NSDictionary<NSString, NSString>>;
+        pub fn localizedKeyDictionary(&self) -> Retained<NSDictionary<NSString, NSString>>;
 
         /// Setter for [`localizedKeyDictionary`][Self::localizedKeyDictionary].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setLocalizedKeyDictionary:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setLocalizedKeyDictionary(
+        pub fn setLocalizedKeyDictionary(
             &self,
             localized_key_dictionary: &NSDictionary<NSString, NSString>,
         );
 
         #[unsafe(method(localizedKeyTable))]
         #[unsafe(method_family = none)]
-        pub unsafe fn localizedKeyTable(&self) -> Option<Retained<NSString>>;
+        pub fn localizedKeyTable(&self) -> Option<Retained<NSString>>;
 
         /// Setter for [`localizedKeyTable`][Self::localizedKeyTable].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setLocalizedKeyTable:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setLocalizedKeyTable(&self, localized_key_table: Option<&NSString>);
+        pub fn setLocalizedKeyTable(&self, localized_key_table: Option<&NSString>);
     );
 }
 
@@ -195,6 +217,9 @@ impl NSDictionaryController {
 ))]
 impl NSDictionaryController {
     extern_methods!(
+        /// # Safety
+        ///
+        /// `content` should be of the correct type.
         #[unsafe(method(initWithContent:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithContent(
@@ -202,6 +227,9 @@ impl NSDictionaryController {
             content: Option<&AnyObject>,
         ) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -221,7 +249,7 @@ impl NSDictionaryController {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
     );
 }
 
@@ -235,6 +263,6 @@ impl NSDictionaryController {
     extern_methods!(
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }

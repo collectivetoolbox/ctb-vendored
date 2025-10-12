@@ -83,57 +83,61 @@ impl NSRelativeDateTimeFormatter {
     extern_methods!(
         #[unsafe(method(dateTimeStyle))]
         #[unsafe(method_family = none)]
-        pub unsafe fn dateTimeStyle(&self) -> NSRelativeDateTimeFormatterStyle;
+        pub fn dateTimeStyle(&self) -> NSRelativeDateTimeFormatterStyle;
 
         /// Setter for [`dateTimeStyle`][Self::dateTimeStyle].
         #[unsafe(method(setDateTimeStyle:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setDateTimeStyle(&self, date_time_style: NSRelativeDateTimeFormatterStyle);
+        pub fn setDateTimeStyle(&self, date_time_style: NSRelativeDateTimeFormatterStyle);
 
         #[unsafe(method(unitsStyle))]
         #[unsafe(method_family = none)]
-        pub unsafe fn unitsStyle(&self) -> NSRelativeDateTimeFormatterUnitsStyle;
+        pub fn unitsStyle(&self) -> NSRelativeDateTimeFormatterUnitsStyle;
 
         /// Setter for [`unitsStyle`][Self::unitsStyle].
         #[unsafe(method(setUnitsStyle:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setUnitsStyle(&self, units_style: NSRelativeDateTimeFormatterUnitsStyle);
+        pub fn setUnitsStyle(&self, units_style: NSRelativeDateTimeFormatterUnitsStyle);
 
         #[unsafe(method(formattingContext))]
         #[unsafe(method_family = none)]
-        pub unsafe fn formattingContext(&self) -> NSFormattingContext;
+        pub fn formattingContext(&self) -> NSFormattingContext;
 
         /// Setter for [`formattingContext`][Self::formattingContext].
         #[unsafe(method(setFormattingContext:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setFormattingContext(&self, formatting_context: NSFormattingContext);
+        pub fn setFormattingContext(&self, formatting_context: NSFormattingContext);
 
         #[cfg(feature = "NSCalendar")]
         #[unsafe(method(calendar))]
         #[unsafe(method_family = none)]
-        pub unsafe fn calendar(&self) -> Retained<NSCalendar>;
+        pub fn calendar(&self) -> Retained<NSCalendar>;
 
         #[cfg(feature = "NSCalendar")]
         /// Setter for [`calendar`][Self::calendar].
+        ///
+        /// This is [copied][crate::NSCopying::copy] when set.
         #[unsafe(method(setCalendar:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setCalendar(&self, calendar: Option<&NSCalendar>);
+        pub fn setCalendar(&self, calendar: Option<&NSCalendar>);
 
         #[cfg(feature = "NSLocale")]
         #[unsafe(method(locale))]
         #[unsafe(method_family = none)]
-        pub unsafe fn locale(&self) -> Retained<NSLocale>;
+        pub fn locale(&self) -> Retained<NSLocale>;
 
         #[cfg(feature = "NSLocale")]
         /// Setter for [`locale`][Self::locale].
+        ///
+        /// This is [copied][crate::NSCopying::copy] when set.
         #[unsafe(method(setLocale:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setLocale(&self, locale: Option<&NSLocale>);
+        pub fn setLocale(&self, locale: Option<&NSLocale>);
 
         #[cfg(all(feature = "NSCalendar", feature = "NSString"))]
         #[unsafe(method(localizedStringFromDateComponents:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn localizedStringFromDateComponents(
+        pub fn localizedStringFromDateComponents(
             &self,
             date_components: &NSDateComponents,
         ) -> Retained<NSString>;
@@ -141,7 +145,7 @@ impl NSRelativeDateTimeFormatter {
         #[cfg(all(feature = "NSDate", feature = "NSString"))]
         #[unsafe(method(localizedStringFromTimeInterval:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn localizedStringFromTimeInterval(
+        pub fn localizedStringFromTimeInterval(
             &self,
             time_interval: NSTimeInterval,
         ) -> Retained<NSString>;
@@ -149,13 +153,16 @@ impl NSRelativeDateTimeFormatter {
         #[cfg(all(feature = "NSDate", feature = "NSString"))]
         #[unsafe(method(localizedStringForDate:relativeToDate:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn localizedStringForDate_relativeToDate(
+        pub fn localizedStringForDate_relativeToDate(
             &self,
             date: &NSDate,
             reference_date: &NSDate,
         ) -> Retained<NSString>;
 
         #[cfg(feature = "NSString")]
+        /// # Safety
+        ///
+        /// `obj` should be of the correct type.
         #[unsafe(method(stringForObjectValue:))]
         #[unsafe(method_family = none)]
         pub unsafe fn stringForObjectValue(
@@ -171,10 +178,18 @@ impl NSRelativeDateTimeFormatter {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+#[cfg(feature = "NSFormatter")]
+impl DefaultRetained for NSRelativeDateTimeFormatter {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }

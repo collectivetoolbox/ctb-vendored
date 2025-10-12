@@ -13,6 +13,7 @@ use crate::*;
 pub type CFFileDescriptorNativeDescriptor = c_int;
 
 /// [Apple's documentation](https://developer.apple.com/documentation/corefoundation/cffiledescriptor?language=objc)
+#[doc(alias = "CFFileDescriptorRef")]
 #[repr(C)]
 pub struct CFFileDescriptor {
     inner: [u8; 0],
@@ -38,6 +39,7 @@ pub type CFFileDescriptorCallBack =
 
 /// [Apple's documentation](https://developer.apple.com/documentation/corefoundation/cffiledescriptorcontext?language=objc)
 #[repr(C)]
+#[allow(unpredictable_function_pointer_comparisons)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CFFileDescriptorContext {
     pub version: CFIndex,
@@ -78,6 +80,11 @@ unsafe impl ConcreteType for CFFileDescriptor {
 }
 
 impl CFFileDescriptor {
+    /// # Safety
+    ///
+    /// - `allocator` might not allow `None`.
+    /// - `callout` must be implemented correctly.
+    /// - `context` must be a valid pointer.
     #[doc(alias = "CFFileDescriptorCreate")]
     #[inline]
     pub unsafe fn new(
@@ -104,7 +111,7 @@ impl CFFileDescriptor {
 
     #[doc(alias = "CFFileDescriptorGetNativeDescriptor")]
     #[inline]
-    pub fn native_descriptor(self: &CFFileDescriptor) -> CFFileDescriptorNativeDescriptor {
+    pub fn native_descriptor(&self) -> CFFileDescriptorNativeDescriptor {
         extern "C-unwind" {
             fn CFFileDescriptorGetNativeDescriptor(
                 f: &CFFileDescriptor,
@@ -113,9 +120,12 @@ impl CFFileDescriptor {
         unsafe { CFFileDescriptorGetNativeDescriptor(self) }
     }
 
+    /// # Safety
+    ///
+    /// `context` must be a valid pointer.
     #[doc(alias = "CFFileDescriptorGetContext")]
     #[inline]
-    pub unsafe fn context(self: &CFFileDescriptor, context: *mut CFFileDescriptorContext) {
+    pub unsafe fn context(&self, context: *mut CFFileDescriptorContext) {
         extern "C-unwind" {
             fn CFFileDescriptorGetContext(
                 f: &CFFileDescriptor,
@@ -127,7 +137,7 @@ impl CFFileDescriptor {
 
     #[doc(alias = "CFFileDescriptorEnableCallBacks")]
     #[inline]
-    pub fn enable_call_backs(self: &CFFileDescriptor, call_back_types: CFOptionFlags) {
+    pub fn enable_call_backs(&self, call_back_types: CFOptionFlags) {
         extern "C-unwind" {
             fn CFFileDescriptorEnableCallBacks(
                 f: &CFFileDescriptor,
@@ -139,7 +149,7 @@ impl CFFileDescriptor {
 
     #[doc(alias = "CFFileDescriptorDisableCallBacks")]
     #[inline]
-    pub fn disable_call_backs(self: &CFFileDescriptor, call_back_types: CFOptionFlags) {
+    pub fn disable_call_backs(&self, call_back_types: CFOptionFlags) {
         extern "C-unwind" {
             fn CFFileDescriptorDisableCallBacks(
                 f: &CFFileDescriptor,
@@ -151,7 +161,7 @@ impl CFFileDescriptor {
 
     #[doc(alias = "CFFileDescriptorInvalidate")]
     #[inline]
-    pub fn invalidate(self: &CFFileDescriptor) {
+    pub fn invalidate(&self) {
         extern "C-unwind" {
             fn CFFileDescriptorInvalidate(f: &CFFileDescriptor);
         }
@@ -160,7 +170,7 @@ impl CFFileDescriptor {
 
     #[doc(alias = "CFFileDescriptorIsValid")]
     #[inline]
-    pub fn is_valid(self: &CFFileDescriptor) -> bool {
+    pub fn is_valid(&self) -> bool {
         extern "C-unwind" {
             fn CFFileDescriptorIsValid(f: &CFFileDescriptor) -> Boolean;
         }

@@ -53,6 +53,10 @@ extern_conformance!(
 
 impl UIGestureRecognizer {
     extern_methods!(
+        /// # Safety
+        ///
+        /// - `target` should be of the correct type.
+        /// - `action` must be a valid selector.
         #[unsafe(method(initWithTarget:action:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithTarget_action(
@@ -63,8 +67,11 @@ impl UIGestureRecognizer {
 
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -72,10 +79,18 @@ impl UIGestureRecognizer {
             coder: &NSCoder,
         ) -> Option<Retained<Self>>;
 
+        /// # Safety
+        ///
+        /// - `target` should be of the correct type.
+        /// - `action` must be a valid selector.
         #[unsafe(method(addTarget:action:))]
         #[unsafe(method_family = none)]
         pub unsafe fn addTarget_action(&self, target: &AnyObject, action: Sel);
 
+        /// # Safety
+        ///
+        /// - `target` should be of the correct type.
+        /// - `action` must be a valid selector.
         #[unsafe(method(removeTarget:action:))]
         #[unsafe(method_family = none)]
         pub unsafe fn removeTarget_action(&self, target: Option<&AnyObject>, action: Option<Sel>);
@@ -85,8 +100,9 @@ impl UIGestureRecognizer {
         pub fn delegate(&self)
             -> Option<Retained<ProtocolObject<dyn UIGestureRecognizerDelegate>>>;
 
-        /// This is a [weak property][objc2::topics::weak_property].
         /// Setter for [`delegate`][Self::delegate].
+        ///
+        /// This is a [weak property][objc2::topics::weak_property].
         #[unsafe(method(setDelegate:))]
         #[unsafe(method_family = none)]
         pub fn setDelegate(
@@ -96,75 +112,79 @@ impl UIGestureRecognizer {
 
         #[unsafe(method(isEnabled))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isEnabled(&self) -> bool;
+        pub fn isEnabled(&self) -> bool;
 
         /// Setter for [`isEnabled`][Self::isEnabled].
         #[unsafe(method(setEnabled:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setEnabled(&self, enabled: bool);
+        pub fn setEnabled(&self, enabled: bool);
 
         #[cfg(all(feature = "UIResponder", feature = "UIView"))]
         #[unsafe(method(view))]
         #[unsafe(method_family = none)]
-        pub unsafe fn view(&self) -> Option<Retained<UIView>>;
+        pub fn view(&self) -> Option<Retained<UIView>>;
 
         #[unsafe(method(cancelsTouchesInView))]
         #[unsafe(method_family = none)]
-        pub unsafe fn cancelsTouchesInView(&self) -> bool;
+        pub fn cancelsTouchesInView(&self) -> bool;
 
         /// Setter for [`cancelsTouchesInView`][Self::cancelsTouchesInView].
         #[unsafe(method(setCancelsTouchesInView:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setCancelsTouchesInView(&self, cancels_touches_in_view: bool);
+        pub fn setCancelsTouchesInView(&self, cancels_touches_in_view: bool);
 
         #[unsafe(method(delaysTouchesBegan))]
         #[unsafe(method_family = none)]
-        pub unsafe fn delaysTouchesBegan(&self) -> bool;
+        pub fn delaysTouchesBegan(&self) -> bool;
 
         /// Setter for [`delaysTouchesBegan`][Self::delaysTouchesBegan].
         #[unsafe(method(setDelaysTouchesBegan:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setDelaysTouchesBegan(&self, delays_touches_began: bool);
+        pub fn setDelaysTouchesBegan(&self, delays_touches_began: bool);
 
         #[unsafe(method(delaysTouchesEnded))]
         #[unsafe(method_family = none)]
-        pub unsafe fn delaysTouchesEnded(&self) -> bool;
+        pub fn delaysTouchesEnded(&self) -> bool;
 
         /// Setter for [`delaysTouchesEnded`][Self::delaysTouchesEnded].
         #[unsafe(method(setDelaysTouchesEnded:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setDelaysTouchesEnded(&self, delays_touches_ended: bool);
+        pub fn setDelaysTouchesEnded(&self, delays_touches_ended: bool);
 
         #[unsafe(method(allowedTouchTypes))]
         #[unsafe(method_family = none)]
-        pub unsafe fn allowedTouchTypes(&self) -> Retained<NSArray<NSNumber>>;
+        pub fn allowedTouchTypes(&self) -> Retained<NSArray<NSNumber>>;
 
         /// Setter for [`allowedTouchTypes`][Self::allowedTouchTypes].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setAllowedTouchTypes:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setAllowedTouchTypes(&self, allowed_touch_types: &NSArray<NSNumber>);
+        pub fn setAllowedTouchTypes(&self, allowed_touch_types: &NSArray<NSNumber>);
 
         #[unsafe(method(allowedPressTypes))]
         #[unsafe(method_family = none)]
-        pub unsafe fn allowedPressTypes(&self) -> Retained<NSArray<NSNumber>>;
+        pub fn allowedPressTypes(&self) -> Retained<NSArray<NSNumber>>;
 
         /// Setter for [`allowedPressTypes`][Self::allowedPressTypes].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setAllowedPressTypes:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setAllowedPressTypes(&self, allowed_press_types: &NSArray<NSNumber>);
+        pub fn setAllowedPressTypes(&self, allowed_press_types: &NSArray<NSNumber>);
 
         #[unsafe(method(requiresExclusiveTouchType))]
         #[unsafe(method_family = none)]
-        pub unsafe fn requiresExclusiveTouchType(&self) -> bool;
+        pub fn requiresExclusiveTouchType(&self) -> bool;
 
         /// Setter for [`requiresExclusiveTouchType`][Self::requiresExclusiveTouchType].
         #[unsafe(method(setRequiresExclusiveTouchType:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setRequiresExclusiveTouchType(&self, requires_exclusive_touch_type: bool);
+        pub fn setRequiresExclusiveTouchType(&self, requires_exclusive_touch_type: bool);
 
         #[unsafe(method(requireGestureRecognizerToFail:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn requireGestureRecognizerToFail(
+        pub fn requireGestureRecognizerToFail(
             &self,
             other_gesture_recognizer: &UIGestureRecognizer,
         );
@@ -176,11 +196,11 @@ impl UIGestureRecognizer {
         ))]
         #[unsafe(method(locationInView:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn locationInView(&self, view: Option<&UIView>) -> CGPoint;
+        pub fn locationInView(&self, view: Option<&UIView>) -> CGPoint;
 
         #[unsafe(method(numberOfTouches))]
         #[unsafe(method_family = none)]
-        pub unsafe fn numberOfTouches(&self) -> NSUInteger;
+        pub fn numberOfTouches(&self) -> NSUInteger;
 
         #[cfg(all(
             feature = "UIResponder",
@@ -189,7 +209,7 @@ impl UIGestureRecognizer {
         ))]
         #[unsafe(method(locationOfTouch:inView:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn locationOfTouch_inView(
+        pub fn locationOfTouch_inView(
             &self,
             touch_index: NSUInteger,
             view: Option<&UIView>,
@@ -197,22 +217,24 @@ impl UIGestureRecognizer {
 
         #[unsafe(method(name))]
         #[unsafe(method_family = none)]
-        pub unsafe fn name(&self) -> Option<Retained<NSString>>;
+        pub fn name(&self) -> Option<Retained<NSString>>;
 
         /// Setter for [`name`][Self::name].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setName:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setName(&self, name: Option<&NSString>);
+        pub fn setName(&self, name: Option<&NSString>);
 
         #[cfg(feature = "UICommand")]
         #[unsafe(method(modifierFlags))]
         #[unsafe(method_family = none)]
-        pub unsafe fn modifierFlags(&self) -> UIKeyModifierFlags;
+        pub fn modifierFlags(&self) -> UIKeyModifierFlags;
 
         #[cfg(feature = "UIEvent")]
         #[unsafe(method(buttonMask))]
         #[unsafe(method_family = none)]
-        pub unsafe fn buttonMask(&self) -> UIEventButtonMask;
+        pub fn buttonMask(&self) -> UIEventButtonMask;
     );
 }
 
@@ -221,7 +243,7 @@ impl UIGestureRecognizer {
     extern_methods!(
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }
 
@@ -231,15 +253,12 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(gestureRecognizerShouldBegin:))]
         #[unsafe(method_family = none)]
-        unsafe fn gestureRecognizerShouldBegin(
-            &self,
-            gesture_recognizer: &UIGestureRecognizer,
-        ) -> bool;
+        fn gestureRecognizerShouldBegin(&self, gesture_recognizer: &UIGestureRecognizer) -> bool;
 
         #[optional]
         #[unsafe(method(gestureRecognizer:shouldRecognizeSimultaneouslyWithGestureRecognizer:))]
         #[unsafe(method_family = none)]
-        unsafe fn gestureRecognizer_shouldRecognizeSimultaneouslyWithGestureRecognizer(
+        fn gestureRecognizer_shouldRecognizeSimultaneouslyWithGestureRecognizer(
             &self,
             gesture_recognizer: &UIGestureRecognizer,
             other_gesture_recognizer: &UIGestureRecognizer,
@@ -248,7 +267,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(gestureRecognizer:shouldRequireFailureOfGestureRecognizer:))]
         #[unsafe(method_family = none)]
-        unsafe fn gestureRecognizer_shouldRequireFailureOfGestureRecognizer(
+        fn gestureRecognizer_shouldRequireFailureOfGestureRecognizer(
             &self,
             gesture_recognizer: &UIGestureRecognizer,
             other_gesture_recognizer: &UIGestureRecognizer,
@@ -257,7 +276,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(gestureRecognizer:shouldBeRequiredToFailByGestureRecognizer:))]
         #[unsafe(method_family = none)]
-        unsafe fn gestureRecognizer_shouldBeRequiredToFailByGestureRecognizer(
+        fn gestureRecognizer_shouldBeRequiredToFailByGestureRecognizer(
             &self,
             gesture_recognizer: &UIGestureRecognizer,
             other_gesture_recognizer: &UIGestureRecognizer,
@@ -267,7 +286,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(gestureRecognizer:shouldReceiveTouch:))]
         #[unsafe(method_family = none)]
-        unsafe fn gestureRecognizer_shouldReceiveTouch(
+        fn gestureRecognizer_shouldReceiveTouch(
             &self,
             gesture_recognizer: &UIGestureRecognizer,
             touch: &UITouch,
@@ -277,7 +296,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(gestureRecognizer:shouldReceivePress:))]
         #[unsafe(method_family = none)]
-        unsafe fn gestureRecognizer_shouldReceivePress(
+        fn gestureRecognizer_shouldReceivePress(
             &self,
             gesture_recognizer: &UIGestureRecognizer,
             press: &UIPress,
@@ -287,7 +306,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(gestureRecognizer:shouldReceiveEvent:))]
         #[unsafe(method_family = none)]
-        unsafe fn gestureRecognizer_shouldReceiveEvent(
+        fn gestureRecognizer_shouldReceiveEvent(
             &self,
             gesture_recognizer: &UIGestureRecognizer,
             event: &UIEvent,

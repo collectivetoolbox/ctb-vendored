@@ -153,12 +153,12 @@ impl NSStatusBarButton {
         /// If `YES`, the status bar icon has a disabled/off appearance while still being functional, such as allowing selection and actions. Defaults to `NO`.
         #[unsafe(method(appearsDisabled))]
         #[unsafe(method_family = none)]
-        pub unsafe fn appearsDisabled(&self) -> bool;
+        pub fn appearsDisabled(&self) -> bool;
 
         /// Setter for [`appearsDisabled`][Self::appearsDisabled].
         #[unsafe(method(setAppearsDisabled:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setAppearsDisabled(&self, appears_disabled: bool);
+        pub fn setAppearsDisabled(&self, appears_disabled: bool);
     );
 }
 
@@ -183,6 +183,11 @@ impl NSStatusBarButton {
         /// Parameter `action`: The action message sent by the control.
         ///
         /// Returns: An initialized button object.
+        ///
+        /// # Safety
+        ///
+        /// - `target` should be of the correct type.
+        /// - `action` must be a valid selector.
         #[unsafe(method(buttonWithTitle:image:target:action:))]
         #[unsafe(method_family = none)]
         pub unsafe fn buttonWithTitle_image_target_action(
@@ -202,6 +207,11 @@ impl NSStatusBarButton {
         /// Parameter `action`: The action message sent by the control.
         ///
         /// Returns: An initialized button object.
+        ///
+        /// # Safety
+        ///
+        /// - `target` should be of the correct type.
+        /// - `action` must be a valid selector.
         #[unsafe(method(buttonWithTitle:target:action:))]
         #[unsafe(method_family = none)]
         pub unsafe fn buttonWithTitle_target_action(
@@ -221,6 +231,11 @@ impl NSStatusBarButton {
         /// Parameter `action`: The action message sent by the control.
         ///
         /// Returns: An initialized button object.
+        ///
+        /// # Safety
+        ///
+        /// - `target` should be of the correct type.
+        /// - `action` must be a valid selector.
         #[unsafe(method(buttonWithImage:target:action:))]
         #[unsafe(method_family = none)]
         pub unsafe fn buttonWithImage_target_action(
@@ -239,6 +254,11 @@ impl NSStatusBarButton {
         /// Parameter `action`: The action message sent by the control.
         ///
         /// Returns: An initialized button object.
+        ///
+        /// # Safety
+        ///
+        /// - `target` should be of the correct type.
+        /// - `action` must be a valid selector.
         #[unsafe(method(checkboxWithTitle:target:action:))]
         #[unsafe(method_family = none)]
         pub unsafe fn checkboxWithTitle_target_action(
@@ -257,6 +277,11 @@ impl NSStatusBarButton {
         /// Parameter `action`: The action message sent by the control.
         ///
         /// Returns: An initialized button object.
+        ///
+        /// # Safety
+        ///
+        /// - `target` should be of the correct type.
+        /// - `action` must be a valid selector.
         #[unsafe(method(radioButtonWithTitle:target:action:))]
         #[unsafe(method_family = none)]
         pub unsafe fn radioButtonWithTitle_target_action(
@@ -279,8 +304,11 @@ impl NSStatusBarButton {
     extern_methods!(
         #[unsafe(method(initWithFrame:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithFrame(this: Allocated<Self>, frame_rect: NSRect) -> Retained<Self>;
+        pub fn initWithFrame(this: Allocated<Self>, frame_rect: NSRect) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -301,7 +329,7 @@ impl NSStatusBarButton {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
     );
 }
 
@@ -316,6 +344,6 @@ impl NSStatusBarButton {
     extern_methods!(
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }

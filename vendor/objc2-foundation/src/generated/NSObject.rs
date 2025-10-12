@@ -10,11 +10,17 @@ extern_protocol!(
     /// [Apple's documentation](https://developer.apple.com/documentation/foundation/nscoding?language=objc)
     pub unsafe trait NSCoding {
         #[cfg(feature = "NSCoder")]
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(encodeWithCoder:))]
         #[unsafe(method_family = none)]
         unsafe fn encodeWithCoder(&self, coder: &NSCoder);
 
         #[cfg(feature = "NSCoder")]
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         unsafe fn initWithCoder(this: Allocated<Self>, coder: &NSCoder) -> Option<Retained<Self>>;
@@ -26,7 +32,7 @@ extern_protocol!(
     pub unsafe trait NSSecureCoding: NSCoding {
         #[unsafe(method(supportsSecureCoding))]
         #[unsafe(method_family = none)]
-        unsafe fn supportsSecureCoding() -> bool;
+        fn supportsSecureCoding() -> bool;
     }
 );
 
@@ -35,6 +41,7 @@ mod private_NSObjectNSCoderMethods {
 }
 
 /// Category "NSCoderMethods" on [`NSObject`].
+///
 /// *********    Base class        **********
 #[doc(alias = "NSCoderMethods")]
 pub unsafe trait NSObjectNSCoderMethods:
@@ -43,7 +50,7 @@ pub unsafe trait NSObjectNSCoderMethods:
     extern_methods!(
         #[unsafe(method(version))]
         #[unsafe(method_family = none)]
-        unsafe fn version() -> NSInteger;
+        fn version() -> NSInteger;
 
         #[unsafe(method(setVersion:))]
         #[unsafe(method_family = none)]
@@ -51,9 +58,12 @@ pub unsafe trait NSObjectNSCoderMethods:
 
         #[unsafe(method(classForCoder))]
         #[unsafe(method_family = none)]
-        unsafe fn classForCoder(&self) -> &'static AnyClass;
+        fn classForCoder(&self) -> &'static AnyClass;
 
         #[cfg(feature = "NSCoder")]
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(replacementObjectForCoder:))]
         #[unsafe(method_family = none)]
         unsafe fn replacementObjectForCoder(&self, coder: &NSCoder) -> Option<Retained<AnyObject>>;
@@ -70,19 +80,19 @@ extern_protocol!(
     pub unsafe trait NSDiscardableContent {
         #[unsafe(method(beginContentAccess))]
         #[unsafe(method_family = none)]
-        unsafe fn beginContentAccess(&self) -> bool;
+        fn beginContentAccess(&self) -> bool;
 
         #[unsafe(method(endContentAccess))]
         #[unsafe(method_family = none)]
-        unsafe fn endContentAccess(&self);
+        fn endContentAccess(&self);
 
         #[unsafe(method(discardContentIfPossible))]
         #[unsafe(method_family = none)]
-        unsafe fn discardContentIfPossible(&self);
+        fn discardContentIfPossible(&self);
 
         #[unsafe(method(isContentDiscarded))]
         #[unsafe(method_family = none)]
-        unsafe fn isContentDiscarded(&self) -> bool;
+        fn isContentDiscarded(&self) -> bool;
     }
 );
 
@@ -98,7 +108,7 @@ pub unsafe trait NSObjectNSDiscardableContentProxy:
     extern_methods!(
         #[unsafe(method(autoContentAccessingProxy))]
         #[unsafe(method_family = none)]
-        unsafe fn autoContentAccessingProxy(&self) -> Retained<AnyObject>;
+        fn autoContentAccessingProxy(&self) -> Retained<AnyObject>;
     );
 }
 
@@ -106,6 +116,11 @@ impl private_NSObjectNSDiscardableContentProxy::Sealed for NSObject {}
 unsafe impl NSObjectNSDiscardableContentProxy for NSObject {}
 
 /// *********    Object Allocation / Deallocation        ******
+///
+/// # Safety
+///
+/// - `a_class` probably has further requirements.
+/// - `zone` must be a valid pointer or null.
 #[cfg(feature = "NSZone")]
 #[inline]
 pub unsafe extern "C-unwind" fn NSAllocateObject(
@@ -126,9 +141,16 @@ pub unsafe extern "C-unwind" fn NSAllocateObject(
 }
 
 extern "C-unwind" {
+    /// # Safety
+    ///
+    /// `object` should be of the correct type.
     pub fn NSDeallocateObject(object: &AnyObject);
 }
 
+/// # Safety
+///
+/// - `object` should be of the correct type.
+/// - `zone` must be a valid pointer or null.
 #[cfg(feature = "NSZone")]
 #[deprecated = "Not supported"]
 #[inline]
@@ -149,6 +171,10 @@ pub unsafe extern "C-unwind" fn NSCopyObject(
         .expect("function was marked as returning non-null, but actually returned NULL")
 }
 
+/// # Safety
+///
+/// - `an_object` should be of the correct type.
+/// - `requested_zone` must be a valid pointer or null.
 #[cfg(feature = "NSZone")]
 #[inline]
 pub unsafe extern "C-unwind" fn NSShouldRetainWithZone(
@@ -162,9 +188,15 @@ pub unsafe extern "C-unwind" fn NSShouldRetainWithZone(
 }
 
 extern "C-unwind" {
+    /// # Safety
+    ///
+    /// `object` should be of the correct type.
     pub fn NSIncrementExtraRefCount(object: &AnyObject);
 }
 
+/// # Safety
+///
+/// `object` should be of the correct type.
 #[inline]
 pub unsafe extern "C-unwind" fn NSDecrementExtraRefCountWasZero(object: &AnyObject) -> bool {
     extern "C-unwind" {
@@ -174,5 +206,8 @@ pub unsafe extern "C-unwind" fn NSDecrementExtraRefCountWasZero(object: &AnyObje
 }
 
 extern "C-unwind" {
+    /// # Safety
+    ///
+    /// `object` should be of the correct type.
     pub fn NSExtraRefCount(object: &AnyObject) -> NSUInteger;
 }

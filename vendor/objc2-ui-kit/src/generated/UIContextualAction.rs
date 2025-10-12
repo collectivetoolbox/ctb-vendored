@@ -48,6 +48,9 @@ extern_conformance!(
 impl UIContextualAction {
     extern_methods!(
         #[cfg(all(feature = "UIResponder", feature = "UIView", feature = "block2"))]
+        /// # Safety
+        ///
+        /// `handler` must be a valid pointer.
         #[unsafe(method(contextualActionWithStyle:title:handler:))]
         #[unsafe(method_family = none)]
         pub unsafe fn contextualActionWithStyle_title_handler(
@@ -59,43 +62,54 @@ impl UIContextualAction {
 
         #[unsafe(method(style))]
         #[unsafe(method_family = none)]
-        pub unsafe fn style(&self) -> UIContextualActionStyle;
+        pub fn style(&self) -> UIContextualActionStyle;
 
         #[cfg(all(feature = "UIResponder", feature = "UIView", feature = "block2"))]
+        /// # Safety
+        ///
+        /// - The returned block's argument 1 must be a valid pointer.
+        /// - The returned block's argument 2 must be a valid pointer.
+        /// - The returned block's argument 3 must be a valid pointer.
         #[unsafe(method(handler))]
         #[unsafe(method_family = none)]
         pub unsafe fn handler(&self) -> UIContextualActionHandler;
 
         #[unsafe(method(title))]
         #[unsafe(method_family = none)]
-        pub unsafe fn title(&self) -> Option<Retained<NSString>>;
+        pub fn title(&self) -> Option<Retained<NSString>>;
 
         /// Setter for [`title`][Self::title].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setTitle:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setTitle(&self, title: Option<&NSString>);
+        pub fn setTitle(&self, title: Option<&NSString>);
 
         #[cfg(feature = "UIColor")]
         #[unsafe(method(backgroundColor))]
         #[unsafe(method_family = none)]
-        pub unsafe fn backgroundColor(&self) -> Retained<UIColor>;
+        pub fn backgroundColor(&self) -> Retained<UIColor>;
 
         #[cfg(feature = "UIColor")]
         /// Setter for [`backgroundColor`][Self::backgroundColor].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setBackgroundColor:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setBackgroundColor(&self, background_color: Option<&UIColor>);
+        pub fn setBackgroundColor(&self, background_color: Option<&UIColor>);
 
         #[cfg(feature = "UIImage")]
         #[unsafe(method(image))]
         #[unsafe(method_family = none)]
-        pub unsafe fn image(&self) -> Option<Retained<UIImage>>;
+        pub fn image(&self) -> Option<Retained<UIImage>>;
 
         #[cfg(feature = "UIImage")]
         /// Setter for [`image`][Self::image].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setImage:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setImage(&self, image: Option<&UIImage>);
+        pub fn setImage(&self, image: Option<&UIImage>);
     );
 }
 
@@ -104,10 +118,10 @@ impl UIContextualAction {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }

@@ -11,9 +11,9 @@
 
 [package]
 edition = "2024"
-rust-version = "1.85.0"
+rust-version = "1.86.0"
 name = "malachite-nz"
-version = "0.6.1"
+version = "0.7.0"
 authors = ["Mikhail Hogrefe <mikhailhogrefe@gmail.com>"]
 build = "build.rs"
 autolib = false
@@ -48,6 +48,7 @@ rustdoc-args = [
 [features]
 32_bit_limbs = []
 bin_build = ["test_build"]
+default = ["std"]
 doc-images = ["embed-doc-image"]
 enable_pyo3 = [
     "pyo3",
@@ -56,6 +57,7 @@ enable_pyo3 = [
 enable_serde = ["serde"]
 float_helpers = []
 random = ["malachite-base/random"]
+std = ["malachite-base/std"]
 test_build = [
     "malachite-base/test_build",
     "random",
@@ -98,7 +100,7 @@ version = "0.2.8"
 default-features = false
 
 [dependencies.malachite-base]
-version = "0.6.1"
+version = "0.7.0"
 default-features = false
 
 [dependencies.num]
@@ -133,7 +135,7 @@ version = "1.0.105"
 optional = true
 
 [dependencies.wide]
-version = "0.7.32"
+version = "0.7.33"
 
 [dev-dependencies]
 

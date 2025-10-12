@@ -11,9 +11,9 @@
 
 [package]
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.78"
 name = "axum-core"
-version = "0.5.2"
+version = "0.5.5"
 build = false
 autolib = false
 autobins = false
@@ -36,9 +36,6 @@ categories = [
 license = "MIT"
 repository = "https://github.com/tokio-rs/axum"
 
-[package.metadata.cargo-machete]
-ignored = ["tower-http"]
-
 [package.metadata.cargo-public-api-crates]
 allowed = [
     "futures_core",
@@ -47,6 +44,9 @@ allowed = [
     "http",
     "http_body",
 ]
+
+[package.metadata.cargo-machete]
+ignored = ["tower-http"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -79,9 +79,6 @@ version = "0.3.16"
 
 [dependencies.pin-project-lite]
 version = "0.2.7"
-
-[dependencies.rustversion]
-version = "1.0.9"
 
 [dependencies.sync_wrapper]
 version = "1.0.0"
@@ -127,13 +124,14 @@ inefficient_to_string = "warn"
 linkedlist = "warn"
 lossy_float_literal = "warn"
 macro_use_imports = "warn"
-match_on_vec_items = "warn"
 match_wildcard_for_single_variants = "warn"
 mem_forget = "warn"
+must_use_candidate = "warn"
 needless_borrow = "warn"
 needless_continue = "warn"
 option_option = "warn"
 rest_pat_in_fully_bound_structs = "warn"
+return_self_not_must_use = "warn"
 str_to_string = "warn"
 suboptimal_flops = "warn"
 todo = "warn"

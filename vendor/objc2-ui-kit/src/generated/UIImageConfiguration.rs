@@ -48,6 +48,11 @@ impl UIImageConfiguration {
         pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[cfg(feature = "UITraitCollection")]
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
         #[unsafe(method(traitCollection))]
         #[unsafe(method_family = none)]
         pub unsafe fn traitCollection(&self) -> Option<Retained<UITraitCollection>>;
@@ -55,7 +60,7 @@ impl UIImageConfiguration {
         #[cfg(feature = "UITraitCollection")]
         #[unsafe(method(configurationWithTraitCollection:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn configurationWithTraitCollection(
+        pub fn configurationWithTraitCollection(
             &self,
             trait_collection: Option<&UITraitCollection>,
         ) -> Retained<Self>;
@@ -63,25 +68,30 @@ impl UIImageConfiguration {
         #[cfg(feature = "UITraitCollection")]
         #[unsafe(method(configurationWithTraitCollection:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn configurationWithTraitCollection_class(
+        pub fn configurationWithTraitCollection_class(
             trait_collection: Option<&UITraitCollection>,
         ) -> Retained<Self>;
 
+        /// This property is not atomic.
+        ///
+        /// # Safety
+        ///
+        /// This might not be thread-safe.
         #[unsafe(method(locale))]
         #[unsafe(method_family = none)]
         pub unsafe fn locale(&self) -> Option<Retained<NSLocale>>;
 
         #[unsafe(method(configurationWithLocale:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn configurationWithLocale(&self, locale: Option<&NSLocale>) -> Retained<Self>;
+        pub fn configurationWithLocale(&self, locale: Option<&NSLocale>) -> Retained<Self>;
 
         #[unsafe(method(configurationWithLocale:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn configurationWithLocale_class(locale: Option<&NSLocale>) -> Retained<Self>;
+        pub fn configurationWithLocale_class(locale: Option<&NSLocale>) -> Retained<Self>;
 
         #[unsafe(method(configurationByApplyingConfiguration:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn configurationByApplyingConfiguration(
+        pub fn configurationByApplyingConfiguration(
             &self,
             other_configuration: Option<&UIImageConfiguration>,
         ) -> Retained<Self>;

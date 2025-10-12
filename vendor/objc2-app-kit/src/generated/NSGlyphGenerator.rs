@@ -18,6 +18,9 @@ extern_protocol!(
     /// [Apple's documentation](https://developer.apple.com/documentation/appkit/nsglyphstorage?language=objc)
     pub unsafe trait NSGlyphStorage {
         #[cfg(feature = "NSFont")]
+        /// # Safety
+        ///
+        /// `glyphs` must be a valid pointer.
         #[unsafe(method(insertGlyphs:length:forStartingGlyphAtIndex:characterIndex:))]
         #[unsafe(method_family = none)]
         unsafe fn insertGlyphs_length_forStartingGlyphAtIndex_characterIndex(
@@ -30,7 +33,7 @@ extern_protocol!(
 
         #[unsafe(method(setIntAttribute:value:forGlyphAtIndex:))]
         #[unsafe(method_family = none)]
-        unsafe fn setIntAttribute_value_forGlyphAtIndex(
+        fn setIntAttribute_value_forGlyphAtIndex(
             &self,
             attribute_tag: NSInteger,
             val: NSInteger,
@@ -39,11 +42,11 @@ extern_protocol!(
 
         #[unsafe(method(attributedString))]
         #[unsafe(method_family = none)]
-        unsafe fn attributedString(&self) -> Retained<NSAttributedString>;
+        fn attributedString(&self) -> Retained<NSAttributedString>;
 
         #[unsafe(method(layoutOptions))]
         #[unsafe(method_family = none)]
-        unsafe fn layoutOptions(&self) -> NSUInteger;
+        fn layoutOptions(&self) -> NSUInteger;
     }
 );
 
@@ -60,6 +63,10 @@ extern_conformance!(
 
 impl NSGlyphGenerator {
     extern_methods!(
+        /// # Safety
+        ///
+        /// - `glyph_index` must be a valid pointer or null.
+        /// - `char_index` must be a valid pointer or null.
         #[unsafe(method(generateGlyphsForGlyphStorage:desiredNumberOfCharacters:glyphIndex:characterIndex:))]
         #[unsafe(method_family = none)]
         pub unsafe fn generateGlyphsForGlyphStorage_desiredNumberOfCharacters_glyphIndex_characterIndex(
@@ -72,7 +79,7 @@ impl NSGlyphGenerator {
 
         #[unsafe(method(sharedGlyphGenerator))]
         #[unsafe(method_family = none)]
-        pub unsafe fn sharedGlyphGenerator() -> Retained<NSGlyphGenerator>;
+        pub fn sharedGlyphGenerator() -> Retained<NSGlyphGenerator>;
     );
 }
 
@@ -81,10 +88,17 @@ impl NSGlyphGenerator {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl DefaultRetained for NSGlyphGenerator {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }

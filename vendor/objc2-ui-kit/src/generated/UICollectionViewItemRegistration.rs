@@ -38,6 +38,10 @@ impl UICollectionViewCellRegistration {
             feature = "UIView",
             feature = "block2"
         ))]
+        /// # Safety
+        ///
+        /// - `cell_class` probably has further requirements.
+        /// - `configuration_handler` must be a valid pointer.
         #[unsafe(method(registrationWithCellClass:configurationHandler:))]
         #[unsafe(method_family = none)]
         pub unsafe fn registrationWithCellClass_configurationHandler(
@@ -53,6 +57,9 @@ impl UICollectionViewCellRegistration {
             feature = "UIView",
             feature = "block2"
         ))]
+        /// # Safety
+        ///
+        /// `configuration_handler` must be a valid pointer.
         #[deprecated = "Loading Interface Builder products will not be supported in a future version of visionOS."]
         #[unsafe(method(registrationWithCellNib:configurationHandler:))]
         #[unsafe(method_family = none)]
@@ -63,12 +70,12 @@ impl UICollectionViewCellRegistration {
 
         #[unsafe(method(cellClass))]
         #[unsafe(method_family = none)]
-        pub unsafe fn cellClass(&self) -> Option<&'static AnyClass>;
+        pub fn cellClass(&self) -> Option<&'static AnyClass>;
 
         #[cfg(feature = "UINib")]
         #[unsafe(method(cellNib))]
         #[unsafe(method_family = none)]
-        pub unsafe fn cellNib(&self) -> Option<Retained<UINib>>;
+        pub fn cellNib(&self) -> Option<Retained<UINib>>;
 
         #[cfg(all(
             feature = "UICollectionViewCell",
@@ -76,6 +83,11 @@ impl UICollectionViewCellRegistration {
             feature = "UIView",
             feature = "block2"
         ))]
+        /// # Safety
+        ///
+        /// - The returned block's argument 1 must be a valid pointer.
+        /// - The returned block's argument 2 must be a valid pointer.
+        /// - The returned block's argument 3 must be a valid pointer.
         #[unsafe(method(configurationHandler))]
         #[unsafe(method_family = none)]
         pub unsafe fn configurationHandler(
@@ -89,11 +101,11 @@ impl UICollectionViewCellRegistration {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }
 
@@ -128,6 +140,10 @@ impl UICollectionViewSupplementaryRegistration {
             feature = "UIView",
             feature = "block2"
         ))]
+        /// # Safety
+        ///
+        /// - `supplementary_class` probably has further requirements.
+        /// - `configuration_handler` must be a valid pointer.
         #[unsafe(method(registrationWithSupplementaryClass:elementKind:configurationHandler:))]
         #[unsafe(method_family = none)]
         pub unsafe fn registrationWithSupplementaryClass_elementKind_configurationHandler(
@@ -144,6 +160,9 @@ impl UICollectionViewSupplementaryRegistration {
             feature = "UIView",
             feature = "block2"
         ))]
+        /// # Safety
+        ///
+        /// `configuration_handler` must be a valid pointer.
         #[deprecated = "Loading Interface Builder products will not be supported in a future version of visionOS."]
         #[unsafe(method(registrationWithSupplementaryNib:elementKind:configurationHandler:))]
         #[unsafe(method_family = none)]
@@ -155,16 +174,16 @@ impl UICollectionViewSupplementaryRegistration {
 
         #[unsafe(method(supplementaryClass))]
         #[unsafe(method_family = none)]
-        pub unsafe fn supplementaryClass(&self) -> Option<&'static AnyClass>;
+        pub fn supplementaryClass(&self) -> Option<&'static AnyClass>;
 
         #[cfg(feature = "UINib")]
         #[unsafe(method(supplementaryNib))]
         #[unsafe(method_family = none)]
-        pub unsafe fn supplementaryNib(&self) -> Option<Retained<UINib>>;
+        pub fn supplementaryNib(&self) -> Option<Retained<UINib>>;
 
         #[unsafe(method(elementKind))]
         #[unsafe(method_family = none)]
-        pub unsafe fn elementKind(&self) -> Retained<NSString>;
+        pub fn elementKind(&self) -> Retained<NSString>;
 
         #[cfg(all(
             feature = "UICollectionViewCell",
@@ -172,6 +191,11 @@ impl UICollectionViewSupplementaryRegistration {
             feature = "UIView",
             feature = "block2"
         ))]
+        /// # Safety
+        ///
+        /// - The returned block's argument 1 must be a valid pointer.
+        /// - The returned block's argument 2 must be a valid pointer.
+        /// - The returned block's argument 3 must be a valid pointer.
         #[unsafe(method(configurationHandler))]
         #[unsafe(method_family = none)]
         pub unsafe fn configurationHandler(
@@ -185,10 +209,10 @@ impl UICollectionViewSupplementaryRegistration {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }

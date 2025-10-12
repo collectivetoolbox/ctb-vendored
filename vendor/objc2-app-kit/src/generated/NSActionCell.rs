@@ -55,31 +55,40 @@ impl NSActionCell {
     extern_methods!(
         #[unsafe(method(target))]
         #[unsafe(method_family = none)]
-        pub unsafe fn target(&self) -> Option<Retained<AnyObject>>;
+        pub fn target(&self) -> Option<Retained<AnyObject>>;
 
-        /// This is a [weak property][objc2::topics::weak_property].
         /// Setter for [`target`][Self::target].
+        ///
+        /// This is a [weak property][objc2::topics::weak_property].
+        ///
+        /// # Safety
+        ///
+        /// `target` should be of the correct type.
         #[unsafe(method(setTarget:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setTarget(&self, target: Option<&AnyObject>);
 
         #[unsafe(method(action))]
         #[unsafe(method_family = none)]
-        pub unsafe fn action(&self) -> Option<Sel>;
+        pub fn action(&self) -> Option<Sel>;
 
         /// Setter for [`action`][Self::action].
+        ///
+        /// # Safety
+        ///
+        /// `action` must be a valid selector.
         #[unsafe(method(setAction:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setAction(&self, action: Option<Sel>);
 
         #[unsafe(method(tag))]
         #[unsafe(method_family = none)]
-        pub unsafe fn tag(&self) -> NSInteger;
+        pub fn tag(&self) -> NSInteger;
 
         /// Setter for [`tag`][Self::tag].
         #[unsafe(method(setTag:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setTag(&self, tag: NSInteger);
+        pub fn setTag(&self, tag: NSInteger);
     );
 }
 
@@ -89,20 +98,20 @@ impl NSActionCell {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(initTextCell:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initTextCell(this: Allocated<Self>, string: &NSString) -> Retained<Self>;
+        pub fn initTextCell(this: Allocated<Self>, string: &NSString) -> Retained<Self>;
 
         #[cfg(feature = "NSImage")]
         #[unsafe(method(initImageCell:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initImageCell(
-            this: Allocated<Self>,
-            image: Option<&NSImage>,
-        ) -> Retained<Self>;
+        pub fn initImageCell(this: Allocated<Self>, image: Option<&NSImage>) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(this: Allocated<Self>, coder: &NSCoder) -> Retained<Self>;
@@ -115,6 +124,6 @@ impl NSActionCell {
     extern_methods!(
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }

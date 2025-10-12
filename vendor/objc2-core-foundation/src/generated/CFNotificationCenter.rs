@@ -14,6 +14,7 @@ use crate::*;
 pub type CFNotificationName = CFString;
 
 /// [Apple's documentation](https://developer.apple.com/documentation/corefoundation/cfnotificationcenter?language=objc)
+#[doc(alias = "CFNotificationCenterRef")]
 #[repr(C)]
 pub struct CFNotificationCenter {
     inner: [u8; 0],
@@ -108,11 +109,17 @@ impl CFNotificationCenter {
         ret.map(|ret| unsafe { CFRetained::retain(ret) })
     }
 
+    /// # Safety
+    ///
+    /// - `observer` must be a valid pointer.
+    /// - `call_back` must be implemented correctly.
+    /// - `name` might not allow `None`.
+    /// - `object` must be a valid pointer.
     #[doc(alias = "CFNotificationCenterAddObserver")]
     #[cfg(feature = "CFDictionary")]
     #[inline]
     pub unsafe fn add_observer(
-        self: &CFNotificationCenter,
+        &self,
         observer: *const c_void,
         call_back: CFNotificationCallback,
         name: Option<&CFString>,
@@ -141,10 +148,15 @@ impl CFNotificationCenter {
         }
     }
 
+    /// # Safety
+    ///
+    /// - `observer` must be a valid pointer.
+    /// - `name` might not allow `None`.
+    /// - `object` must be a valid pointer.
     #[doc(alias = "CFNotificationCenterRemoveObserver")]
     #[inline]
     pub unsafe fn remove_observer(
-        self: &CFNotificationCenter,
+        &self,
         observer: *const c_void,
         name: Option<&CFNotificationName>,
         object: *const c_void,
@@ -160,9 +172,12 @@ impl CFNotificationCenter {
         unsafe { CFNotificationCenterRemoveObserver(self, observer, name, object) }
     }
 
+    /// # Safety
+    ///
+    /// `observer` must be a valid pointer.
     #[doc(alias = "CFNotificationCenterRemoveEveryObserver")]
     #[inline]
-    pub unsafe fn remove_every_observer(self: &CFNotificationCenter, observer: *const c_void) {
+    pub unsafe fn remove_every_observer(&self, observer: *const c_void) {
         extern "C-unwind" {
             fn CFNotificationCenterRemoveEveryObserver(
                 center: &CFNotificationCenter,
@@ -172,11 +187,17 @@ impl CFNotificationCenter {
         unsafe { CFNotificationCenterRemoveEveryObserver(self, observer) }
     }
 
+    /// # Safety
+    ///
+    /// - `name` might not allow `None`.
+    /// - `object` must be a valid pointer.
+    /// - `user_info` generics must be of the correct type.
+    /// - `user_info` might not allow `None`.
     #[doc(alias = "CFNotificationCenterPostNotification")]
     #[cfg(feature = "CFDictionary")]
     #[inline]
     pub unsafe fn post_notification(
-        self: &CFNotificationCenter,
+        &self,
         name: Option<&CFNotificationName>,
         object: *const c_void,
         user_info: Option<&CFDictionary>,
@@ -209,11 +230,17 @@ pub const kCFNotificationDeliverImmediately: CFOptionFlags = 1 << 0;
 pub const kCFNotificationPostToAllSessions: CFOptionFlags = 1 << 1;
 
 impl CFNotificationCenter {
+    /// # Safety
+    ///
+    /// - `name` might not allow `None`.
+    /// - `object` must be a valid pointer.
+    /// - `user_info` generics must be of the correct type.
+    /// - `user_info` might not allow `None`.
     #[doc(alias = "CFNotificationCenterPostNotificationWithOptions")]
     #[cfg(feature = "CFDictionary")]
     #[inline]
     pub unsafe fn post_notification_with_options(
-        self: &CFNotificationCenter,
+        &self,
         name: Option<&CFNotificationName>,
         object: *const c_void,
         user_info: Option<&CFDictionary>,

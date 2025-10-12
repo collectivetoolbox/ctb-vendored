@@ -75,11 +75,17 @@ extern_conformance!(
 
 impl NSJSONSerialization {
     extern_methods!(
+        /// # Safety
+        ///
+        /// `obj` should be of the correct type.
         #[unsafe(method(isValidJSONObject:))]
         #[unsafe(method_family = none)]
         pub unsafe fn isValidJSONObject(obj: &AnyObject) -> bool;
 
         #[cfg(all(feature = "NSData", feature = "NSError"))]
+        /// # Safety
+        ///
+        /// `obj` should be of the correct type.
         #[unsafe(method(dataWithJSONObject:options:error:_))]
         #[unsafe(method_family = none)]
         pub unsafe fn dataWithJSONObject_options_error(
@@ -90,7 +96,7 @@ impl NSJSONSerialization {
         #[cfg(all(feature = "NSData", feature = "NSError"))]
         #[unsafe(method(JSONObjectWithData:options:error:_))]
         #[unsafe(method_family = none)]
-        pub unsafe fn JSONObjectWithData_options_error(
+        pub fn JSONObjectWithData_options_error(
             data: &NSData,
             opt: NSJSONReadingOptions,
         ) -> Result<Retained<AnyObject>, Retained<NSError>>;
@@ -98,7 +104,7 @@ impl NSJSONSerialization {
         #[cfg(all(feature = "NSError", feature = "NSStream"))]
         #[unsafe(method(JSONObjectWithStream:options:error:_))]
         #[unsafe(method_family = none)]
-        pub unsafe fn JSONObjectWithStream_options_error(
+        pub fn JSONObjectWithStream_options_error(
             stream: &NSInputStream,
             opt: NSJSONReadingOptions,
         ) -> Result<Retained<AnyObject>, Retained<NSError>>;
@@ -110,10 +116,17 @@ impl NSJSONSerialization {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl DefaultRetained for NSJSONSerialization {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }

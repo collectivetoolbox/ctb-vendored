@@ -31,48 +31,51 @@ impl NSSharingServicePickerTouchBarItem {
         #[cfg(feature = "NSSharingService")]
         #[unsafe(method(delegate))]
         #[unsafe(method_family = none)]
-        pub unsafe fn delegate(
+        pub fn delegate(
             &self,
         ) -> Option<Retained<ProtocolObject<dyn NSSharingServicePickerTouchBarItemDelegate>>>;
 
         #[cfg(feature = "NSSharingService")]
-        /// This is a [weak property][objc2::topics::weak_property].
         /// Setter for [`delegate`][Self::delegate].
+        ///
+        /// This is a [weak property][objc2::topics::weak_property].
         #[unsafe(method(setDelegate:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setDelegate(
+        pub fn setDelegate(
             &self,
             delegate: Option<&ProtocolObject<dyn NSSharingServicePickerTouchBarItemDelegate>>,
         );
 
         #[unsafe(method(isEnabled))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isEnabled(&self) -> bool;
+        pub fn isEnabled(&self) -> bool;
 
         /// Setter for [`isEnabled`][Self::isEnabled].
         #[unsafe(method(setEnabled:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setEnabled(&self, enabled: bool);
+        pub fn setEnabled(&self, enabled: bool);
 
         #[unsafe(method(buttonTitle))]
         #[unsafe(method_family = none)]
-        pub unsafe fn buttonTitle(&self) -> Retained<NSString>;
+        pub fn buttonTitle(&self) -> Retained<NSString>;
 
         /// Setter for [`buttonTitle`][Self::buttonTitle].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setButtonTitle:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setButtonTitle(&self, button_title: &NSString);
+        pub fn setButtonTitle(&self, button_title: &NSString);
 
         #[cfg(feature = "NSImage")]
         #[unsafe(method(buttonImage))]
         #[unsafe(method_family = none)]
-        pub unsafe fn buttonImage(&self) -> Option<Retained<NSImage>>;
+        pub fn buttonImage(&self) -> Option<Retained<NSImage>>;
 
         #[cfg(feature = "NSImage")]
         /// Setter for [`buttonImage`][Self::buttonImage].
         #[unsafe(method(setButtonImage:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setButtonImage(&self, button_image: Option<&NSImage>);
+        pub fn setButtonImage(&self, button_image: Option<&NSImage>);
     );
 }
 
@@ -82,11 +85,14 @@ impl NSSharingServicePickerTouchBarItem {
     extern_methods!(
         #[unsafe(method(initWithIdentifier:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithIdentifier(
+        pub fn initWithIdentifier(
             this: Allocated<Self>,
             identifier: &NSTouchBarItemIdentifier,
         ) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -119,7 +125,7 @@ extern_protocol!(
         #[cfg(feature = "NSTouchBarItem")]
         #[unsafe(method(itemsForSharingServicePickerTouchBarItem:))]
         #[unsafe(method_family = none)]
-        unsafe fn itemsForSharingServicePickerTouchBarItem(
+        fn itemsForSharingServicePickerTouchBarItem(
             &self,
             picker_touch_bar_item: &NSSharingServicePickerTouchBarItem,
         ) -> Retained<NSArray>;

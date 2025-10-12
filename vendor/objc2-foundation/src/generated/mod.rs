@@ -15,7 +15,6 @@
 #![allow(clippy::doc_lazy_continuation)]
 #![allow(rustdoc::broken_intra_doc_links)]
 #![allow(rustdoc::bare_urls)]
-#![allow(rustdoc::unportable_markdown)]
 #![allow(rustdoc::invalid_html_tags)]
 
 #[cfg_attr(target_vendor = "apple", link(name = "Foundation", kind = "framework"))]
@@ -789,6 +788,8 @@ pub use self::__NSAttributedString::NSInlinePresentationIntentAttributeName;
 #[cfg(all(feature = "NSAttributedString", feature = "NSString"))]
 pub use self::__NSAttributedString::NSLanguageIdentifierAttributeName;
 #[cfg(all(feature = "NSAttributedString", feature = "NSString"))]
+pub use self::__NSAttributedString::NSListItemDelimiterAttributeName;
+#[cfg(all(feature = "NSAttributedString", feature = "NSString"))]
 pub use self::__NSAttributedString::NSLocalizedNumberFormatAttributeName;
 #[cfg(all(feature = "NSAttributedString", feature = "NSString"))]
 pub use self::__NSAttributedString::NSMarkdownSourcePositionAttributeName;
@@ -861,17 +862,23 @@ pub use self::__NSCalendar::NSCalendarDayChangedNotification;
 #[cfg(all(feature = "NSCalendar", feature = "NSString"))]
 pub use self::__NSCalendar::NSCalendarIdentifier;
 #[cfg(all(feature = "NSCalendar", feature = "NSString"))]
+pub use self::__NSCalendar::NSCalendarIdentifierBangla;
+#[cfg(all(feature = "NSCalendar", feature = "NSString"))]
 pub use self::__NSCalendar::NSCalendarIdentifierBuddhist;
 #[cfg(all(feature = "NSCalendar", feature = "NSString"))]
 pub use self::__NSCalendar::NSCalendarIdentifierChinese;
 #[cfg(all(feature = "NSCalendar", feature = "NSString"))]
 pub use self::__NSCalendar::NSCalendarIdentifierCoptic;
 #[cfg(all(feature = "NSCalendar", feature = "NSString"))]
+pub use self::__NSCalendar::NSCalendarIdentifierDangi;
+#[cfg(all(feature = "NSCalendar", feature = "NSString"))]
 pub use self::__NSCalendar::NSCalendarIdentifierEthiopicAmeteAlem;
 #[cfg(all(feature = "NSCalendar", feature = "NSString"))]
 pub use self::__NSCalendar::NSCalendarIdentifierEthiopicAmeteMihret;
 #[cfg(all(feature = "NSCalendar", feature = "NSString"))]
 pub use self::__NSCalendar::NSCalendarIdentifierGregorian;
+#[cfg(all(feature = "NSCalendar", feature = "NSString"))]
+pub use self::__NSCalendar::NSCalendarIdentifierGujarati;
 #[cfg(all(feature = "NSCalendar", feature = "NSString"))]
 pub use self::__NSCalendar::NSCalendarIdentifierHebrew;
 #[cfg(all(feature = "NSCalendar", feature = "NSString"))]
@@ -889,9 +896,25 @@ pub use self::__NSCalendar::NSCalendarIdentifierIslamicUmmAlQura;
 #[cfg(all(feature = "NSCalendar", feature = "NSString"))]
 pub use self::__NSCalendar::NSCalendarIdentifierJapanese;
 #[cfg(all(feature = "NSCalendar", feature = "NSString"))]
+pub use self::__NSCalendar::NSCalendarIdentifierKannada;
+#[cfg(all(feature = "NSCalendar", feature = "NSString"))]
+pub use self::__NSCalendar::NSCalendarIdentifierMalayalam;
+#[cfg(all(feature = "NSCalendar", feature = "NSString"))]
+pub use self::__NSCalendar::NSCalendarIdentifierMarathi;
+#[cfg(all(feature = "NSCalendar", feature = "NSString"))]
+pub use self::__NSCalendar::NSCalendarIdentifierOdia;
+#[cfg(all(feature = "NSCalendar", feature = "NSString"))]
 pub use self::__NSCalendar::NSCalendarIdentifierPersian;
 #[cfg(all(feature = "NSCalendar", feature = "NSString"))]
 pub use self::__NSCalendar::NSCalendarIdentifierRepublicOfChina;
+#[cfg(all(feature = "NSCalendar", feature = "NSString"))]
+pub use self::__NSCalendar::NSCalendarIdentifierTamil;
+#[cfg(all(feature = "NSCalendar", feature = "NSString"))]
+pub use self::__NSCalendar::NSCalendarIdentifierTelugu;
+#[cfg(all(feature = "NSCalendar", feature = "NSString"))]
+pub use self::__NSCalendar::NSCalendarIdentifierVietnamese;
+#[cfg(all(feature = "NSCalendar", feature = "NSString"))]
+pub use self::__NSCalendar::NSCalendarIdentifierVikram;
 #[cfg(feature = "NSCalendar")]
 pub use self::__NSCalendar::NSCalendarOptions;
 #[cfg(feature = "NSCalendar")]
@@ -1357,10 +1380,16 @@ pub use self::__NSFileManager::NSFileManager;
 pub use self::__NSFileManager::NSFileManagerDelegate;
 #[cfg(feature = "NSFileManager")]
 pub use self::__NSFileManager::NSFileManagerItemReplacementOptions;
+#[cfg(feature = "NSFileManager")]
+pub use self::__NSFileManager::NSFileManagerResumeSyncBehavior;
+#[cfg(feature = "NSFileManager")]
+pub use self::__NSFileManager::NSFileManagerSupportedSyncControls;
 #[cfg(all(feature = "NSFileManager", feature = "NSString"))]
 pub use self::__NSFileManager::NSFileManagerUnmountDissentingProcessIdentifierErrorKey;
 #[cfg(feature = "NSFileManager")]
 pub use self::__NSFileManager::NSFileManagerUnmountOptions;
+#[cfg(feature = "NSFileManager")]
+pub use self::__NSFileManager::NSFileManagerUploadLocalVersionConflictPolicy;
 #[cfg(all(feature = "NSFileManager", feature = "NSString"))]
 pub use self::__NSFileManager::NSFileModificationDate;
 #[cfg(all(feature = "NSFileManager", feature = "NSString"))]
@@ -2082,7 +2111,7 @@ pub use self::__NSMapTable::NSStringFromMapTable;
 pub use self::__NSMassFormatter::NSMassFormatter;
 #[cfg(feature = "NSMassFormatter")]
 pub use self::__NSMassFormatter::NSMassFormatterUnit;
-#[cfg(feature = "NSMeasurement")]
+#[cfg(all(feature = "NSMeasurement", feature = "NSUnit"))]
 pub use self::__NSMeasurement::NSMeasurement;
 #[cfg(all(feature = "NSFormatter", feature = "NSMeasurementFormatter"))]
 pub use self::__NSMeasurementFormatter::NSMeasurementFormatter;
@@ -4290,6 +4319,8 @@ pub use self::__NSURL::NSURLUbiquitousItemIsExcludedFromSyncKey;
 #[cfg(all(feature = "NSString", feature = "NSURL"))]
 pub use self::__NSURL::NSURLUbiquitousItemIsSharedKey;
 #[cfg(all(feature = "NSString", feature = "NSURL"))]
+pub use self::__NSURL::NSURLUbiquitousItemIsSyncPausedKey;
+#[cfg(all(feature = "NSString", feature = "NSURL"))]
 pub use self::__NSURL::NSURLUbiquitousItemIsUploadedKey;
 #[cfg(all(feature = "NSString", feature = "NSURL"))]
 pub use self::__NSURL::NSURLUbiquitousItemIsUploadingKey;
@@ -4297,6 +4328,8 @@ pub use self::__NSURL::NSURLUbiquitousItemIsUploadingKey;
 pub use self::__NSURL::NSURLUbiquitousItemPercentDownloadedKey;
 #[cfg(all(feature = "NSString", feature = "NSURL"))]
 pub use self::__NSURL::NSURLUbiquitousItemPercentUploadedKey;
+#[cfg(all(feature = "NSString", feature = "NSURL"))]
+pub use self::__NSURL::NSURLUbiquitousItemSupportedSyncControlsKey;
 #[cfg(all(feature = "NSString", feature = "NSURL"))]
 pub use self::__NSURL::NSURLUbiquitousItemUploadingErrorKey;
 #[cfg(all(feature = "NSString", feature = "NSURL"))]

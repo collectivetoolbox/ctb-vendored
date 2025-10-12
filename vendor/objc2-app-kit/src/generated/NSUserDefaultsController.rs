@@ -41,10 +41,13 @@ impl NSUserDefaultsController {
     extern_methods!(
         #[unsafe(method(sharedUserDefaultsController))]
         #[unsafe(method_family = none)]
-        pub unsafe fn sharedUserDefaultsController(
+        pub fn sharedUserDefaultsController(
             mtm: MainThreadMarker,
         ) -> Retained<NSUserDefaultsController>;
 
+        /// # Safety
+        ///
+        /// `initial_values` generic should be of the correct type.
         #[unsafe(method(initWithDefaults:initialValues:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithDefaults_initialValues(
@@ -53,6 +56,9 @@ impl NSUserDefaultsController {
             initial_values: Option<&NSDictionary<NSString, AnyObject>>,
         ) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -62,13 +68,19 @@ impl NSUserDefaultsController {
 
         #[unsafe(method(defaults))]
         #[unsafe(method_family = none)]
-        pub unsafe fn defaults(&self) -> Retained<NSUserDefaults>;
+        pub fn defaults(&self) -> Retained<NSUserDefaults>;
 
         #[unsafe(method(initialValues))]
         #[unsafe(method_family = none)]
-        pub unsafe fn initialValues(&self) -> Option<Retained<NSDictionary<NSString, AnyObject>>>;
+        pub fn initialValues(&self) -> Option<Retained<NSDictionary<NSString, AnyObject>>>;
 
         /// Setter for [`initialValues`][Self::initialValues].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
+        ///
+        /// # Safety
+        ///
+        /// `initial_values` generic should be of the correct type.
         #[unsafe(method(setInitialValues:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setInitialValues(
@@ -78,29 +90,38 @@ impl NSUserDefaultsController {
 
         #[unsafe(method(appliesImmediately))]
         #[unsafe(method_family = none)]
-        pub unsafe fn appliesImmediately(&self) -> bool;
+        pub fn appliesImmediately(&self) -> bool;
 
         /// Setter for [`appliesImmediately`][Self::appliesImmediately].
         #[unsafe(method(setAppliesImmediately:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setAppliesImmediately(&self, applies_immediately: bool);
+        pub fn setAppliesImmediately(&self, applies_immediately: bool);
 
         #[unsafe(method(hasUnappliedChanges))]
         #[unsafe(method_family = none)]
-        pub unsafe fn hasUnappliedChanges(&self) -> bool;
+        pub fn hasUnappliedChanges(&self) -> bool;
 
         #[unsafe(method(values))]
         #[unsafe(method_family = none)]
-        pub unsafe fn values(&self) -> Retained<AnyObject>;
+        pub fn values(&self) -> Retained<AnyObject>;
 
+        /// # Safety
+        ///
+        /// `sender` should be of the correct type.
         #[unsafe(method(revert:))]
         #[unsafe(method_family = none)]
         pub unsafe fn revert(&self, sender: Option<&AnyObject>);
 
+        /// # Safety
+        ///
+        /// `sender` should be of the correct type.
         #[unsafe(method(save:))]
         #[unsafe(method_family = none)]
         pub unsafe fn save(&self, sender: Option<&AnyObject>);
 
+        /// # Safety
+        ///
+        /// `sender` should be of the correct type.
         #[unsafe(method(revertToInitialValues:))]
         #[unsafe(method_family = none)]
         pub unsafe fn revertToInitialValues(&self, sender: Option<&AnyObject>);
@@ -113,7 +134,7 @@ impl NSUserDefaultsController {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
     );
 }
 
@@ -123,6 +144,6 @@ impl NSUserDefaultsController {
     extern_methods!(
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }

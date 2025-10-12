@@ -24,6 +24,9 @@ extern_conformance!(
 
 impl NSMovie {
     extern_methods!(
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -34,7 +37,7 @@ impl NSMovie {
         #[deprecated = "As of macOS 10.15 this method always returns nil."]
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Option<Retained<Self>>;
+        pub fn init(this: Allocated<Self>) -> Option<Retained<Self>>;
     );
 }
 
@@ -43,6 +46,13 @@ impl NSMovie {
     extern_methods!(
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl DefaultRetained for NSMovie {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }

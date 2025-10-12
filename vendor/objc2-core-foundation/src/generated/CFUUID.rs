@@ -9,6 +9,7 @@ use objc2::__framework_prelude::*;
 use crate::*;
 
 /// [Apple's documentation](https://developer.apple.com/documentation/corefoundation/cfuuid?language=objc)
+#[doc(alias = "CFUUIDRef")]
 #[repr(C)]
 pub struct CFUUID {
     inner: [u8; 0],
@@ -233,7 +234,7 @@ impl CFUUID {
 
     #[doc(alias = "CFUUIDGetUUIDBytes")]
     #[inline]
-    pub fn uuid_bytes(self: &CFUUID) -> CFUUIDBytes {
+    pub fn uuid_bytes(&self) -> CFUUIDBytes {
         extern "C-unwind" {
             fn CFUUIDGetUUIDBytes(uuid: &CFUUID) -> CFUUIDBytes;
         }

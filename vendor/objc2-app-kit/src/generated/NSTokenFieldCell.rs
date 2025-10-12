@@ -120,58 +120,51 @@ impl NSTokenFieldCell {
     extern_methods!(
         #[unsafe(method(tokenStyle))]
         #[unsafe(method_family = none)]
-        pub unsafe fn tokenStyle(&self) -> NSTokenStyle;
+        pub fn tokenStyle(&self) -> NSTokenStyle;
 
         /// Setter for [`tokenStyle`][Self::tokenStyle].
         #[unsafe(method(setTokenStyle:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setTokenStyle(&self, token_style: NSTokenStyle);
+        pub fn setTokenStyle(&self, token_style: NSTokenStyle);
 
         #[unsafe(method(completionDelay))]
         #[unsafe(method_family = none)]
-        pub unsafe fn completionDelay(&self) -> NSTimeInterval;
+        pub fn completionDelay(&self) -> NSTimeInterval;
 
         /// Setter for [`completionDelay`][Self::completionDelay].
         #[unsafe(method(setCompletionDelay:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setCompletionDelay(&self, completion_delay: NSTimeInterval);
+        pub fn setCompletionDelay(&self, completion_delay: NSTimeInterval);
 
         #[unsafe(method(defaultCompletionDelay))]
         #[unsafe(method_family = none)]
-        pub unsafe fn defaultCompletionDelay(mtm: MainThreadMarker) -> NSTimeInterval;
+        pub fn defaultCompletionDelay(mtm: MainThreadMarker) -> NSTimeInterval;
 
         #[unsafe(method(tokenizingCharacterSet))]
         #[unsafe(method_family = none)]
-        pub unsafe fn tokenizingCharacterSet(&self) -> Retained<NSCharacterSet>;
+        pub fn tokenizingCharacterSet(&self) -> Retained<NSCharacterSet>;
 
         /// Setter for [`tokenizingCharacterSet`][Self::tokenizingCharacterSet].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setTokenizingCharacterSet:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setTokenizingCharacterSet(
-            &self,
-            tokenizing_character_set: Option<&NSCharacterSet>,
-        );
+        pub fn setTokenizingCharacterSet(&self, tokenizing_character_set: Option<&NSCharacterSet>);
 
         #[unsafe(method(defaultTokenizingCharacterSet))]
         #[unsafe(method_family = none)]
-        pub unsafe fn defaultTokenizingCharacterSet(
-            mtm: MainThreadMarker,
-        ) -> Retained<NSCharacterSet>;
+        pub fn defaultTokenizingCharacterSet(mtm: MainThreadMarker) -> Retained<NSCharacterSet>;
 
         #[unsafe(method(delegate))]
         #[unsafe(method_family = none)]
-        pub unsafe fn delegate(
-            &self,
-        ) -> Option<Retained<ProtocolObject<dyn NSTokenFieldCellDelegate>>>;
+        pub fn delegate(&self) -> Option<Retained<ProtocolObject<dyn NSTokenFieldCellDelegate>>>;
 
-        /// This is a [weak property][objc2::topics::weak_property].
         /// Setter for [`delegate`][Self::delegate].
+        ///
+        /// This is a [weak property][objc2::topics::weak_property].
         #[unsafe(method(setDelegate:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setDelegate(
-            &self,
-            delegate: Option<&ProtocolObject<dyn NSTokenFieldCellDelegate>>,
-        );
+        pub fn setDelegate(&self, delegate: Option<&ProtocolObject<dyn NSTokenFieldCellDelegate>>);
     );
 }
 
@@ -185,8 +178,11 @@ impl NSTokenFieldCell {
     extern_methods!(
         #[unsafe(method(initTextCell:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initTextCell(this: Allocated<Self>, string: &NSString) -> Retained<Self>;
+        pub fn initTextCell(this: Allocated<Self>, string: &NSString) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(this: Allocated<Self>, coder: &NSCoder) -> Retained<Self>;
@@ -211,7 +207,7 @@ impl NSTokenFieldCell {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
     );
 }
 
@@ -225,7 +221,7 @@ impl NSTokenFieldCell {
     extern_methods!(
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }
 
@@ -250,6 +246,10 @@ extern_protocol!(
         /// Returns: An array of strings (`NSString`) that are possible completions
         ///
         /// If the delegate does not implement this method, no completions are provided
+        ///
+        /// # Safety
+        ///
+        /// `selected_index` must be a valid pointer.
         #[optional]
         #[unsafe(method(tokenFieldCell:completionsForSubstring:indexOfToken:indexOfSelectedItem:))]
         #[unsafe(method_family = none)]
@@ -266,6 +266,9 @@ extern_protocol!(
             feature = "NSCell",
             feature = "NSTextFieldCell"
         ))]
+        /// # Safety
+        ///
+        /// `tokens` generic should be of the correct type.
         #[optional]
         #[unsafe(method(tokenFieldCell:shouldAddObjects:atIndex:))]
         #[unsafe(method_family = none)]
@@ -281,6 +284,9 @@ extern_protocol!(
             feature = "NSCell",
             feature = "NSTextFieldCell"
         ))]
+        /// # Safety
+        ///
+        /// `represented_object` should be of the correct type.
         #[optional]
         #[unsafe(method(tokenFieldCell:displayStringForRepresentedObject:))]
         #[unsafe(method_family = none)]
@@ -295,6 +301,9 @@ extern_protocol!(
             feature = "NSCell",
             feature = "NSTextFieldCell"
         ))]
+        /// # Safety
+        ///
+        /// `represented_object` should be of the correct type.
         #[optional]
         #[unsafe(method(tokenFieldCell:editingStringForRepresentedObject:))]
         #[unsafe(method_family = none)]
@@ -312,7 +321,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(tokenFieldCell:representedObjectForEditingString:))]
         #[unsafe(method_family = none)]
-        unsafe fn tokenFieldCell_representedObjectForEditingString(
+        fn tokenFieldCell_representedObjectForEditingString(
             &self,
             token_field_cell: &NSTokenFieldCell,
             editing_string: &NSString,
@@ -324,6 +333,9 @@ extern_protocol!(
             feature = "NSPasteboard",
             feature = "NSTextFieldCell"
         ))]
+        /// # Safety
+        ///
+        /// `objects` generic should be of the correct type.
         #[optional]
         #[unsafe(method(tokenFieldCell:writeRepresentedObjects:toPasteboard:))]
         #[unsafe(method_family = none)]
@@ -343,7 +355,7 @@ extern_protocol!(
         #[optional]
         #[unsafe(method(tokenFieldCell:readFromPasteboard:))]
         #[unsafe(method_family = none)]
-        unsafe fn tokenFieldCell_readFromPasteboard(
+        fn tokenFieldCell_readFromPasteboard(
             &self,
             token_field_cell: &NSTokenFieldCell,
             pboard: &NSPasteboard,
@@ -355,6 +367,9 @@ extern_protocol!(
             feature = "NSMenu",
             feature = "NSTextFieldCell"
         ))]
+        /// # Safety
+        ///
+        /// `represented_object` should be of the correct type.
         #[optional]
         #[unsafe(method(tokenFieldCell:menuForRepresentedObject:))]
         #[unsafe(method_family = none)]
@@ -369,6 +384,9 @@ extern_protocol!(
             feature = "NSCell",
             feature = "NSTextFieldCell"
         ))]
+        /// # Safety
+        ///
+        /// `represented_object` should be of the correct type.
         #[optional]
         #[unsafe(method(tokenFieldCell:hasMenuForRepresentedObject:))]
         #[unsafe(method_family = none)]
@@ -383,6 +401,9 @@ extern_protocol!(
             feature = "NSCell",
             feature = "NSTextFieldCell"
         ))]
+        /// # Safety
+        ///
+        /// `represented_object` should be of the correct type.
         #[optional]
         #[unsafe(method(tokenFieldCell:styleForRepresentedObject:))]
         #[unsafe(method_family = none)]
@@ -395,10 +416,13 @@ extern_protocol!(
 );
 
 /// [Apple's documentation](https://developer.apple.com/documentation/appkit/nsdefaulttokenstyle?language=objc)
+#[deprecated]
 pub static NSDefaultTokenStyle: NSTokenStyle = NSTokenStyle(NSTokenStyle::Default.0);
 
 /// [Apple's documentation](https://developer.apple.com/documentation/appkit/nsplaintexttokenstyle?language=objc)
+#[deprecated]
 pub static NSPlainTextTokenStyle: NSTokenStyle = NSTokenStyle(NSTokenStyle::None.0);
 
 /// [Apple's documentation](https://developer.apple.com/documentation/appkit/nsroundedtokenstyle?language=objc)
+#[deprecated]
 pub static NSRoundedTokenStyle: NSTokenStyle = NSTokenStyle(NSTokenStyle::Rounded.0);

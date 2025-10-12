@@ -11,9 +11,9 @@
 
 [package]
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.78"
 name = "axum"
-version = "0.8.4"
+version = "0.8.6"
 build = false
 autolib = false
 autobins = false
@@ -36,6 +36,18 @@ categories = [
 license = "MIT"
 repository = "https://github.com/tokio-rs/axum"
 
+[package.metadata.docs.rs]
+all-features = true
+
+[package.metadata.playground]
+features = [
+    "http1",
+    "http2",
+    "json",
+    "multipart",
+    "ws",
+]
+
 [package.metadata.cargo-public-api-crates]
 allowed = [
     "axum_core",
@@ -49,21 +61,9 @@ allowed = [
     "bytes",
     "http",
     "http_body",
-    "serde",
+    "serde_core",
     "tokio",
     "reqwest",
-]
-
-[package.metadata.docs.rs]
-all-features = true
-
-[package.metadata.playground]
-features = [
-    "http1",
-    "http2",
-    "json",
-    "multipart",
-    "ws",
 ]
 
 [features]
@@ -75,6 +75,7 @@ __private = [
 __private_docs = [
     "axum-core/__private_docs",
     "tower/full",
+    "dep:serde",
     "dep:tower-http",
 ]
 default = [
@@ -151,7 +152,7 @@ path = "benches/benches.rs"
 harness = false
 
 [dependencies.axum-core]
-version = "0.5.2"
+version = "0.5.5"
 
 [dependencies.axum-macros]
 version = "0.5.0"
@@ -227,11 +228,12 @@ features = [
 optional = true
 default-features = false
 
-[dependencies.rustversion]
-version = "1.0.9"
-
 [dependencies.serde]
-version = "1.0"
+version = "1.0.211"
+optional = true
+
+[dependencies.serde_core]
+version = "1.0.221"
 
 [dependencies.serde_json]
 version = "1.0"
@@ -260,7 +262,7 @@ optional = true
 package = "tokio"
 
 [dependencies.tokio-tungstenite]
-version = "0.26.0"
+version = "0.28.0"
 optional = true
 
 [dependencies.tower]
@@ -335,7 +337,7 @@ features = [
 default-features = false
 
 [dev-dependencies.serde]
-version = "1.0"
+version = "1.0.221"
 features = ["derive"]
 
 [dev-dependencies.serde_json]
@@ -361,7 +363,7 @@ package = "tokio"
 version = "0.1"
 
 [dev-dependencies.tokio-tungstenite]
-version = "0.26.0"
+version = "0.28.0"
 
 [dev-dependencies.tower]
 version = "0.5.2"
@@ -435,13 +437,14 @@ inefficient_to_string = "warn"
 linkedlist = "warn"
 lossy_float_literal = "warn"
 macro_use_imports = "warn"
-match_on_vec_items = "warn"
 match_wildcard_for_single_variants = "warn"
 mem_forget = "warn"
+must_use_candidate = "warn"
 needless_borrow = "warn"
 needless_continue = "warn"
 option_option = "warn"
 rest_pat_in_fully_bound_structs = "warn"
+return_self_not_must_use = "warn"
 str_to_string = "warn"
 suboptimal_flops = "warn"
 todo = "warn"

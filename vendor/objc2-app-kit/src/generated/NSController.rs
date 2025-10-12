@@ -37,8 +37,11 @@ impl NSController {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -49,21 +52,26 @@ impl NSController {
         #[cfg(feature = "NSKeyValueBinding")]
         #[unsafe(method(objectDidBeginEditing:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn objectDidBeginEditing(&self, editor: &ProtocolObject<dyn NSEditor>);
+        pub fn objectDidBeginEditing(&self, editor: &ProtocolObject<dyn NSEditor>);
 
         #[cfg(feature = "NSKeyValueBinding")]
         #[unsafe(method(objectDidEndEditing:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn objectDidEndEditing(&self, editor: &ProtocolObject<dyn NSEditor>);
+        pub fn objectDidEndEditing(&self, editor: &ProtocolObject<dyn NSEditor>);
 
         #[unsafe(method(discardEditing))]
         #[unsafe(method_family = none)]
-        pub unsafe fn discardEditing(&self);
+        pub fn discardEditing(&self);
 
         #[unsafe(method(commitEditing))]
         #[unsafe(method_family = none)]
-        pub unsafe fn commitEditing(&self) -> bool;
+        pub fn commitEditing(&self) -> bool;
 
+        /// # Safety
+        ///
+        /// - `delegate` should be of the correct type.
+        /// - `did_commit_selector` must be a valid selector.
+        /// - `context_info` must be a valid pointer or null.
         #[unsafe(method(commitEditingWithDelegate:didCommitSelector:contextInfo:))]
         #[unsafe(method_family = none)]
         pub unsafe fn commitEditingWithDelegate_didCommitSelector_contextInfo(
@@ -75,7 +83,7 @@ impl NSController {
 
         #[unsafe(method(isEditing))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isEditing(&self) -> bool;
+        pub fn isEditing(&self) -> bool;
     );
 }
 
@@ -84,6 +92,6 @@ impl NSController {
     extern_methods!(
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }

@@ -109,6 +109,9 @@ impl UIActivityViewController {
             nib_bundle_or_nil: Option<&NSBundle>,
         ) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -117,6 +120,9 @@ impl UIActivityViewController {
         ) -> Option<Retained<Self>>;
 
         #[cfg(feature = "UIActivity")]
+        /// # Safety
+        ///
+        /// `activity_items` generic should be of the correct type.
         #[unsafe(method(initWithActivityItems:applicationActivities:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithActivityItems_applicationActivities(
@@ -126,6 +132,9 @@ impl UIActivityViewController {
         ) -> Retained<Self>;
 
         #[cfg(all(feature = "UIActivity", feature = "block2"))]
+        /// # Safety
+        ///
+        /// The returned block's argument 1 must be a valid pointer or null.
         #[deprecated]
         #[unsafe(method(completionHandler))]
         #[unsafe(method_family = none)]
@@ -133,6 +142,12 @@ impl UIActivityViewController {
 
         #[cfg(all(feature = "UIActivity", feature = "block2"))]
         /// Setter for [`completionHandler`][Self::completionHandler].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
+        ///
+        /// # Safety
+        ///
+        /// `completion_handler` must be a valid pointer or null.
         #[deprecated]
         #[unsafe(method(setCompletionHandler:))]
         #[unsafe(method_family = none)]
@@ -142,6 +157,11 @@ impl UIActivityViewController {
         );
 
         #[cfg(all(feature = "UIActivity", feature = "block2"))]
+        /// # Safety
+        ///
+        /// - The returned block's argument 1 must be a valid pointer or null.
+        /// - The returned block's argument 3 must be a valid pointer or null.
+        /// - The returned block's argument 4 must be a valid pointer or null.
         #[unsafe(method(completionWithItemsHandler))]
         #[unsafe(method_family = none)]
         pub unsafe fn completionWithItemsHandler(
@@ -150,6 +170,12 @@ impl UIActivityViewController {
 
         #[cfg(all(feature = "UIActivity", feature = "block2"))]
         /// Setter for [`completionWithItemsHandler`][Self::completionWithItemsHandler].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
+        ///
+        /// # Safety
+        ///
+        /// `completion_with_items_handler` must be a valid pointer or null.
         #[unsafe(method(setCompletionWithItemsHandler:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setCompletionWithItemsHandler(
@@ -160,13 +186,15 @@ impl UIActivityViewController {
         #[cfg(feature = "UIActivity")]
         #[unsafe(method(excludedActivityTypes))]
         #[unsafe(method_family = none)]
-        pub unsafe fn excludedActivityTypes(&self) -> Option<Retained<NSArray<UIActivityType>>>;
+        pub fn excludedActivityTypes(&self) -> Option<Retained<NSArray<UIActivityType>>>;
 
         #[cfg(feature = "UIActivity")]
         /// Setter for [`excludedActivityTypes`][Self::excludedActivityTypes].
+        ///
+        /// This is [copied][objc2_foundation::NSCopying::copy] when set.
         #[unsafe(method(setExcludedActivityTypes:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setExcludedActivityTypes(
+        pub fn setExcludedActivityTypes(
             &self,
             excluded_activity_types: Option<&NSArray<UIActivityType>>,
         );
@@ -174,12 +202,12 @@ impl UIActivityViewController {
         /// Hides some sections of the activity view controller. Default is none
         #[unsafe(method(excludedActivitySectionTypes))]
         #[unsafe(method_family = none)]
-        pub unsafe fn excludedActivitySectionTypes(&self) -> UIActivitySectionTypes;
+        pub fn excludedActivitySectionTypes(&self) -> UIActivitySectionTypes;
 
         /// Setter for [`excludedActivitySectionTypes`][Self::excludedActivitySectionTypes].
         #[unsafe(method(setExcludedActivitySectionTypes:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setExcludedActivitySectionTypes(
+        pub fn setExcludedActivitySectionTypes(
             &self,
             excluded_activity_section_types: UIActivitySectionTypes,
         );
@@ -189,12 +217,12 @@ impl UIActivityViewController {
         /// Defaults to YES.
         #[unsafe(method(allowsProminentActivity))]
         #[unsafe(method_family = none)]
-        pub unsafe fn allowsProminentActivity(&self) -> bool;
+        pub fn allowsProminentActivity(&self) -> bool;
 
         /// Setter for [`allowsProminentActivity`][Self::allowsProminentActivity].
         #[unsafe(method(setAllowsProminentActivity:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setAllowsProminentActivity(&self, allows_prominent_activity: bool);
+        pub fn setAllowsProminentActivity(&self, allows_prominent_activity: bool);
     );
 }
 
@@ -215,7 +243,7 @@ impl UIActivityViewController {
         #[cfg(feature = "UIActivityItemsConfigurationReading")]
         #[unsafe(method(initWithActivityItemsConfiguration:))]
         #[unsafe(method_family = init)]
-        pub unsafe fn initWithActivityItemsConfiguration(
+        pub fn initWithActivityItemsConfiguration(
             this: Allocated<Self>,
             activity_items_configuration: &ProtocolObject<dyn UIActivityItemsConfigurationReading>,
         ) -> Retained<Self>;

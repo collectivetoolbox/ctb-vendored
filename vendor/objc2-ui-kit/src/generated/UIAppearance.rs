@@ -16,8 +16,11 @@ extern_protocol!(
     pub unsafe trait UIAppearance: NSObjectProtocol + MainThreadOnly {
         #[unsafe(method(appearance))]
         #[unsafe(method_family = none)]
-        unsafe fn appearance(mtm: MainThreadMarker) -> Retained<Self>;
+        fn appearance(mtm: MainThreadMarker) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `container_types` generic must implement UIAppearanceContainer.
         #[unsafe(method(appearanceWhenContainedInInstancesOfClasses:))]
         #[unsafe(method_family = none)]
         unsafe fn appearanceWhenContainedInInstancesOfClasses(
@@ -28,12 +31,15 @@ extern_protocol!(
         #[cfg(feature = "UITraitCollection")]
         #[unsafe(method(appearanceForTraitCollection:))]
         #[unsafe(method_family = none)]
-        unsafe fn appearanceForTraitCollection(
+        fn appearanceForTraitCollection(
             r#trait: &UITraitCollection,
             mtm: MainThreadMarker,
         ) -> Retained<Self>;
 
         #[cfg(feature = "UITraitCollection")]
+        /// # Safety
+        ///
+        /// `container_types` generic must implement UIAppearanceContainer.
         #[unsafe(method(appearanceForTraitCollection:whenContainedInInstancesOfClasses:))]
         #[unsafe(method_family = none)]
         unsafe fn appearanceForTraitCollection_whenContainedInInstancesOfClasses(

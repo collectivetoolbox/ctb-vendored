@@ -50,6 +50,9 @@ pub extern "C-unwind" fn CFPreferencesCopyAppValue(
     ret.map(|ret| unsafe { CFRetained::from_raw(ret) })
 }
 
+/// # Safety
+///
+/// `key_exists_and_has_valid_format` must be a valid pointer or null.
 #[inline]
 pub unsafe extern "C-unwind" fn CFPreferencesGetAppBooleanValue(
     key: &CFString,
@@ -70,6 +73,9 @@ pub unsafe extern "C-unwind" fn CFPreferencesGetAppBooleanValue(
 }
 
 extern "C-unwind" {
+    /// # Safety
+    ///
+    /// `key_exists_and_has_valid_format` must be a valid pointer or null.
     pub fn CFPreferencesGetAppIntegerValue(
         key: &CFString,
         application_id: &CFString,
@@ -78,6 +84,9 @@ extern "C-unwind" {
 }
 
 extern "C-unwind" {
+    /// # Safety
+    ///
+    /// `value` should be of the correct type.
     pub fn CFPreferencesSetAppValue(
         key: &CFString,
         value: Option<&CFPropertyList>,
@@ -161,6 +170,9 @@ pub extern "C-unwind" fn CFPreferencesCopyMultiple(
 }
 
 extern "C-unwind" {
+    /// # Safety
+    ///
+    /// `value` should be of the correct type.
     pub fn CFPreferencesSetValue(
         key: &CFString,
         value: Option<&CFPropertyList>,
@@ -171,6 +183,10 @@ extern "C-unwind" {
 }
 
 extern "C-unwind" {
+    /// # Safety
+    ///
+    /// - `keys_to_set` generics must be of the correct type.
+    /// - `keys_to_remove` generic must be of the correct type.
     #[cfg(all(feature = "CFArray", feature = "CFDictionary"))]
     pub fn CFPreferencesSetMultiple(
         keys_to_set: Option<&CFDictionary>,
@@ -182,7 +198,7 @@ extern "C-unwind" {
 }
 
 #[inline]
-pub unsafe extern "C-unwind" fn CFPreferencesSynchronize(
+pub extern "C-unwind" fn CFPreferencesSynchronize(
     application_id: &CFString,
     user_name: &CFString,
     host_name: &CFString,
@@ -201,7 +217,7 @@ pub unsafe extern "C-unwind" fn CFPreferencesSynchronize(
 #[cfg(feature = "CFArray")]
 #[deprecated = "Unsupported API"]
 #[inline]
-pub unsafe extern "C-unwind" fn CFPreferencesCopyApplicationList(
+pub extern "C-unwind" fn CFPreferencesCopyApplicationList(
     user_name: &CFString,
     host_name: &CFString,
 ) -> Option<CFRetained<CFArray>> {

@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.67.1"
 name = "rust_decimal"
-version = "1.38.0"
+version = "1.39.0"
 authors = ["Paul Mason <paul@form1.co.nz>"]
 build = "build.rs"
 exclude = ["tests/generated/*"]
@@ -59,7 +59,7 @@ db-diesel-mysql = [
     "std",
 ]
 db-diesel-postgres = [
-    "diesel/postgres",
+    "diesel/postgres_backend",
     "std",
 ]
 db-diesel2-mysql = ["db-diesel-mysql"]
@@ -256,7 +256,10 @@ version = "1"
 
 [dev-dependencies.diesel]
 version = "2.2.3"
-features = ["mysql"]
+features = [
+    "mysql",
+    "postgres",
+]
 default-features = false
 
 [dev-dependencies.futures]

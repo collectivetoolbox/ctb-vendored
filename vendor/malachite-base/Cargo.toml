@@ -11,9 +11,9 @@
 
 [package]
 edition = "2024"
-rust-version = "1.85.0"
+rust-version = "1.86.0"
 name = "malachite-base"
-version = "0.6.1"
+version = "0.7.0"
 authors = ["Mikhail Hogrefe <mikhailhogrefe@gmail.com>"]
 build = false
 autolib = false
@@ -49,12 +49,14 @@ bin_build = [
     "walkdir",
     "test_build",
 ]
+default = ["std"]
 random = [
     "sha3",
     "rand",
     "rand_chacha",
     "getrandom",
 ]
+std = ["itertools/use_std"]
 test_build = [
     "gnuplot",
     "time",
@@ -91,7 +93,7 @@ version = "0.0.39"
 optional = true
 
 [dependencies.hashbrown]
-version = "0.15"
+version = "0.16"
 features = [
     "default-hasher",
     "inline-more",

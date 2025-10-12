@@ -32,20 +32,20 @@ impl NSHelpManager {
     extern_methods!(
         #[unsafe(method(sharedHelpManager))]
         #[unsafe(method_family = none)]
-        pub unsafe fn sharedHelpManager(mtm: MainThreadMarker) -> Retained<NSHelpManager>;
+        pub fn sharedHelpManager(mtm: MainThreadMarker) -> Retained<NSHelpManager>;
 
         #[unsafe(method(isContextHelpModeActive))]
         #[unsafe(method_family = none)]
-        pub unsafe fn isContextHelpModeActive(mtm: MainThreadMarker) -> bool;
+        pub fn isContextHelpModeActive(mtm: MainThreadMarker) -> bool;
 
         /// Setter for [`isContextHelpModeActive`][Self::isContextHelpModeActive].
         #[unsafe(method(setContextHelpModeActive:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setContextHelpModeActive(
-            context_help_mode_active: bool,
-            mtm: MainThreadMarker,
-        );
+        pub fn setContextHelpModeActive(context_help_mode_active: bool, mtm: MainThreadMarker);
 
+        /// # Safety
+        ///
+        /// `object` should be of the correct type.
         #[unsafe(method(setContextHelp:forObject:))]
         #[unsafe(method_family = none)]
         pub unsafe fn setContextHelp_forObject(
@@ -54,10 +54,16 @@ impl NSHelpManager {
             object: &AnyObject,
         );
 
+        /// # Safety
+        ///
+        /// `object` should be of the correct type.
         #[unsafe(method(removeContextHelpForObject:))]
         #[unsafe(method_family = none)]
         pub unsafe fn removeContextHelpForObject(&self, object: &AnyObject);
 
+        /// # Safety
+        ///
+        /// `object` should be of the correct type.
         #[unsafe(method(contextHelpForObject:))]
         #[unsafe(method_family = none)]
         pub unsafe fn contextHelpForObject(
@@ -65,6 +71,9 @@ impl NSHelpManager {
             object: &AnyObject,
         ) -> Option<Retained<NSAttributedString>>;
 
+        /// # Safety
+        ///
+        /// `object` should be of the correct type.
         #[unsafe(method(showContextHelpForObject:locationHint:))]
         #[unsafe(method_family = none)]
         pub unsafe fn showContextHelpForObject_locationHint(
@@ -75,7 +84,7 @@ impl NSHelpManager {
 
         #[unsafe(method(openHelpAnchor:inBook:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn openHelpAnchor_inBook(
+        pub fn openHelpAnchor_inBook(
             &self,
             anchor: &NSHelpAnchorName,
             book: Option<&NSHelpBookName>,
@@ -83,11 +92,11 @@ impl NSHelpManager {
 
         #[unsafe(method(findString:inBook:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn findString_inBook(&self, query: &NSString, book: Option<&NSHelpBookName>);
+        pub fn findString_inBook(&self, query: &NSString, book: Option<&NSHelpBookName>);
 
         #[unsafe(method(registerBooksInBundle:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn registerBooksInBundle(&self, bundle: &NSBundle) -> bool;
+        pub fn registerBooksInBundle(&self, bundle: &NSBundle) -> bool;
     );
 }
 
@@ -96,11 +105,11 @@ impl NSHelpManager {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }
 
@@ -125,7 +134,7 @@ pub unsafe trait NSBundleHelpExtension:
     extern_methods!(
         #[unsafe(method(contextHelpForKey:))]
         #[unsafe(method_family = none)]
-        unsafe fn contextHelpForKey(
+        fn contextHelpForKey(
             &self,
             key: &NSHelpManagerContextHelpKey,
         ) -> Option<Retained<NSAttributedString>>;
@@ -139,10 +148,16 @@ unsafe impl NSBundleHelpExtension for NSBundle {}
 #[cfg(all(feature = "NSApplication", feature = "NSResponder"))]
 impl NSApplication {
     extern_methods!(
+        /// # Safety
+        ///
+        /// `sender` should be of the correct type.
         #[unsafe(method(activateContextHelpMode:))]
         #[unsafe(method_family = none)]
         pub unsafe fn activateContextHelpMode(&self, sender: Option<&AnyObject>);
 
+        /// # Safety
+        ///
+        /// `sender` should be of the correct type.
         #[unsafe(method(showHelp:))]
         #[unsafe(method_family = none)]
         pub unsafe fn showHelp(&self, sender: Option<&AnyObject>);

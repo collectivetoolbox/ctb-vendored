@@ -230,7 +230,8 @@ impl System {
         self.inner.refresh_cpu_list(refresh_kind);
     }
 
-    /// Refreshes all information related to CPUs information.
+    /// Refreshes all information related to CPUs information. It does not refresh the CPU list.
+    /// If you want to refresh the CPU list, use [`System::refresh_cpu_list`] instead.
     ///
     /// If you only want the CPU usage, use [`System::refresh_cpu_usage`] instead.
     ///
@@ -254,7 +255,8 @@ impl System {
         self.refresh_cpu_specifics(CpuRefreshKind::everything())
     }
 
-    /// Refreshes CPUs specific information.
+    /// Refreshes CPUs specific information. It does not refresh the CPU list.
+    /// If you want to refresh the CPU list, use [`System::refresh_cpu_list`] instead.
     ///
     /// ```no_run
     /// use sysinfo::{System, CpuRefreshKind};
@@ -293,7 +295,7 @@ impl System {
     ///
     /// ⚠️ On Linux, if you dont need the tasks of each process, you can use
     /// `refresh_processes_specifics` with `ProcessRefreshKind::everything().without_tasks()`.
-    /// Refreshesing all processes and their tasks can be quite expensive. For more information
+    /// Refreshing all processes and their tasks can be quite expensive. For more information
     /// see [`ProcessRefreshKind`].
     ///
     /// Example:

@@ -8,6 +8,10 @@ use crate::*;
 extern_protocol!(
     /// [Apple's documentation](https://developer.apple.com/documentation/foundation/nsfastenumeration?language=objc)
     pub unsafe trait NSFastEnumeration {
+        /// # Safety
+        ///
+        /// - `state` must be a valid pointer.
+        /// - `buffer` must be a valid pointer.
         #[unsafe(method(countByEnumeratingWithState:objects:count:))]
         #[unsafe(method_family = none)]
         unsafe fn countByEnumeratingWithState_objects_count(
@@ -25,6 +29,20 @@ extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
     pub struct NSEnumerator<ObjectType: ?Sized = AnyObject>;
 );
+
+impl<ObjectType: ?Sized + Message> NSEnumerator<ObjectType> {
+    /// Unchecked conversion of the generic parameter.
+    ///
+    /// # Safety
+    ///
+    /// The generic must be valid to reinterpret as the given type.
+    #[inline]
+    pub unsafe fn cast_unchecked<NewObjectType: ?Sized + Message>(
+        &self,
+    ) -> &NSEnumerator<NewObjectType> {
+        unsafe { &*((self as *const Self).cast()) }
+    }
+}
 
 extern_conformance!(
     unsafe impl<ObjectType: ?Sized> NSFastEnumeration for NSEnumerator<ObjectType> {}
@@ -47,12 +65,19 @@ impl<ObjectType: Message> NSEnumerator<ObjectType> {
     extern_methods!(
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new() -> Retained<Self>;
+        pub fn new() -> Retained<Self>;
     );
+}
+
+impl<ObjectType: Message> DefaultRetained for NSEnumerator<ObjectType> {
+    #[inline]
+    fn default_retained() -> Retained<Self> {
+        Self::new()
+    }
 }
 
 /// NSExtendedEnumerator.

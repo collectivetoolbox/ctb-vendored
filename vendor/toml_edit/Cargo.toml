@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.76"
 name = "toml_edit"
-version = "0.23.6"
+version = "0.23.7"
 build = false
 include = [
     "build.rs",
@@ -46,11 +46,7 @@ repository = "https://github.com/toml-rs/toml"
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = [
-    "--cfg",
-    "docsrs",
-    "--generate-link-to-definition",
-]
+rustdoc-args = ["--generate-link-to-definition"]
 
 [package.metadata.release]
 tag-name = "v{{version}}"
@@ -143,19 +139,19 @@ version = "1.0.225"
 optional = true
 
 [dependencies.serde_spanned]
-version = "1.0.2"
+version = "1.0.3"
 features = ["serde"]
 optional = true
 
 [dependencies.toml_datetime]
-version = "0.7.2"
+version = "0.7.3"
 
 [dependencies.toml_parser]
-version = "1.0.3"
+version = "1.0.4"
 optional = true
 
 [dependencies.toml_writer]
-version = "1.0.3"
+version = "1.0.4"
 optional = true
 
 [dependencies.winnow]

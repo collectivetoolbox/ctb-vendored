@@ -1,6 +1,6 @@
 [package]
 name = "toml_writer"
-version = "1.0.3"
+version = "1.0.4"
 description = """
 A low-level interface for writing out TOML
 """
@@ -14,7 +14,7 @@ include.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs", "--generate-link-to-definition"]
+rustdoc-args = ["--generate-link-to-definition"]
 
 [package.metadata.release]
 pre-release-replacements = [

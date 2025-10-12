@@ -13,7 +13,7 @@
 edition = "2024"
 rust-version = "1.88"
 name = "sysinfo"
-version = "0.37.0"
+version = "0.37.2"
 authors = ["Guillaume Gomez <guillaume1.gomez@gmail.com>"]
 build = false
 exclude = ["/test-unknown"]
@@ -35,10 +35,8 @@ license = "MIT"
 repository = "https://github.com/GuillaumeGomez/sysinfo"
 
 [package.metadata.docs.rs]
-cargo-args = ["-Zbuild-std"]
-default-target = "x86_64-unknown-linux-gnu"
 features = ["serde"]
-rustdoc-args = ["--generate-link-to-definition"]
+default-target = "x86_64-unknown-linux-gnu"
 targets = [
     "i686-unknown-linux-gnu",
     "x86_64-apple-darwin",
@@ -46,6 +44,8 @@ targets = [
     "i686-pc-windows-msvc",
     "x86_64-unknown-freebsd",
 ]
+cargo-args = ["-Zbuild-std"]
+rustdoc-args = ["--generate-link-to-definition"]
 
 [features]
 apple-app-store = ["apple-sandbox"]
@@ -210,9 +210,6 @@ version = "0.14.0"
 version = "1.0"
 
 [dev-dependencies.tempfile]
-version = "3.9"
-
-[target.'cfg(all(target_os = "linux", not(target_os = "android")))'.dev-dependencies.tempfile]
 version = "3.9"
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies.objc2-core-foundation]

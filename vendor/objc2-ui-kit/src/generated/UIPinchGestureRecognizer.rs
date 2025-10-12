@@ -35,7 +35,7 @@ impl UIPinchGestureRecognizer {
         /// Setter for [`scale`][Self::scale].
         #[unsafe(method(setScale:))]
         #[unsafe(method_family = none)]
-        pub unsafe fn setScale(&self, scale: CGFloat);
+        pub fn setScale(&self, scale: CGFloat);
 
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(velocity))]
@@ -48,6 +48,10 @@ impl UIPinchGestureRecognizer {
 #[cfg(feature = "UIGestureRecognizer")]
 impl UIPinchGestureRecognizer {
     extern_methods!(
+        /// # Safety
+        ///
+        /// - `target` should be of the correct type.
+        /// - `action` must be a valid selector.
         #[unsafe(method(initWithTarget:action:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithTarget_action(
@@ -58,8 +62,11 @@ impl UIPinchGestureRecognizer {
 
         #[unsafe(method(init))]
         #[unsafe(method_family = init)]
-        pub unsafe fn init(this: Allocated<Self>) -> Retained<Self>;
+        pub fn init(this: Allocated<Self>) -> Retained<Self>;
 
+        /// # Safety
+        ///
+        /// `coder` possibly has further requirements.
         #[unsafe(method(initWithCoder:))]
         #[unsafe(method_family = init)]
         pub unsafe fn initWithCoder(
@@ -75,6 +82,6 @@ impl UIPinchGestureRecognizer {
     extern_methods!(
         #[unsafe(method(new))]
         #[unsafe(method_family = new)]
-        pub unsafe fn new(mtm: MainThreadMarker) -> Retained<Self>;
+        pub fn new(mtm: MainThreadMarker) -> Retained<Self>;
     );
 }

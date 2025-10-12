@@ -105,36 +105,6 @@ unsafe impl Send for UIOffset {}
 #[cfg(feature = "objc2-core-foundation")]
 unsafe impl Sync for UIOffset {}
 
-/// [Apple's documentation](https://developer.apple.com/documentation/uikit/uirectedge?language=objc)
-// NS_OPTIONS
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct UIRectEdge(pub NSUInteger);
-bitflags::bitflags! {
-    impl UIRectEdge: NSUInteger {
-        #[doc(alias = "UIRectEdgeNone")]
-        const None = 0;
-        #[doc(alias = "UIRectEdgeTop")]
-        const Top = 1<<0;
-        #[doc(alias = "UIRectEdgeLeft")]
-        const Left = 1<<1;
-        #[doc(alias = "UIRectEdgeBottom")]
-        const Bottom = 1<<2;
-        #[doc(alias = "UIRectEdgeRight")]
-        const Right = 1<<3;
-        #[doc(alias = "UIRectEdgeAll")]
-        const All = UIRectEdge::Top.0|UIRectEdge::Left.0|UIRectEdge::Bottom.0|UIRectEdge::Right.0;
-    }
-}
-
-unsafe impl Encode for UIRectEdge {
-    const ENCODING: Encoding = NSUInteger::ENCODING;
-}
-
-unsafe impl RefEncode for UIRectEdge {
-    const ENCODING_REF: Encoding = Encoding::Pointer(&Self::ENCODING);
-}
-
 /// [Apple's documentation](https://developer.apple.com/documentation/uikit/uirectcorner?language=objc)
 // NS_OPTIONS
 #[repr(transparent)]
@@ -160,32 +130,6 @@ unsafe impl Encode for UIRectCorner {
 }
 
 unsafe impl RefEncode for UIRectCorner {
-    const ENCODING_REF: Encoding = Encoding::Pointer(&Self::ENCODING);
-}
-
-/// [Apple's documentation](https://developer.apple.com/documentation/uikit/uiaxis?language=objc)
-// NS_OPTIONS
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct UIAxis(pub NSUInteger);
-bitflags::bitflags! {
-    impl UIAxis: NSUInteger {
-        #[doc(alias = "UIAxisNeither")]
-        const Neither = 0;
-        #[doc(alias = "UIAxisHorizontal")]
-        const Horizontal = 1<<0;
-        #[doc(alias = "UIAxisVertical")]
-        const Vertical = 1<<1;
-        #[doc(alias = "UIAxisBoth")]
-        const Both = UIAxis::Horizontal.0|UIAxis::Vertical.0;
-    }
-}
-
-unsafe impl Encode for UIAxis {
-    const ENCODING: Encoding = NSUInteger::ENCODING;
-}
-
-unsafe impl RefEncode for UIAxis {
     const ENCODING_REF: Encoding = Encoding::Pointer(&Self::ENCODING);
 }
 
@@ -345,7 +289,7 @@ extern "C" {
 
 #[cfg(feature = "objc2-core-foundation")]
 #[inline]
-pub unsafe extern "C-unwind" fn NSStringFromCGPoint(point: CGPoint) -> Retained<NSString> {
+pub extern "C-unwind" fn NSStringFromCGPoint(point: CGPoint) -> Retained<NSString> {
     extern "C-unwind" {
         fn NSStringFromCGPoint(point: CGPoint) -> *mut NSString;
     }
@@ -356,7 +300,7 @@ pub unsafe extern "C-unwind" fn NSStringFromCGPoint(point: CGPoint) -> Retained<
 
 #[cfg(feature = "objc2-core-foundation")]
 #[inline]
-pub unsafe extern "C-unwind" fn NSStringFromCGVector(vector: CGVector) -> Retained<NSString> {
+pub extern "C-unwind" fn NSStringFromCGVector(vector: CGVector) -> Retained<NSString> {
     extern "C-unwind" {
         fn NSStringFromCGVector(vector: CGVector) -> *mut NSString;
     }
@@ -367,7 +311,7 @@ pub unsafe extern "C-unwind" fn NSStringFromCGVector(vector: CGVector) -> Retain
 
 #[cfg(feature = "objc2-core-foundation")]
 #[inline]
-pub unsafe extern "C-unwind" fn NSStringFromCGSize(size: CGSize) -> Retained<NSString> {
+pub extern "C-unwind" fn NSStringFromCGSize(size: CGSize) -> Retained<NSString> {
     extern "C-unwind" {
         fn NSStringFromCGSize(size: CGSize) -> *mut NSString;
     }
@@ -378,7 +322,7 @@ pub unsafe extern "C-unwind" fn NSStringFromCGSize(size: CGSize) -> Retained<NSS
 
 #[cfg(feature = "objc2-core-foundation")]
 #[inline]
-pub unsafe extern "C-unwind" fn NSStringFromCGRect(rect: CGRect) -> Retained<NSString> {
+pub extern "C-unwind" fn NSStringFromCGRect(rect: CGRect) -> Retained<NSString> {
     extern "C-unwind" {
         fn NSStringFromCGRect(rect: CGRect) -> *mut NSString;
     }
@@ -389,7 +333,7 @@ pub unsafe extern "C-unwind" fn NSStringFromCGRect(rect: CGRect) -> Retained<NSS
 
 #[cfg(feature = "objc2-core-foundation")]
 #[inline]
-pub unsafe extern "C-unwind" fn NSStringFromCGAffineTransform(
+pub extern "C-unwind" fn NSStringFromCGAffineTransform(
     transform: CGAffineTransform,
 ) -> Retained<NSString> {
     extern "C-unwind" {
@@ -402,9 +346,7 @@ pub unsafe extern "C-unwind" fn NSStringFromCGAffineTransform(
 
 #[cfg(feature = "objc2-core-foundation")]
 #[inline]
-pub unsafe extern "C-unwind" fn NSStringFromUIEdgeInsets(
-    insets: UIEdgeInsets,
-) -> Retained<NSString> {
+pub extern "C-unwind" fn NSStringFromUIEdgeInsets(insets: UIEdgeInsets) -> Retained<NSString> {
     extern "C-unwind" {
         fn NSStringFromUIEdgeInsets(insets: UIEdgeInsets) -> *mut NSString;
     }
@@ -415,7 +357,7 @@ pub unsafe extern "C-unwind" fn NSStringFromUIEdgeInsets(
 
 #[cfg(feature = "objc2-core-foundation")]
 #[inline]
-pub unsafe extern "C-unwind" fn NSStringFromDirectionalEdgeInsets(
+pub extern "C-unwind" fn NSStringFromDirectionalEdgeInsets(
     insets: NSDirectionalEdgeInsets,
 ) -> Retained<NSString> {
     extern "C-unwind" {
@@ -428,7 +370,7 @@ pub unsafe extern "C-unwind" fn NSStringFromDirectionalEdgeInsets(
 
 #[cfg(feature = "objc2-core-foundation")]
 #[inline]
-pub unsafe extern "C-unwind" fn NSStringFromUIOffset(offset: UIOffset) -> Retained<NSString> {
+pub extern "C-unwind" fn NSStringFromUIOffset(offset: UIOffset) -> Retained<NSString> {
     extern "C-unwind" {
         fn NSStringFromUIOffset(offset: UIOffset) -> *mut NSString;
     }
@@ -437,29 +379,49 @@ pub unsafe extern "C-unwind" fn NSStringFromUIOffset(offset: UIOffset) -> Retain
         .expect("function was marked as returning non-null, but actually returned NULL")
 }
 
-extern "C-unwind" {
-    #[cfg(feature = "objc2-core-foundation")]
-    pub fn CGPointFromString(string: &NSString) -> CGPoint;
+#[cfg(feature = "objc2-core-foundation")]
+#[inline]
+pub extern "C-unwind" fn CGPointFromString(string: &NSString) -> CGPoint {
+    extern "C-unwind" {
+        fn CGPointFromString(string: &NSString) -> CGPoint;
+    }
+    unsafe { CGPointFromString(string) }
 }
 
-extern "C-unwind" {
-    #[cfg(feature = "objc2-core-foundation")]
-    pub fn CGVectorFromString(string: &NSString) -> CGVector;
+#[cfg(feature = "objc2-core-foundation")]
+#[inline]
+pub extern "C-unwind" fn CGVectorFromString(string: &NSString) -> CGVector {
+    extern "C-unwind" {
+        fn CGVectorFromString(string: &NSString) -> CGVector;
+    }
+    unsafe { CGVectorFromString(string) }
 }
 
-extern "C-unwind" {
-    #[cfg(feature = "objc2-core-foundation")]
-    pub fn CGSizeFromString(string: &NSString) -> CGSize;
+#[cfg(feature = "objc2-core-foundation")]
+#[inline]
+pub extern "C-unwind" fn CGSizeFromString(string: &NSString) -> CGSize {
+    extern "C-unwind" {
+        fn CGSizeFromString(string: &NSString) -> CGSize;
+    }
+    unsafe { CGSizeFromString(string) }
 }
 
-extern "C-unwind" {
-    #[cfg(feature = "objc2-core-foundation")]
-    pub fn CGRectFromString(string: &NSString) -> CGRect;
+#[cfg(feature = "objc2-core-foundation")]
+#[inline]
+pub extern "C-unwind" fn CGRectFromString(string: &NSString) -> CGRect {
+    extern "C-unwind" {
+        fn CGRectFromString(string: &NSString) -> CGRect;
+    }
+    unsafe { CGRectFromString(string) }
 }
 
-extern "C-unwind" {
-    #[cfg(feature = "objc2-core-foundation")]
-    pub fn CGAffineTransformFromString(string: &NSString) -> CGAffineTransform;
+#[cfg(feature = "objc2-core-foundation")]
+#[inline]
+pub extern "C-unwind" fn CGAffineTransformFromString(string: &NSString) -> CGAffineTransform {
+    extern "C-unwind" {
+        fn CGAffineTransformFromString(string: &NSString) -> CGAffineTransform;
+    }
+    unsafe { CGAffineTransformFromString(string) }
 }
 
 #[cfg(feature = "objc2-core-foundation")]
@@ -467,7 +429,7 @@ impl UIEdgeInsets {
     #[doc(alias = "UIEdgeInsetsFromString")]
     #[cfg(feature = "objc2-core-foundation")]
     #[inline]
-    pub unsafe fn from_string(string: &NSString) -> UIEdgeInsets {
+    pub fn from_string(string: &NSString) -> UIEdgeInsets {
         extern "C-unwind" {
             fn UIEdgeInsetsFromString(string: &NSString) -> UIEdgeInsets;
         }
@@ -480,7 +442,7 @@ impl NSDirectionalEdgeInsets {
     #[doc(alias = "NSDirectionalEdgeInsetsFromString")]
     #[cfg(feature = "objc2-core-foundation")]
     #[inline]
-    pub unsafe fn from_string(string: &NSString) -> NSDirectionalEdgeInsets {
+    pub fn from_string(string: &NSString) -> NSDirectionalEdgeInsets {
         extern "C-unwind" {
             fn NSDirectionalEdgeInsetsFromString(string: &NSString) -> NSDirectionalEdgeInsets;
         }
@@ -493,7 +455,7 @@ impl UIOffset {
     #[doc(alias = "UIOffsetFromString")]
     #[cfg(feature = "objc2-core-foundation")]
     #[inline]
-    pub unsafe fn from_string(string: &NSString) -> UIOffset {
+    pub fn from_string(string: &NSString) -> UIOffset {
         extern "C-unwind" {
             fn UIOffsetFromString(string: &NSString) -> UIOffset;
         }
@@ -610,41 +572,37 @@ pub unsafe trait NSCoderUIGeometryKeyedCoding:
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(encodeCGPoint:forKey:))]
         #[unsafe(method_family = none)]
-        unsafe fn encodeCGPoint_forKey(&self, point: CGPoint, key: &NSString);
+        fn encodeCGPoint_forKey(&self, point: CGPoint, key: &NSString);
 
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(encodeCGVector:forKey:))]
         #[unsafe(method_family = none)]
-        unsafe fn encodeCGVector_forKey(&self, vector: CGVector, key: &NSString);
+        fn encodeCGVector_forKey(&self, vector: CGVector, key: &NSString);
 
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(encodeCGSize:forKey:))]
         #[unsafe(method_family = none)]
-        unsafe fn encodeCGSize_forKey(&self, size: CGSize, key: &NSString);
+        fn encodeCGSize_forKey(&self, size: CGSize, key: &NSString);
 
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(encodeCGRect:forKey:))]
         #[unsafe(method_family = none)]
-        unsafe fn encodeCGRect_forKey(&self, rect: CGRect, key: &NSString);
+        fn encodeCGRect_forKey(&self, rect: CGRect, key: &NSString);
 
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(encodeCGAffineTransform:forKey:))]
         #[unsafe(method_family = none)]
-        unsafe fn encodeCGAffineTransform_forKey(
-            &self,
-            transform: CGAffineTransform,
-            key: &NSString,
-        );
+        fn encodeCGAffineTransform_forKey(&self, transform: CGAffineTransform, key: &NSString);
 
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(encodeUIEdgeInsets:forKey:))]
         #[unsafe(method_family = none)]
-        unsafe fn encodeUIEdgeInsets_forKey(&self, insets: UIEdgeInsets, key: &NSString);
+        fn encodeUIEdgeInsets_forKey(&self, insets: UIEdgeInsets, key: &NSString);
 
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(encodeDirectionalEdgeInsets:forKey:))]
         #[unsafe(method_family = none)]
-        unsafe fn encodeDirectionalEdgeInsets_forKey(
+        fn encodeDirectionalEdgeInsets_forKey(
             &self,
             insets: NSDirectionalEdgeInsets,
             key: &NSString,
@@ -653,70 +611,81 @@ pub unsafe trait NSCoderUIGeometryKeyedCoding:
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(encodeUIOffset:forKey:))]
         #[unsafe(method_family = none)]
-        unsafe fn encodeUIOffset_forKey(&self, offset: UIOffset, key: &NSString);
+        fn encodeUIOffset_forKey(&self, offset: UIOffset, key: &NSString);
 
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(decodeCGPointForKey:))]
         #[unsafe(method_family = none)]
-        unsafe fn decodeCGPointForKey(&self, key: &NSString) -> CGPoint;
+        fn decodeCGPointForKey(&self, key: &NSString) -> CGPoint;
 
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(decodeCGVectorForKey:))]
         #[unsafe(method_family = none)]
-        unsafe fn decodeCGVectorForKey(&self, key: &NSString) -> CGVector;
+        fn decodeCGVectorForKey(&self, key: &NSString) -> CGVector;
 
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(decodeCGSizeForKey:))]
         #[unsafe(method_family = none)]
-        unsafe fn decodeCGSizeForKey(&self, key: &NSString) -> CGSize;
+        fn decodeCGSizeForKey(&self, key: &NSString) -> CGSize;
 
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(decodeCGRectForKey:))]
         #[unsafe(method_family = none)]
-        unsafe fn decodeCGRectForKey(&self, key: &NSString) -> CGRect;
+        fn decodeCGRectForKey(&self, key: &NSString) -> CGRect;
 
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(decodeCGAffineTransformForKey:))]
         #[unsafe(method_family = none)]
-        unsafe fn decodeCGAffineTransformForKey(&self, key: &NSString) -> CGAffineTransform;
+        fn decodeCGAffineTransformForKey(&self, key: &NSString) -> CGAffineTransform;
 
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(decodeUIEdgeInsetsForKey:))]
         #[unsafe(method_family = none)]
-        unsafe fn decodeUIEdgeInsetsForKey(&self, key: &NSString) -> UIEdgeInsets;
+        fn decodeUIEdgeInsetsForKey(&self, key: &NSString) -> UIEdgeInsets;
 
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(decodeDirectionalEdgeInsetsForKey:))]
         #[unsafe(method_family = none)]
-        unsafe fn decodeDirectionalEdgeInsetsForKey(
-            &self,
-            key: &NSString,
-        ) -> NSDirectionalEdgeInsets;
+        fn decodeDirectionalEdgeInsetsForKey(&self, key: &NSString) -> NSDirectionalEdgeInsets;
 
         #[cfg(feature = "objc2-core-foundation")]
         #[unsafe(method(decodeUIOffsetForKey:))]
         #[unsafe(method_family = none)]
-        unsafe fn decodeUIOffsetForKey(&self, key: &NSString) -> UIOffset;
+        fn decodeUIOffsetForKey(&self, key: &NSString) -> UIOffset;
     );
 }
 
 impl private_NSCoderUIGeometryKeyedCoding::Sealed for NSCoder {}
 unsafe impl NSCoderUIGeometryKeyedCoding for NSCoder {}
 
-extern "C-unwind" {
-    #[cfg(feature = "objc2-core-foundation")]
-    #[deprecated = "renamed to `UIEdgeInsets::from_string`"]
-    pub fn UIEdgeInsetsFromString(string: &NSString) -> UIEdgeInsets;
+#[cfg(feature = "objc2-core-foundation")]
+#[deprecated = "renamed to `UIEdgeInsets::from_string`"]
+#[inline]
+pub extern "C-unwind" fn UIEdgeInsetsFromString(string: &NSString) -> UIEdgeInsets {
+    extern "C-unwind" {
+        fn UIEdgeInsetsFromString(string: &NSString) -> UIEdgeInsets;
+    }
+    unsafe { UIEdgeInsetsFromString(string) }
 }
 
-extern "C-unwind" {
-    #[cfg(feature = "objc2-core-foundation")]
-    #[deprecated = "renamed to `NSDirectionalEdgeInsets::from_string`"]
-    pub fn NSDirectionalEdgeInsetsFromString(string: &NSString) -> NSDirectionalEdgeInsets;
+#[cfg(feature = "objc2-core-foundation")]
+#[deprecated = "renamed to `NSDirectionalEdgeInsets::from_string`"]
+#[inline]
+pub extern "C-unwind" fn NSDirectionalEdgeInsetsFromString(
+    string: &NSString,
+) -> NSDirectionalEdgeInsets {
+    extern "C-unwind" {
+        fn NSDirectionalEdgeInsetsFromString(string: &NSString) -> NSDirectionalEdgeInsets;
+    }
+    unsafe { NSDirectionalEdgeInsetsFromString(string) }
 }
 
-extern "C-unwind" {
-    #[cfg(feature = "objc2-core-foundation")]
-    #[deprecated = "renamed to `UIOffset::from_string`"]
-    pub fn UIOffsetFromString(string: &NSString) -> UIOffset;
+#[cfg(feature = "objc2-core-foundation")]
+#[deprecated = "renamed to `UIOffset::from_string`"]
+#[inline]
+pub extern "C-unwind" fn UIOffsetFromString(string: &NSString) -> UIOffset {
+    extern "C-unwind" {
+        fn UIOffsetFromString(string: &NSString) -> UIOffset;
+    }
+    unsafe { UIOffsetFromString(string) }
 }
