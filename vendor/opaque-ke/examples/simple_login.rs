@@ -25,19 +25,19 @@
 use std::collections::HashMap;
 use std::process::exit;
 
-use argon2::Argon2;
-use generic_array::GenericArray;
+use opaque_ke::argon2::Argon2;
 use opaque_ke::ciphersuite::CipherSuite;
+use opaque_ke::generic_array::GenericArray;
 use opaque_ke::rand::rngs::OsRng;
 use opaque_ke::{
     ClientLogin, ClientLoginFinishParameters, ClientRegistration,
     ClientRegistrationFinishParameters, CredentialFinalization, CredentialRequest,
     CredentialResponse, RegistrationRequest, RegistrationResponse, RegistrationUpload, ServerLogin,
-    ServerLoginStartParameters, ServerRegistration, ServerRegistrationLen, ServerSetup,
+    ServerLoginParameters, ServerRegistration, ServerRegistrationLen, ServerSetup,
 };
+use rustyline::Editor;
 use rustyline::error::ReadlineError;
 use rustyline::history::DefaultHistory;
-use rustyline::Editor;
 
 // The ciphersuite trait allows to specify the underlying primitives that will
 // be used in the OPAQUE protocol
@@ -47,8 +47,7 @@ struct DefaultCipherSuite;
 #[cfg(feature = "ristretto255")]
 impl CipherSuite for DefaultCipherSuite {
     type OprfCs = opaque_ke::Ristretto255;
-    type KeGroup = opaque_ke::Ristretto255;
-    type KeyExchange = opaque_ke::key_exchange::tripledh::TripleDh;
+    type KeyExchange = opaque_ke::TripleDh<opaque_ke::Ristretto255, sha2::Sha512>;
 
     type Ksf = Argon2<'static>;
 }
@@ -56,8 +55,7 @@ impl CipherSuite for DefaultCipherSuite {
 #[cfg(not(feature = "ristretto255"))]
 impl CipherSuite for DefaultCipherSuite {
     type OprfCs = p256::NistP256;
-    type KeGroup = p256::NistP256;
-    type KeyExchange = opaque_ke::key_exchange::tripledh::TripleDh;
+    type KeyExchange = opaque_ke::TripleDh<p256::NistP256, sha2::Sha256>;
 
     type Ksf = Argon2<'static>;
 }
@@ -128,7 +126,7 @@ fn account_login(
         Some(password_file),
         CredentialRequest::deserialize(&credential_request_bytes).unwrap(),
         username.as_bytes(),
-        ServerLoginStartParameters::default(),
+        ServerLoginParameters::default(),
     )
     .unwrap();
     let credential_response_bytes = server_login_start_result.message.serialize();
@@ -136,6 +134,7 @@ fn account_login(
     // Server sends credential_response_bytes to client
 
     let result = client_login_start_result.state.finish(
+        &mut client_rng,
         password.as_bytes(),
         CredentialResponse::deserialize(&credential_response_bytes).unwrap(),
         ClientLoginFinishParameters::default(),
@@ -152,7 +151,10 @@ fn account_login(
 
     let server_login_finish_result = server_login_start_result
         .state
-        .finish(CredentialFinalization::deserialize(&credential_finalization_bytes).unwrap())
+        .finish(
+            CredentialFinalization::deserialize(&credential_finalization_bytes).unwrap(),
+            ServerLoginParameters::default(),
+        )
         .unwrap();
 
     client_login_finish_result.session_key == server_login_finish_result.session_key

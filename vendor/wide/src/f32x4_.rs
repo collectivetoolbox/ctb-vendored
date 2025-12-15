@@ -31,7 +31,6 @@ pick! {
 
     impl Default for f32x4 {
       #[inline]
-      #[must_use]
       fn default() -> Self {
         unsafe { Self { neon: vdupq_n_f32(0.0)} }
       }
@@ -39,7 +38,6 @@ pick! {
 
     impl PartialEq for f32x4 {
       #[inline]
-      #[must_use]
       fn eq(&self, other: &Self) -> bool {
         unsafe { vminvq_u32(vceqq_f32(self.neon, other.neon))==u32::MAX }
       }
@@ -87,10 +85,13 @@ impl f32x4 {
 unsafe impl Zeroable for f32x4 {}
 unsafe impl Pod for f32x4 {}
 
+impl AlignTo for f32x4 {
+  type Elem = f32;
+}
+
 impl Add for f32x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn add(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse")] {
@@ -114,7 +115,6 @@ impl Add for f32x4 {
 impl Sub for f32x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn sub(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse")] {
@@ -138,7 +138,6 @@ impl Sub for f32x4 {
 impl Mul for f32x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn mul(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse")] {
@@ -162,7 +161,6 @@ impl Mul for f32x4 {
 impl Div for f32x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn div(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse")] {
@@ -186,7 +184,6 @@ impl Div for f32x4 {
 impl Add<f32> for f32x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn add(self, rhs: f32) -> Self::Output {
     self.add(Self::splat(rhs))
   }
@@ -195,7 +192,6 @@ impl Add<f32> for f32x4 {
 impl Sub<f32> for f32x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn sub(self, rhs: f32) -> Self::Output {
     self.sub(Self::splat(rhs))
   }
@@ -204,7 +200,6 @@ impl Sub<f32> for f32x4 {
 impl Mul<f32> for f32x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn mul(self, rhs: f32) -> Self::Output {
     self.mul(Self::splat(rhs))
   }
@@ -213,7 +208,6 @@ impl Mul<f32> for f32x4 {
 impl Div<f32> for f32x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn div(self, rhs: f32) -> Self::Output {
     self.div(Self::splat(rhs))
   }
@@ -222,7 +216,6 @@ impl Div<f32> for f32x4 {
 impl Add<f32x4> for f32 {
   type Output = f32x4;
   #[inline]
-  #[must_use]
   fn add(self, rhs: f32x4) -> Self::Output {
     f32x4::splat(self).add(rhs)
   }
@@ -231,7 +224,6 @@ impl Add<f32x4> for f32 {
 impl Sub<f32x4> for f32 {
   type Output = f32x4;
   #[inline]
-  #[must_use]
   fn sub(self, rhs: f32x4) -> Self::Output {
     f32x4::splat(self).sub(rhs)
   }
@@ -240,7 +232,6 @@ impl Sub<f32x4> for f32 {
 impl Mul<f32x4> for f32 {
   type Output = f32x4;
   #[inline]
-  #[must_use]
   fn mul(self, rhs: f32x4) -> Self::Output {
     f32x4::splat(self).mul(rhs)
   }
@@ -249,7 +240,6 @@ impl Mul<f32x4> for f32 {
 impl Div<f32x4> for f32 {
   type Output = f32x4;
   #[inline]
-  #[must_use]
   fn div(self, rhs: f32x4) -> Self::Output {
     f32x4::splat(self).div(rhs)
   }
@@ -258,7 +248,6 @@ impl Div<f32x4> for f32 {
 impl BitAnd for f32x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn bitand(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse")] {
@@ -282,7 +271,6 @@ impl BitAnd for f32x4 {
 impl BitOr for f32x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn bitor(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse")] {
@@ -306,7 +294,6 @@ impl BitOr for f32x4 {
 impl BitXor for f32x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn bitxor(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse")] {
@@ -330,8 +317,7 @@ impl BitXor for f32x4 {
 impl CmpEq for f32x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
-  fn cmp_eq(self, rhs: Self) -> Self::Output {
+  fn simd_eq(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse")] {
         Self { sse: cmp_eq_mask_m128(self.sse, rhs.sse) }
@@ -354,8 +340,7 @@ impl CmpEq for f32x4 {
 impl CmpGe for f32x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
-  fn cmp_ge(self, rhs: Self) -> Self::Output {
+  fn simd_ge(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse")] {
         Self { sse: cmp_ge_mask_m128(self.sse, rhs.sse) }
@@ -378,8 +363,7 @@ impl CmpGe for f32x4 {
 impl CmpGt for f32x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
-  fn cmp_gt(self, rhs: Self) -> Self::Output {
+  fn simd_gt(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse")] {
         Self { sse: cmp_gt_mask_m128(self.sse, rhs.sse) }
@@ -402,8 +386,7 @@ impl CmpGt for f32x4 {
 impl CmpNe for f32x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
-  fn cmp_ne(self, rhs: Self) -> Self::Output {
+  fn simd_ne(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse")] {
         Self { sse: cmp_neq_mask_m128(self.sse, rhs.sse) }
@@ -426,8 +409,7 @@ impl CmpNe for f32x4 {
 impl CmpLe for f32x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
-  fn cmp_le(self, rhs: Self) -> Self::Output {
+  fn simd_le(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse")] {
         Self { sse: cmp_le_mask_m128(self.sse, rhs.sse) }
@@ -450,8 +432,7 @@ impl CmpLe for f32x4 {
 impl CmpLt for f32x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
-  fn cmp_lt(self, rhs: Self) -> Self::Output {
+  fn simd_lt(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse")] {
         Self { sse: cmp_lt_mask_m128(self.sse, rhs.sse) }
@@ -714,7 +695,7 @@ impl f32x4 {
     let shifted_exp_mask = u32x4::from(0xFF000000);
     let u: u32x4 = cast(self);
     let shift_u = u << 1_u64;
-    let out = !(shift_u & shifted_exp_mask).cmp_eq(shifted_exp_mask);
+    let out = !(shift_u & shifted_exp_mask).simd_eq(shifted_exp_mask);
     cast(out)
   }
   #[inline]
@@ -723,7 +704,7 @@ impl f32x4 {
     let shifted_inf = u32x4::from(0xFF000000);
     let u: u32x4 = cast(self);
     let shift_u = u << 1_u64;
-    let out = (shift_u).cmp_eq(shifted_inf);
+    let out = (shift_u).simd_eq(shifted_inf);
     cast(out)
   }
 
@@ -737,7 +718,7 @@ impl f32x4 {
         let mi: m128i = convert_to_i32_m128i_from_m128(self.sse);
         let f: f32x4 = f32x4 { sse: convert_to_m128_from_i32_m128i(mi) };
         let i: i32x4 = cast(mi);
-        let mask: f32x4 = cast(i.cmp_eq(i32x4::from(0x80000000_u32 as i32)));
+        let mask: f32x4 = cast(i.simd_eq(i32x4::from(0x80000000_u32 as i32)));
         mask.blend(self, f)
       } else if #[cfg(target_feature="simd128")] {
         Self { simd: f32x4_nearest(self.simd) }
@@ -753,19 +734,19 @@ impl f32x4 {
         let mut y: f32x4;
 
         let no_op_magic = i32x4::from(0x7f + 23);
-        let no_op_mask: f32x4 = cast(e.cmp_gt(no_op_magic) | e.cmp_eq(no_op_magic));
+        let no_op_mask: f32x4 = cast(e.simd_gt(no_op_magic) | e.simd_eq(no_op_magic));
         let no_op_val: f32x4 = self;
 
         let zero_magic = i32x4::from(0x7f - 1);
-        let zero_mask: f32x4 = cast(e.cmp_lt(zero_magic));
+        let zero_mask: f32x4 = cast(e.simd_lt(zero_magic));
         let zero_val: f32x4 = self * f32x4::from(0.0);
 
-        let neg_bit: f32x4 = cast(cast::<u32x4, i32x4>(u).cmp_lt(i32x4::default()));
+        let neg_bit: f32x4 = cast(cast::<u32x4, i32x4>(u).simd_lt(i32x4::default()));
         let x: f32x4 = neg_bit.blend(-self, self);
         y = x + to_int - to_int - x;
-        y = y.cmp_gt(f32x4::from(0.5)).blend(
+        y = y.simd_gt(f32x4::from(0.5)).blend(
           y + x - f32x4::from(-1.0),
-          y.cmp_lt(f32x4::from(-0.5)).blend(y + x + f32x4::from(1.0), y + x),
+          y.simd_lt(f32x4::from(-0.5)).blend(y + x + f32x4::from(1.0), y + x),
         );
         y = neg_bit.blend(-y, y);
 
@@ -798,9 +779,9 @@ impl f32x4 {
     pick! {
       if #[cfg(target_feature="sse2")] {
         // Based on: https://github.com/v8/v8/blob/210987a552a2bf2a854b0baa9588a5959ff3979d/src/codegen/shared-ia32-x64/macro-assembler-shared-ia32-x64.h#L489-L504
-        let non_nan_mask = self.cmp_eq(self);
+        let non_nan_mask = self.simd_eq(self);
         let non_nan = self & non_nan_mask;
-        let flip_to_max: i32x4 = cast(self.cmp_ge(Self::splat(2147483648.0)));
+        let flip_to_max: i32x4 = cast(self.simd_ge(Self::splat(2147483648.0)));
         let cast: i32x4 = cast(convert_to_i32_m128i_from_m128(non_nan.sse));
         flip_to_max ^ cast
       } else if #[cfg(target_feature="simd128")] {
@@ -843,9 +824,9 @@ impl f32x4 {
     pick! {
       if #[cfg(target_feature="sse2")] {
         // Based on: https://github.com/v8/v8/blob/210987a552a2bf2a854b0baa9588a5959ff3979d/src/codegen/shared-ia32-x64/macro-assembler-shared-ia32-x64.h#L489-L504
-        let non_nan_mask = self.cmp_eq(self);
+        let non_nan_mask = self.simd_eq(self);
         let non_nan = self & non_nan_mask;
-        let flip_to_max: i32x4 = cast(self.cmp_ge(Self::splat(2147483648.0)));
+        let flip_to_max: i32x4 = cast(self.simd_ge(Self::splat(2147483648.0)));
         let cast: i32x4 = cast(truncate_m128_to_m128i(non_nan.sse));
         flip_to_max ^ cast
       } else if #[cfg(target_feature="simd128")] {
@@ -863,50 +844,156 @@ impl f32x4 {
       }
     }
   }
+  /// Performs a multiply-add operation: `self * m + a`
+  ///
+  /// When hardware FMA support is available, this computes the result with a
+  /// single rounding operation. Without FMA support, it falls back to separate
+  /// multiply and add operations with two roundings.
+  ///
+  /// # Platform-specific behavior
+  /// - On `x86`/`x86_64` with FMA: Uses `vfmadd` (single rounding, best
+  ///   accuracy)
+  /// - On ARM64 with NEON: Uses `vfmaq_f32` (single rounding, best accuracy)
+  /// - Without FMA support: Uses `(self * m) + a` (two roundings)
+  ///
+  /// # Examples
+  /// ```
+  /// # use wide::f32x4;
+  /// let a = f32x4::from([1.0, 2.0, 3.0, 4.0]);
+  /// let b = f32x4::from([5.0, 6.0, 7.0, 8.0]);
+  /// let c = f32x4::from([9.0, 10.0, 11.0, 12.0]);
+  ///
+  /// let result = a.mul_add(b, c);
+  ///
+  /// let expected = f32x4::from([14.0, 22.0, 32.0, 44.0]);
+  /// assert_eq!(result, expected);
+  /// ```
   #[inline]
   #[must_use]
   pub fn mul_add(self, m: Self, a: Self) -> Self {
     pick! {
       if #[cfg(all(target_feature="sse2",target_feature="fma"))] {
         Self { sse: fused_mul_add_m128(self.sse, m.sse, a.sse) }
+      } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))] {
+        unsafe { Self { neon: vfmaq_f32(a.neon, self.neon, m.neon) } }
       } else {
         (self * m) + a
       }
     }
   }
 
+  /// Performs a multiply-subtract operation: `self * m - s`
+  ///
+  /// When hardware FMA support is available, this computes the result with a
+  /// single rounding operation. Without FMA support, it falls back to separate
+  /// multiply and subtract operations with two roundings.
+  ///
+  /// # Platform-specific behavior
+  /// - On `x86`/`x86_64` with FMA: Uses `vfmsub` (single rounding, best
+  ///   accuracy)
+  /// - On ARM64 with NEON: Uses `vfmaq_f32(-s, self, m)` (single rounding, best
+  ///   accuracy)
+  /// - Without FMA support: Uses `(self * m) - s` (two roundings)
+  ///
+  /// # Examples
+  /// ```
+  /// # use wide::f32x4;
+  /// let a = f32x4::from([10.0, 20.0, 30.0, 40.0]);
+  /// let b = f32x4::from([2.0, 3.0, 4.0, 5.0]);
+  /// let c = f32x4::from([5.0, 10.0, 15.0, 20.0]);
+  ///
+  /// let result = a.mul_sub(b, c);
+  ///
+  /// let expected = f32x4::from([15.0, 50.0, 105.0, 180.0]);
+  /// assert_eq!(result, expected);
+  /// ```
   #[inline]
   #[must_use]
   pub fn mul_sub(self, m: Self, s: Self) -> Self {
     pick! {
       if #[cfg(all(target_feature="sse2",target_feature="fma"))] {
         Self { sse: fused_mul_sub_m128(self.sse, m.sse, s.sse) }
+      } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))] {
+        unsafe { Self { neon: vfmaq_f32(vnegq_f32(s.neon), self.neon, m.neon) } }
       } else {
         (self * m) - s
       }
     }
   }
 
+  /// Performs a negative multiply-add operation: `a - (self * m)`
+  ///
+  /// When hardware FMA support is available, this computes the result with a
+  /// single rounding operation. Without FMA support, it falls back to separate
+  /// operations with two roundings.
+  ///
+  /// # Platform-specific behavior
+  /// - On `x86`/`x86_64` with FMA: Uses `vfnmadd` (single rounding, best
+  ///   accuracy)
+  /// - On ARM64 with NEON: Uses `vfmsq_f32` (single rounding, best accuracy)
+  /// - Without FMA support: Uses `a - (self * m)` (two roundings)
+  ///
+  /// # Examples
+  /// ```
+  /// # use wide::f32x4;
+  /// let a = f32x4::from([3.0, 4.0, 5.0, 6.0]);
+  /// let b = f32x4::from([2.0, 2.0, 2.0, 2.0]);
+  /// let c = f32x4::from([10.0, 20.0, 30.0, 40.0]);
+  ///
+  /// let result = a.mul_neg_add(b, c);
+  ///
+  /// let expected = f32x4::from([4.0, 12.0, 20.0, 28.0]);
+  /// assert_eq!(result, expected);
+  /// ```
   #[inline]
   #[must_use]
   pub fn mul_neg_add(self, m: Self, a: Self) -> Self {
     pick! {
       if #[cfg(all(target_feature="sse2",target_feature="fma"))] {
         Self { sse: fused_mul_neg_add_m128(self.sse, m.sse, a.sse) }
+      } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))] {
+        unsafe { Self { neon: vfmsq_f32(a.neon, self.neon, m.neon) } }
       } else {
         a - (self * m)
       }
     }
   }
 
+  /// Performs a negative multiply-subtract operation: `-(self * m) - s`
+  ///
+  /// When hardware FMA support is available, this computes the result with a
+  /// single rounding operation. Without FMA support, it falls back to separate
+  /// operations with two roundings.
+  ///
+  /// # Platform-specific behavior
+  /// - On `x86`/`x86_64` with FMA: Uses `vfnmsub` (single rounding, best
+  ///   accuracy)
+  /// - On ARM64 with NEON: Uses `-(vfmaq_f32(s, self, m))` (single rounding,
+  ///   best accuracy)
+  /// - Without FMA support: Uses `-(self * m) - s` (two roundings)
+  ///
+  /// # Examples
+  /// ```
+  /// # use wide::f32x4;
+  /// let a = f32x4::from([3.0, 4.0, 5.0, 6.0]);
+  /// let b = f32x4::from([2.0, 2.0, 2.0, 2.0]);
+  /// let c = f32x4::from([1.0, 2.0, 3.0, 4.0]);
+  ///
+  /// let result = a.mul_neg_sub(b, c);
+  ///
+  /// let expected = f32x4::from([-7.0, -10.0, -13.0, -16.0]);
+  /// assert_eq!(result, expected);
+  /// ```
   #[inline]
   #[must_use]
-  pub fn mul_neg_sub(self, m: Self, a: Self) -> Self {
+  pub fn mul_neg_sub(self, m: Self, s: Self) -> Self {
     pick! {
       if #[cfg(all(target_feature="sse2",target_feature="fma"))] {
-        Self { sse: fused_mul_neg_sub_m128(self.sse, m.sse, a.sse) }
+        Self { sse: fused_mul_neg_sub_m128(self.sse, m.sse, s.sse) }
+      } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))] {
+        unsafe { Self { neon: vnegq_f32(vfmaq_f32(s.neon, self.neon, m.neon)) } }
       } else {
-        -(self * m) - a
+        -(self * m) - s
       }
     }
   }
@@ -935,7 +1022,7 @@ impl f32x4 {
     const_f32_as_f32x4!(P0asinf, 1.6666752422E-1);
 
     let xa = self.abs();
-    let big = xa.cmp_ge(f32x4::splat(0.5));
+    let big = xa.simd_ge(f32x4::splat(0.5));
 
     let x1 = f32x4::splat(0.5) * (f32x4::ONE - xa);
     let x2 = xa * xa;
@@ -951,7 +1038,7 @@ impl f32x4 {
     let z1 = z + z;
 
     // acos
-    let z3 = self.cmp_lt(f32x4::ZERO).blend(f32x4::PI - z1, z1);
+    let z3 = self.simd_lt(f32x4::ZERO).blend(f32x4::PI - z1, z1);
     let z4 = f32x4::FRAC_PI_2 - z.flip_signs(self);
     let acos = big.blend(z3, z4);
 
@@ -974,7 +1061,7 @@ impl f32x4 {
     const_f32_as_f32x4!(P0asinf, 1.6666752422E-1);
 
     let xa = self.abs();
-    let big = xa.cmp_ge(f32x4::splat(0.5));
+    let big = xa.simd_ge(f32x4::splat(0.5));
 
     let x1 = f32x4::splat(0.5) * (f32x4::ONE - xa);
     let x2 = xa * xa;
@@ -1009,7 +1096,7 @@ impl f32x4 {
     const_f32_as_f32x4!(P0asinf, 1.6666752422E-1);
 
     let xa = self.abs();
-    let big = xa.cmp_ge(f32x4::splat(0.5));
+    let big = xa.simd_ge(f32x4::splat(0.5));
 
     let x1 = f32x4::splat(0.5) * (f32x4::ONE - xa);
     let x2 = xa * xa;
@@ -1025,7 +1112,7 @@ impl f32x4 {
     let z1 = z + z;
 
     // acos
-    let z3 = self.cmp_lt(f32x4::ZERO).blend(f32x4::PI - z1, z1);
+    let z3 = self.simd_lt(f32x4::ZERO).blend(f32x4::PI - z1, z1);
     let z4 = f32x4::FRAC_PI_2 - z.flip_signs(self);
     let acos = big.blend(z3, z4);
 
@@ -1046,8 +1133,8 @@ impl f32x4 {
     // small:  z = t / 1.0;
     // medium: z = (t-1.0) / (t+1.0);
     // big:    z = -1.0 / t;
-    let notsmal = t.cmp_ge(Self::SQRT_2 - Self::ONE);
-    let notbig = t.cmp_le(Self::SQRT_2 + Self::ONE);
+    let notsmal = t.simd_ge(Self::SQRT_2 - Self::ONE);
+    let notbig = t.simd_le(Self::SQRT_2 + Self::ONE);
 
     let mut s = notbig.blend(Self::FRAC_PI_4, Self::FRAC_PI_2);
     s = notsmal & s;
@@ -1084,7 +1171,7 @@ impl f32x4 {
     // move in first octant
     let x1 = x.abs();
     let y1 = y.abs();
-    let swapxy = y1.cmp_gt(x1);
+    let swapxy = y1.simd_gt(x1);
     // swap x and y if y1 > x1
     let mut x2 = swapxy.blend(y1, x1);
     let mut y2 = swapxy.blend(x1, y1);
@@ -1102,7 +1189,7 @@ impl f32x4 {
 
     // small:  z = t / 1.0;
     // medium: z = (t-1.0) / (t+1.0);
-    let notsmal = t.cmp_ge(Self::SQRT_2 - Self::ONE);
+    let notsmal = t.simd_ge(Self::SQRT_2 - Self::ONE);
 
     let a = notsmal.blend(t - Self::ONE, t);
     let b = notsmal.blend(t + Self::ONE, Self::ONE);
@@ -1117,7 +1204,7 @@ impl f32x4 {
 
     // move back in place
     re = swapxy.blend(Self::FRAC_PI_2 - re, re);
-    re = ((x | y).cmp_eq(Self::ZERO)).blend(Self::ZERO, re);
+    re = ((x | y).simd_eq(Self::ZERO)).blend(Self::ZERO, re);
     re = (x.sign_bit()).blend(Self::PI - re, re);
 
     // get sign bit
@@ -1159,9 +1246,9 @@ impl f32x4 {
     let mut c = polynomial_2!(x2, P0cosf, P1cosf, P2cosf) * (x2 * x2)
       + f32x4::from(0.5).mul_neg_add(x2, f32x4::from(1.0));
 
-    let swap = !(q & i32x4::from(1)).cmp_eq(i32x4::from(0));
+    let swap = !(q & i32x4::from(1)).simd_eq(i32x4::from(0));
 
-    let mut overflow: f32x4 = cast(q.cmp_gt(i32x4::from(0x2000000)));
+    let mut overflow: f32x4 = cast(q.simd_gt(i32x4::from(0x2000000)));
     overflow &= xa.is_finite();
     s = overflow.blend(f32x4::from(0.0), s);
     c = overflow.blend(f32x4::from(1.0), c);
@@ -1286,12 +1373,12 @@ impl f32x4 {
 
   #[inline]
   #[must_use]
-  pub fn move_mask(self) -> i32 {
+  pub fn to_bitmask(self) -> u32 {
     pick! {
       if #[cfg(target_feature="sse")] {
-        move_mask_m128(self.sse)
+        move_mask_m128(self.sse) as u32
       } else if #[cfg(target_feature="simd128")] {
-        u32x4_bitmask(self.simd) as i32
+        u32x4_bitmask(self.simd) as u32
       } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
         unsafe
         {
@@ -1303,13 +1390,13 @@ impl f32x4 {
           let r = vandq_u32(masked, selectbit);
 
           // horizontally add the 16-bit lanes
-          vaddvq_u32(r) as i32
+          vaddvq_u32(r) as u32
         }
       } else {
-        (((self.arr[0].to_bits() as i32) < 0) as i32) << 0 |
-        (((self.arr[1].to_bits() as i32) < 0) as i32) << 1 |
-        (((self.arr[2].to_bits() as i32) < 0) as i32) << 2 |
-        (((self.arr[3].to_bits() as i32) < 0) as i32) << 3
+        (((self.arr[0].to_bits() as i32) < 0) as u32) << 0 |
+        (((self.arr[1].to_bits() as i32) < 0) as u32) << 1 |
+        (((self.arr[2].to_bits() as i32) < 0) as u32) << 2 |
+        (((self.arr[3].to_bits() as i32) < 0) as u32) << 3
       }
     }
   }
@@ -1320,7 +1407,7 @@ impl f32x4 {
       if #[cfg(target_feature="simd128")] {
         v128_any_true(self.simd)
       } else {
-        self.move_mask() != 0
+        self.to_bitmask() != 0
       }
     }
   }
@@ -1332,7 +1419,7 @@ impl f32x4 {
         u32x4_all_true(self.simd)
       } else {
         // four lanes
-        self.move_mask() == 0b1111
+        self.to_bitmask() == 0b1111
       }
     }
   }
@@ -1373,7 +1460,7 @@ impl f32x4 {
     let n2 = Self::vm_pow2n(r);
     let z = (z + Self::ONE) * n2;
     // check for overflow
-    let in_range = self.abs().cmp_lt(max_x);
+    let in_range = self.abs().simd_lt(max_x);
     let in_range = in_range & self.is_finite();
     in_range.blend(z, Self::ZERO)
   }
@@ -1402,7 +1489,7 @@ impl f32x4 {
   fn is_zero_or_subnormal(self) -> Self {
     let t = cast::<_, i32x4>(self);
     let t = t & i32x4::splat(0x7F800000);
-    i32x4::round_float(t.cmp_eq(i32x4::splat(0)))
+    i32x4::round_float(t.simd_eq(i32x4::splat(0)))
   }
   #[inline]
   fn infinity() -> Self {
@@ -1420,7 +1507,7 @@ impl f32x4 {
   pub fn sign_bit(self) -> Self {
     let t1 = cast::<_, i32x4>(self);
     let t2 = t1 >> 31;
-    !cast::<_, f32x4>(t2).cmp_eq(f32x4::ZERO)
+    !cast::<_, f32x4>(t2).simd_eq(f32x4::ZERO)
   }
 
   /// horizontal add of all the elements of the vector
@@ -1452,7 +1539,7 @@ impl f32x4 {
     let x1 = self;
     let x = Self::fraction_2(x1);
     let e = Self::exponent(x1);
-    let mask = x.cmp_gt(Self::SQRT_2 * HALF);
+    let mask = x.simd_gt(Self::SQRT_2 * HALF);
     let x = (!mask).blend(x + x, x);
     let fe = mask.blend(e + Self::ONE, e);
     let x = x - Self::ONE;
@@ -1463,7 +1550,7 @@ impl f32x4 {
     let res = res + x2.mul_neg_add(HALF, x);
     let res = fe.mul_add(LN2F_HI, res);
     let overflow = !self.is_finite();
-    let underflow = x1.cmp_lt(VM_SMALLEST_NORMAL);
+    let underflow = x1.simd_lt(VM_SMALLEST_NORMAL);
     let mask = overflow | underflow;
     if !mask.any() {
       res
@@ -1512,7 +1599,7 @@ impl f32x4 {
     let x1 = self.abs();
     let x = x1.fraction_2();
 
-    let mask = x.cmp_gt(f32x4::SQRT_2 * f32x4::HALF);
+    let mask = x.simd_gt(f32x4::SQRT_2 * f32x4::HALF);
     let x = (!mask).blend(x + x, x);
 
     let x = x - f32x4::ONE;
@@ -1550,10 +1637,10 @@ impl f32x4 {
     let ei = cast::<_, i32x4>(ee.round_int());
     let ej = cast::<_, i32x4>(ei + (cast::<_, i32x4>(z) >> 23));
 
-    let overflow = cast::<_, f32x4>(ej.cmp_gt(i32x4::splat(0x0FF)))
-      | (ee.cmp_gt(f32x4::splat(300.0)));
-    let underflow = cast::<_, f32x4>(ej.cmp_lt(i32x4::splat(0x000)))
-      | (ee.cmp_lt(f32x4::splat(-300.0)));
+    let overflow = cast::<_, f32x4>(ej.simd_gt(i32x4::splat(0x0FF)))
+      | (ee.simd_gt(f32x4::splat(300.0)));
+    let underflow = cast::<_, f32x4>(ej.simd_lt(i32x4::splat(0x000)))
+      | (ee.simd_lt(f32x4::splat(-300.0)));
 
     // Add exponent by integer addition
     let z = cast::<_, f32x4>(cast::<_, i32x4>(z) + (ei << 23));
@@ -1569,9 +1656,9 @@ impl f32x4 {
     // Check for self == 0
     let x_zero = self.is_zero_or_subnormal();
     let z = x_zero.blend(
-      y.cmp_lt(f32x4::ZERO).blend(
+      y.simd_lt(f32x4::ZERO).blend(
         Self::infinity(),
-        y.cmp_eq(f32x4::ZERO).blend(f32x4::ONE, f32x4::ZERO),
+        y.simd_eq(f32x4::ZERO).blend(f32x4::ONE, f32x4::ZERO),
       ),
       z,
     );
@@ -1579,12 +1666,12 @@ impl f32x4 {
     let x_sign = self.sign_bit();
     let z = if x_sign.any() {
       // Y into an integer
-      let yi = y.cmp_eq(y.round());
+      let yi = y.simd_eq(y.round());
       // Is y odd?
       let y_odd = cast::<_, i32x4>(y.round_int() << 31).round_float();
 
       let z1 =
-        yi.blend(z | y_odd, self.cmp_eq(Self::ZERO).blend(z, Self::nan_pow()));
+        yi.blend(z | y_odd, self.simd_eq(Self::ZERO).blend(z, Self::nan_pow()));
       x_sign.blend(z1, z)
     } else {
       z
@@ -1605,6 +1692,52 @@ impl f32x4 {
     Self::pow_f32x4(self, f32x4::splat(y))
   }
 
+  #[must_use]
+  #[inline]
+  pub fn unpack_lo(self, b: Self) -> Self {
+    pick! {
+      if #[cfg(target_feature="sse")] {
+        Self { sse: unpack_low_m128(self.sse, b.sse) }
+      } else if #[cfg(target_feature="simd128")] {
+        Self {
+          simd: u32x4_shuffle::<0, 4, 1, 5>(self.simd, b.simd)
+        }
+      } else if #[cfg(all(target_feature="neon", target_arch="aarch64"))]{
+        unsafe {Self { neon: vzip1q_f32(self.neon, b.neon) }}
+      } else {
+        Self { arr: [
+          self.arr[0],
+          b.arr[0],
+          self.arr[1],
+          b.arr[1],
+        ]}
+      }
+    }
+  }
+
+  #[must_use]
+  #[inline]
+  pub fn unpack_hi(self, b: Self) -> Self {
+    pick! {
+      if #[cfg(target_feature="sse")] {
+        Self { sse: unpack_high_m128(self.sse, b.sse) }
+      } else if #[cfg(target_feature="simd128")] {
+        Self {
+          simd: u32x4_shuffle::<2, 6, 3, 7>(self.simd, b.simd)
+        }
+      } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
+        unsafe {Self { neon: vzip2q_f32(self.neon, b.neon) }}
+      } else {
+        Self { arr: [
+          self.arr[2],
+          b.arr[2],
+          self.arr[3],
+          b.arr[3],
+        ]}
+      }
+    }
+  }
+
   /// Transpose matrix of 4x4 `f32` matrix. Currently only accelerated on SSE.
   #[must_use]
   #[inline]
@@ -1619,14 +1752,26 @@ impl f32x4 {
         transpose_four_m128(&mut e0.sse, &mut e1.sse, &mut e2.sse, &mut e3.sse);
 
         [e0, e1, e2, e3]
+      } else if #[cfg(any(all(target_feature="neon",target_arch="aarch64"), target_feature="simd128"))] {
+        let a = data[0].unpack_lo(data[2]);
+        let b = data[1].unpack_lo(data[3]);
+        let c = data[0].unpack_hi(data[2]);
+        let d = data[1].unpack_hi(data[3]);
+
+        [
+          a.unpack_lo(b),
+          a.unpack_hi(b),
+          c.unpack_lo(d),
+          c.unpack_hi(d),
+        ]
       } else {
         #[inline(always)]
         fn transpose_column(data: &[f32x4; 4], index: usize) -> f32x4 {
           f32x4::new([
-            data[0].as_array_ref()[index],
-            data[1].as_array_ref()[index],
-            data[2].as_array_ref()[index],
-            data[3].as_array_ref()[index],
+            data[0].as_array()[index],
+            data[1].as_array()[index],
+            data[2].as_array()[index],
+            data[3].as_array()[index],
           ])
         }
 
@@ -1646,12 +1791,12 @@ impl f32x4 {
   }
 
   #[inline]
-  pub fn as_array_ref(&self) -> &[f32; 4] {
+  pub fn as_array(&self) -> &[f32; 4] {
     cast_ref(self)
   }
 
   #[inline]
-  pub fn as_array_mut(&mut self) -> &mut [f32; 4] {
+  pub fn as_mut_array(&mut self) -> &mut [f32; 4] {
     cast_mut(self)
   }
 
@@ -1666,10 +1811,10 @@ impl f32x4 {
         Self { neon: unsafe { vcvtq_f32_s32(v.neon) }}
       } else {
         Self { arr: [
-            v.as_array_ref()[0] as f32,
-            v.as_array_ref()[1] as f32,
-            v.as_array_ref()[2] as f32,
-            v.as_array_ref()[3] as f32,
+            v.as_array()[0] as f32,
+            v.as_array()[1] as f32,
+            v.as_array()[2] as f32,
+            v.as_array()[3] as f32,
           ] }
       }
     }

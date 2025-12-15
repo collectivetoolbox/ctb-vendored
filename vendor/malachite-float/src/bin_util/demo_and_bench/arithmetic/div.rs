@@ -50,14 +50,19 @@ use malachite_float::test_util::generators::{
     float_float_unsigned_rounding_mode_quadruple_gen_var_8, float_float_unsigned_triple_gen_var_1,
     float_float_unsigned_triple_gen_var_1_rm, float_float_unsigned_triple_gen_var_2,
     float_pair_gen, float_pair_gen_rm, float_pair_gen_var_10, float_rational_pair_gen,
-    float_rational_pair_gen_rm, float_rational_rounding_mode_triple_gen_var_3_rm,
+    float_rational_pair_gen_rm, float_rational_pair_gen_var_2,
+    float_rational_rounding_mode_triple_gen_var_3_rm,
     float_rational_rounding_mode_triple_gen_var_5, float_rational_rounding_mode_triple_gen_var_6,
     float_rational_rounding_mode_triple_gen_var_6_rm,
+    float_rational_rounding_mode_triple_gen_var_10, float_rational_rounding_mode_triple_gen_var_11,
     float_rational_unsigned_rounding_mode_quadruple_gen_var_4,
     float_rational_unsigned_rounding_mode_quadruple_gen_var_4_rm,
     float_rational_unsigned_rounding_mode_quadruple_gen_var_5,
     float_rational_unsigned_rounding_mode_quadruple_gen_var_5_rm,
+    float_rational_unsigned_rounding_mode_quadruple_gen_var_9,
+    float_rational_unsigned_rounding_mode_quadruple_gen_var_10,
     float_rational_unsigned_triple_gen_var_1, float_rational_unsigned_triple_gen_var_1_rm,
+    float_rational_unsigned_triple_gen_var_2,
 };
 use malachite_float::{ComparableFloat, ComparableFloatRef, Float};
 
@@ -120,6 +125,8 @@ pub(crate) fn register(runner: &mut Runner) {
     register_demo!(runner, demo_float_div_prec_round_assign_ref_debug);
     register_demo!(runner, demo_float_div_rational);
     register_demo!(runner, demo_float_div_rational_debug);
+    register_demo!(runner, demo_float_div_rational_extreme);
+    register_demo!(runner, demo_float_div_rational_extreme_debug);
     register_demo!(runner, demo_float_div_rational_val_ref);
     register_demo!(runner, demo_float_div_rational_val_ref_debug);
     register_demo!(runner, demo_float_div_rational_ref_val);
@@ -132,6 +139,8 @@ pub(crate) fn register(runner: &mut Runner) {
     register_demo!(runner, demo_float_div_rational_assign_ref_debug);
     register_demo!(runner, demo_rational_div_float);
     register_demo!(runner, demo_rational_div_float_debug);
+    register_demo!(runner, demo_rational_div_float_extreme);
+    register_demo!(runner, demo_rational_div_float_extreme_debug);
     register_demo!(runner, demo_rational_div_float_val_ref);
     register_demo!(runner, demo_rational_div_float_val_ref_debug);
     register_demo!(runner, demo_rational_div_float_ref_val);
@@ -140,6 +149,8 @@ pub(crate) fn register(runner: &mut Runner) {
     register_demo!(runner, demo_rational_div_float_ref_ref_debug);
     register_demo!(runner, demo_float_div_rational_prec);
     register_demo!(runner, demo_float_div_rational_prec_debug);
+    register_demo!(runner, demo_float_div_rational_prec_extreme);
+    register_demo!(runner, demo_float_div_rational_prec_extreme_debug);
     register_demo!(runner, demo_float_div_rational_prec_val_ref);
     register_demo!(runner, demo_float_div_rational_prec_val_ref_debug);
     register_demo!(runner, demo_float_div_rational_prec_ref_val);
@@ -152,6 +163,8 @@ pub(crate) fn register(runner: &mut Runner) {
     register_demo!(runner, demo_float_div_rational_prec_assign_ref_debug);
     register_demo!(runner, demo_rational_div_float_prec);
     register_demo!(runner, demo_rational_div_float_prec_debug);
+    register_demo!(runner, demo_rational_div_float_prec_extreme);
+    register_demo!(runner, demo_rational_div_float_prec_extreme_debug);
     register_demo!(runner, demo_rational_div_float_prec_val_ref);
     register_demo!(runner, demo_rational_div_float_prec_val_ref_debug);
     register_demo!(runner, demo_rational_div_float_prec_ref_val);
@@ -160,6 +173,8 @@ pub(crate) fn register(runner: &mut Runner) {
     register_demo!(runner, demo_rational_div_float_prec_ref_ref_debug);
     register_demo!(runner, demo_float_div_rational_round);
     register_demo!(runner, demo_float_div_rational_round_debug);
+    register_demo!(runner, demo_float_div_rational_round_extreme);
+    register_demo!(runner, demo_float_div_rational_round_extreme_debug);
     register_demo!(runner, demo_float_div_rational_round_val_ref);
     register_demo!(runner, demo_float_div_rational_round_val_ref_debug);
     register_demo!(runner, demo_float_div_rational_round_ref_val);
@@ -172,6 +187,8 @@ pub(crate) fn register(runner: &mut Runner) {
     register_demo!(runner, demo_float_div_rational_round_assign_ref_debug);
     register_demo!(runner, demo_rational_div_float_round);
     register_demo!(runner, demo_rational_div_float_round_debug);
+    register_demo!(runner, demo_rational_div_float_round_extreme);
+    register_demo!(runner, demo_rational_div_float_round_extreme_debug);
     register_demo!(runner, demo_rational_div_float_round_val_ref);
     register_demo!(runner, demo_rational_div_float_round_val_ref_debug);
     register_demo!(runner, demo_rational_div_float_round_ref_val);
@@ -180,6 +197,8 @@ pub(crate) fn register(runner: &mut Runner) {
     register_demo!(runner, demo_rational_div_float_round_ref_ref_debug);
     register_demo!(runner, demo_float_div_rational_prec_round);
     register_demo!(runner, demo_float_div_rational_prec_round_debug);
+    register_demo!(runner, demo_float_div_rational_prec_round_extreme);
+    register_demo!(runner, demo_float_div_rational_prec_round_extreme_debug);
     register_demo!(runner, demo_float_div_rational_prec_round_val_ref);
     register_demo!(runner, demo_float_div_rational_prec_round_val_ref_debug);
     register_demo!(runner, demo_float_div_rational_prec_round_ref_val);
@@ -192,6 +211,8 @@ pub(crate) fn register(runner: &mut Runner) {
     register_demo!(runner, demo_float_div_rational_prec_round_assign_ref_debug);
     register_demo!(runner, demo_rational_div_float_prec_round);
     register_demo!(runner, demo_rational_div_float_prec_round_debug);
+    register_demo!(runner, demo_rational_div_float_prec_round_extreme);
+    register_demo!(runner, demo_rational_div_float_prec_round_extreme_debug);
     register_demo!(runner, demo_rational_div_float_prec_round_val_ref);
     register_demo!(runner, demo_rational_div_float_prec_round_val_ref_debug);
     register_demo!(runner, demo_rational_div_float_prec_round_ref_val);
@@ -1183,6 +1204,27 @@ fn demo_float_div_rational_debug(gm: GenMode, config: &GenConfig, limit: usize) 
     }
 }
 
+fn demo_float_div_rational_extreme(gm: GenMode, config: &GenConfig, limit: usize) {
+    for (x, y) in float_rational_pair_gen_var_2().get(gm, config).take(limit) {
+        let x_old = x.clone();
+        let y_old = y.clone();
+        println!("{} / {} = {}", x_old, y_old, x / y);
+    }
+}
+
+fn demo_float_div_rational_extreme_debug(gm: GenMode, config: &GenConfig, limit: usize) {
+    for (x, y) in float_rational_pair_gen_var_2().get(gm, config).take(limit) {
+        let x_old = x.clone();
+        let y_old = y.clone();
+        println!(
+            "{:#x} / {} = {:#x}",
+            ComparableFloat(x_old),
+            y_old,
+            ComparableFloat(x / y)
+        );
+    }
+}
+
 fn demo_float_div_rational_val_ref(gm: GenMode, config: &GenConfig, limit: usize) {
     for (x, y) in float_rational_pair_gen().get(gm, config).take(limit) {
         let x_old = x.clone();
@@ -1301,6 +1343,27 @@ fn demo_rational_div_float_debug(gm: GenMode, config: &GenConfig, limit: usize) 
     }
 }
 
+fn demo_rational_div_float_extreme(gm: GenMode, config: &GenConfig, limit: usize) {
+    for (y, x) in float_rational_pair_gen_var_2().get(gm, config).take(limit) {
+        let x_old = x.clone();
+        let y_old = y.clone();
+        println!("{} / {} = {}", x_old, y_old, x / y);
+    }
+}
+
+fn demo_rational_div_float_extreme_debug(gm: GenMode, config: &GenConfig, limit: usize) {
+    for (y, x) in float_rational_pair_gen_var_2().get(gm, config).take(limit) {
+        let x_old = x.clone();
+        let y_old = y.clone();
+        println!(
+            "{} / {:#x} = {:#x}",
+            x_old,
+            ComparableFloat(y_old),
+            ComparableFloat(x / y)
+        );
+    }
+}
+
 fn demo_rational_div_float_val_ref(gm: GenMode, config: &GenConfig, limit: usize) {
     for (y, x) in float_rational_pair_gen().get(gm, config).take(limit) {
         let x_old = x.clone();
@@ -1375,6 +1438,42 @@ fn demo_float_div_rational_prec(gm: GenMode, config: &GenConfig, limit: usize) {
 
 fn demo_float_div_rational_prec_debug(gm: GenMode, config: &GenConfig, limit: usize) {
     for (x, y, prec) in float_rational_unsigned_triple_gen_var_1()
+        .get(gm, config)
+        .take(limit)
+    {
+        let x_old = x.clone();
+        let y_old = y.clone();
+        let (sum, o) = x.div_rational_prec(y, prec);
+        println!(
+            "({:#x}).div_rational_prec({}, {}) = ({:#x}, {:?})",
+            ComparableFloat(x_old),
+            y_old,
+            prec,
+            ComparableFloat(sum),
+            o
+        );
+    }
+}
+
+fn demo_float_div_rational_prec_extreme(gm: GenMode, config: &GenConfig, limit: usize) {
+    for (x, y, prec) in float_rational_unsigned_triple_gen_var_2()
+        .get(gm, config)
+        .take(limit)
+    {
+        let x_old = x.clone();
+        let y_old = y.clone();
+        println!(
+            "({}).div_rational_prec({}, {}) = {:?}",
+            x_old,
+            y_old,
+            prec,
+            x.div_rational_prec(y, prec)
+        );
+    }
+}
+
+fn demo_float_div_rational_prec_extreme_debug(gm: GenMode, config: &GenConfig, limit: usize) {
+    for (x, y, prec) in float_rational_unsigned_triple_gen_var_2()
         .get(gm, config)
         .take(limit)
     {
@@ -1588,6 +1687,42 @@ fn demo_rational_div_float_prec_debug(gm: GenMode, config: &GenConfig, limit: us
     }
 }
 
+fn demo_rational_div_float_prec_extreme(gm: GenMode, config: &GenConfig, limit: usize) {
+    for (x, y, prec) in float_rational_unsigned_triple_gen_var_2()
+        .get(gm, config)
+        .take(limit)
+    {
+        let x_old = x.clone();
+        let y_old = y.clone();
+        println!(
+            "rational_div_float_prec({}, {}, {}) = {:?}",
+            y_old,
+            x_old,
+            prec,
+            Float::rational_div_float_prec(y, x, prec)
+        );
+    }
+}
+
+fn demo_rational_div_float_prec_extreme_debug(gm: GenMode, config: &GenConfig, limit: usize) {
+    for (x, y, prec) in float_rational_unsigned_triple_gen_var_2()
+        .get(gm, config)
+        .take(limit)
+    {
+        let x_old = x.clone();
+        let y_old = y.clone();
+        let (sum, o) = Float::rational_div_float_prec(y, x, prec);
+        println!(
+            "rational_div_float_prec({}, {:#x}, {}) = ({:#x}, {:?})",
+            y_old,
+            ComparableFloat(x_old),
+            prec,
+            ComparableFloat(sum),
+            o
+        );
+    }
+}
+
 fn demo_rational_div_float_prec_val_ref(gm: GenMode, config: &GenConfig, limit: usize) {
     for (y, x, prec) in float_rational_unsigned_triple_gen_var_1()
         .get(gm, config)
@@ -1707,6 +1842,42 @@ fn demo_float_div_rational_round(gm: GenMode, config: &GenConfig, limit: usize) 
 
 fn demo_float_div_rational_round_debug(gm: GenMode, config: &GenConfig, limit: usize) {
     for (x, y, rm) in float_rational_rounding_mode_triple_gen_var_5()
+        .get(gm, config)
+        .take(limit)
+    {
+        let x_old = x.clone();
+        let y_old = y.clone();
+        let (sum, o) = x.div_rational_round(y, rm);
+        println!(
+            "({:#x}).div_rational_round({}, {}) = ({:#x}, {:?})",
+            ComparableFloat(x_old),
+            y_old,
+            rm,
+            ComparableFloat(sum),
+            o
+        );
+    }
+}
+
+fn demo_float_div_rational_round_extreme(gm: GenMode, config: &GenConfig, limit: usize) {
+    for (x, y, rm) in float_rational_rounding_mode_triple_gen_var_10()
+        .get(gm, config)
+        .take(limit)
+    {
+        let x_old = x.clone();
+        let y_old = y.clone();
+        println!(
+            "({}).div_rational_round({}, {}) = {:?}",
+            x_old,
+            y_old,
+            rm,
+            x.div_rational_round(y, rm)
+        );
+    }
+}
+
+fn demo_float_div_rational_round_extreme_debug(gm: GenMode, config: &GenConfig, limit: usize) {
+    for (x, y, rm) in float_rational_rounding_mode_triple_gen_var_10()
         .get(gm, config)
         .take(limit)
     {
@@ -1921,6 +2092,42 @@ fn demo_rational_div_float_round_debug(gm: GenMode, config: &GenConfig, limit: u
     }
 }
 
+fn demo_rational_div_float_round_extreme(gm: GenMode, config: &GenConfig, limit: usize) {
+    for (x, y, rm) in float_rational_rounding_mode_triple_gen_var_11()
+        .get(gm, config)
+        .take(limit)
+    {
+        let x_old = x.clone();
+        let y_old = y.clone();
+        println!(
+            "rational_div_float_round({}, {}, {}) = {:?}",
+            y_old,
+            x_old,
+            rm,
+            Float::rational_div_float_round(y, x, rm)
+        );
+    }
+}
+
+fn demo_rational_div_float_round_extreme_debug(gm: GenMode, config: &GenConfig, limit: usize) {
+    for (x, y, rm) in float_rational_rounding_mode_triple_gen_var_11()
+        .get(gm, config)
+        .take(limit)
+    {
+        let x_old = x.clone();
+        let y_old = y.clone();
+        let (sum, o) = Float::rational_div_float_round(y, x, rm);
+        println!(
+            "rational_div_float_round({}, {:#x}, {}) = ({:#x}, {:?})",
+            y_old,
+            ComparableFloat(x_old),
+            rm,
+            ComparableFloat(sum),
+            o
+        );
+    }
+}
+
 fn demo_rational_div_float_round_val_ref(gm: GenMode, config: &GenConfig, limit: usize) {
     for (y, x, rm) in float_rational_rounding_mode_triple_gen_var_6()
         .get(gm, config)
@@ -2041,6 +2248,44 @@ fn demo_float_div_rational_prec_round(gm: GenMode, config: &GenConfig, limit: us
 
 fn demo_float_div_rational_prec_round_debug(gm: GenMode, config: &GenConfig, limit: usize) {
     for (x, y, prec, rm) in float_rational_unsigned_rounding_mode_quadruple_gen_var_4()
+        .get(gm, config)
+        .take(limit)
+    {
+        let x_old = x.clone();
+        let y_old = y.clone();
+        let (sum, o) = x.div_rational_prec_round(y, prec, rm);
+        println!(
+            "({:#x}).div_rational_prec_round({}, {}, {}) = ({:#x}, {:?})",
+            ComparableFloat(x_old),
+            y_old,
+            prec,
+            rm,
+            ComparableFloat(sum),
+            o
+        );
+    }
+}
+
+fn demo_float_div_rational_prec_round_extreme(gm: GenMode, config: &GenConfig, limit: usize) {
+    for (x, y, prec, rm) in float_rational_unsigned_rounding_mode_quadruple_gen_var_9()
+        .get(gm, config)
+        .take(limit)
+    {
+        let x_old = x.clone();
+        let y_old = y.clone();
+        println!(
+            "({}).div_rational_prec_round({}, {}, {}) = {:?}",
+            x_old,
+            y_old,
+            prec,
+            rm,
+            x.div_rational_prec_round(y, prec, rm)
+        );
+    }
+}
+
+fn demo_float_div_rational_prec_round_extreme_debug(gm: GenMode, config: &GenConfig, limit: usize) {
+    for (x, y, prec, rm) in float_rational_unsigned_rounding_mode_quadruple_gen_var_9()
         .get(gm, config)
         .take(limit)
     {
@@ -2275,6 +2520,44 @@ fn demo_rational_div_float_prec_round_debug(gm: GenMode, config: &GenConfig, lim
     }
 }
 
+fn demo_rational_div_float_prec_round_extreme(gm: GenMode, config: &GenConfig, limit: usize) {
+    for (x, y, prec, rm) in float_rational_unsigned_rounding_mode_quadruple_gen_var_10()
+        .get(gm, config)
+        .take(limit)
+    {
+        let x_old = x.clone();
+        let y_old = y.clone();
+        println!(
+            "rational_div_float_prec_round({}, {}, {}, {}) = {:?}",
+            y_old,
+            x_old,
+            prec,
+            rm,
+            Float::rational_div_float_prec_round(y, x, prec, rm)
+        );
+    }
+}
+
+fn demo_rational_div_float_prec_round_extreme_debug(gm: GenMode, config: &GenConfig, limit: usize) {
+    for (x, y, prec, rm) in float_rational_unsigned_rounding_mode_quadruple_gen_var_10()
+        .get(gm, config)
+        .take(limit)
+    {
+        let x_old = x.clone();
+        let y_old = y.clone();
+        let (sum, o) = Float::rational_div_float_prec_round(y, x, prec, rm);
+        println!(
+            "rational_div_float_prec_round({}, ({:#x}), {}, {}) = ({:#x}, {:?})",
+            y_old,
+            ComparableFloat(x_old),
+            prec,
+            rm,
+            ComparableFloat(sum),
+            o
+        );
+    }
+}
+
 fn demo_rational_div_float_prec_round_val_ref(gm: GenMode, config: &GenConfig, limit: usize) {
     for (y, x, prec, rm) in float_rational_unsigned_rounding_mode_quadruple_gen_var_5()
         .get(gm, config)
@@ -2442,7 +2725,7 @@ fn benchmark_float_div_algorithms(gm: GenMode, config: &GenConfig, limit: usize,
             ("naive", &mut |(x, y)| {
                 let xsb = x.significant_bits();
                 let ysb = y.significant_bits();
-                no_out!(div_prec_round_naive(x, y, max(xsb, ysb), Nearest).0)
+                no_out!(div_prec_round_naive(x, y, max(xsb, ysb), Nearest).0);
             }),
         ],
     );
@@ -2485,14 +2768,14 @@ fn benchmark_float_div_prec_evaluation_strategy(
         &triple_float_float_primitive_int_max_complexity_bucketer("x", "y", "prec"),
         &mut [
             ("Float.div_prec(Float, u64)", &mut |(x, y, prec)| {
-                no_out!(x.div_prec(y, prec))
+                no_out!(x.div_prec(y, prec));
             }),
             ("Float.div_prec_val_ref(&Float, u64)", &mut |(
                 x,
                 y,
                 prec,
             )| {
-                no_out!(x.div_prec_val_ref(&y, prec))
+                no_out!(x.div_prec_val_ref(&y, prec));
             }),
             (
                 "(&Float).div_prec_ref_val(Float, u64)",
@@ -2522,10 +2805,10 @@ fn benchmark_float_div_prec_library_comparison(
         &pair_2_triple_float_float_primitive_int_max_complexity_bucketer("x", "y", "prec"),
         &mut [
             ("Malachite", &mut |(_, (x, y, prec))| {
-                no_out!(x.div_prec_ref_ref(&y, prec))
+                no_out!(x.div_prec_ref_ref(&y, prec));
             }),
             ("rug", &mut |((x, y, prec), _)| {
-                no_out!(rug_div_prec(&x, &y, prec))
+                no_out!(rug_div_prec(&x, &y, prec));
             }),
         ],
     );
@@ -2548,7 +2831,7 @@ fn benchmark_float_div_prec_algorithms(
         &mut [
             ("default", &mut |(x, y, prec)| no_out!(x.div_prec(y, prec))),
             ("naive", &mut |(x, y, prec)| {
-                no_out!(div_prec_round_naive(x, y, prec, Nearest))
+                no_out!(div_prec_round_naive(x, y, prec, Nearest));
             }),
         ],
     );
@@ -2574,7 +2857,7 @@ fn benchmark_float_div_prec_assign_evaluation_strategy(
                 y,
                 prec,
             )| {
-                no_out!(x.div_prec_assign(y, prec))
+                no_out!(x.div_prec_assign(y, prec));
             }),
             (
                 "Float.div_prec_assign_ref(&Float, u64)",
@@ -2600,7 +2883,7 @@ fn benchmark_float_div_round_evaluation_strategy(
         &triple_1_2_float_max_complexity_bucketer("x", "y"),
         &mut [
             ("Float.div_round(Float, RoundingMode)", &mut |(x, y, rm)| {
-                no_out!(x.div_round(y, rm))
+                no_out!(x.div_round(y, rm));
             }),
             (
                 "Float.div_round_val_ref(&Float, RoundingMode)",
@@ -2634,10 +2917,10 @@ fn benchmark_float_div_round_library_comparison(
         &pair_2_triple_1_2_float_max_complexity_bucketer("x", "y"),
         &mut [
             ("Malachite", &mut |(_, (x, y, rm))| {
-                no_out!(x.div_round_ref_ref(&y, rm))
+                no_out!(x.div_round_ref_ref(&y, rm));
             }),
             ("rug", &mut |((x, y, rm), _)| {
-                no_out!(rug_div_round(&x, &y, rm))
+                no_out!(rug_div_round(&x, &y, rm));
             }),
         ],
     );
@@ -2746,10 +3029,10 @@ fn benchmark_float_div_prec_round_library_comparison(
         &pair_2_quadruple_1_2_3_float_float_primitive_int_max_complexity_bucketer("x", "y", "prec"),
         &mut [
             ("Malachite", &mut |(_, (x, y, prec, rm))| {
-                no_out!(x.div_prec_round_ref_ref(&y, prec, rm))
+                no_out!(x.div_prec_round_ref_ref(&y, prec, rm));
             }),
             ("rug", &mut |((x, y, prec, rm), _)| {
-                no_out!(rug_div_prec_round(&x, &y, prec, rm))
+                no_out!(rug_div_prec_round(&x, &y, prec, rm));
             }),
         ],
     );
@@ -2771,10 +3054,10 @@ fn benchmark_float_div_prec_round_algorithms(
         &quadruple_1_2_3_float_float_primitive_int_max_complexity_bucketer("x", "y", "prec"),
         &mut [
             ("default", &mut |(x, y, prec, rm)| {
-                no_out!(x.div_prec_round(y, prec, rm))
+                no_out!(x.div_prec_round(y, prec, rm));
             }),
             ("naive", &mut |(x, y, prec, rm)| {
-                no_out!(div_prec_round_naive(x, y, prec, rm))
+                no_out!(div_prec_round_naive(x, y, prec, rm));
             }),
         ],
     );
@@ -2873,12 +3156,12 @@ fn benchmark_float_div_rational_algorithms(
             ("naive", &mut |(x, y)| {
                 let xsb = x.significant_bits();
                 let ysb = y.significant_bits();
-                no_out!(div_rational_prec_round_naive(x, y, max(xsb, ysb), Nearest).0)
+                no_out!(div_rational_prec_round_naive(x, y, max(xsb, ysb), Nearest).0);
             }),
             ("direct", &mut |(x, y)| {
                 let xsb = x.significant_bits();
                 let ysb = y.significant_bits();
-                no_out!(div_rational_prec_round_direct(x, y, max(xsb, ysb), Nearest).0)
+                no_out!(div_rational_prec_round_direct(x, y, max(xsb, ysb), Nearest).0);
             }),
         ],
     );
@@ -2956,10 +3239,10 @@ fn benchmark_float_div_rational_prec_library_comparison(
         &pair_2_triple_float_rational_primitive_int_max_complexity_bucketer("x", "y", "prec"),
         &mut [
             ("Malachite", &mut |(_, (x, y, prec))| {
-                no_out!(x.div_rational_prec_ref_ref(&y, prec))
+                no_out!(x.div_rational_prec_ref_ref(&y, prec));
             }),
             ("rug", &mut |((x, y, prec), _)| {
-                no_out!(rug_div_rational_prec(&x, &y, prec))
+                no_out!(rug_div_rational_prec(&x, &y, prec));
             }),
         ],
     );
@@ -2981,13 +3264,13 @@ fn benchmark_float_div_rational_prec_algorithms(
         &triple_float_rational_primitive_int_max_complexity_bucketer("x", "y", "prec"),
         &mut [
             ("default", &mut |(x, y, prec)| {
-                no_out!(x.div_rational_prec(y, prec))
+                no_out!(x.div_rational_prec(y, prec));
             }),
             ("naive", &mut |(x, y, prec)| {
-                no_out!(div_rational_prec_round_naive(x, y, prec, Nearest))
+                no_out!(div_rational_prec_round_naive(x, y, prec, Nearest));
             }),
             ("direct", &mut |(x, y, prec)| {
-                no_out!(div_rational_prec_round_direct(x, y, prec, Nearest))
+                no_out!(div_rational_prec_round_direct(x, y, prec, Nearest));
             }),
         ],
     );
@@ -3071,10 +3354,10 @@ fn benchmark_float_div_rational_round_library_comparison(
         &pair_2_triple_1_2_float_rational_max_complexity_bucketer("x", "y"),
         &mut [
             ("Malachite", &mut |(_, (x, y, rm))| {
-                no_out!(x.div_rational_round_ref_ref(&y, rm))
+                no_out!(x.div_rational_round_ref_ref(&y, rm));
             }),
             ("rug", &mut |((x, y, rm), _)| {
-                no_out!(rug_div_rational_round(&x, &y, rm))
+                no_out!(rug_div_rational_round(&x, &y, rm));
             }),
         ],
     );
@@ -3096,7 +3379,7 @@ fn benchmark_float_div_rational_round_algorithms(
         &triple_1_2_float_rational_max_complexity_bucketer("x", "y"),
         &mut [
             ("default", &mut |(x, y, rm)| {
-                no_out!(x.div_rational_round(y, rm))
+                no_out!(x.div_rational_round(y, rm));
             }),
             ("naive", &mut |(x, y, rm)| {
                 let ysb = y.significant_bits();
@@ -3190,10 +3473,10 @@ fn benchmark_float_div_rational_prec_round_library_comparison(
         ),
         &mut [
             ("Malachite", &mut |(_, (x, y, prec, rm))| {
-                no_out!(x.div_rational_prec_round_ref_ref(&y, prec, rm))
+                no_out!(x.div_rational_prec_round_ref_ref(&y, prec, rm));
             }),
             ("rug", &mut |((x, y, prec, rm), _)| {
-                no_out!(rug_div_rational_prec_round(&x, &y, prec, rm))
+                no_out!(rug_div_rational_prec_round(&x, &y, prec, rm));
             }),
         ],
     );
@@ -3215,13 +3498,13 @@ fn benchmark_float_div_rational_prec_round_algorithms(
         &quadruple_1_2_3_float_rational_primitive_int_max_complexity_bucketer("x", "y", "prec"),
         &mut [
             ("default", &mut |(x, y, prec, rm)| {
-                no_out!(x.div_rational_prec_round(y, prec, rm))
+                no_out!(x.div_rational_prec_round(y, prec, rm));
             }),
             ("naive", &mut |(x, y, prec, rm)| {
-                no_out!(div_rational_prec_round_naive(x, y, prec, rm))
+                no_out!(div_rational_prec_round_naive(x, y, prec, rm));
             }),
             ("direct", &mut |(x, y, prec, rm)| {
-                no_out!(div_rational_prec_round_direct(x, y, prec, rm))
+                no_out!(div_rational_prec_round_direct(x, y, prec, rm));
             }),
         ],
     );
@@ -3243,13 +3526,13 @@ fn benchmark_float_div_rational_prec_round_val_ref_algorithms(
         &quadruple_1_2_3_float_rational_primitive_int_max_complexity_bucketer("x", "y", "prec"),
         &mut [
             ("default", &mut |(x, y, prec, rm)| {
-                no_out!(x.div_rational_prec_round_val_ref(&y, prec, rm))
+                no_out!(x.div_rational_prec_round_val_ref(&y, prec, rm));
             }),
             ("naive", &mut |(x, y, prec, rm)| {
-                no_out!(div_rational_prec_round_naive_val_ref(x, &y, prec, rm))
+                no_out!(div_rational_prec_round_naive_val_ref(x, &y, prec, rm));
             }),
             ("direct", &mut |(x, y, prec, rm)| {
-                no_out!(div_rational_prec_round_direct_val_ref(x, &y, prec, rm))
+                no_out!(div_rational_prec_round_direct_val_ref(x, &y, prec, rm));
             }),
         ],
     );
@@ -3271,13 +3554,13 @@ fn benchmark_float_div_rational_prec_round_ref_val_algorithms(
         &quadruple_1_2_3_float_rational_primitive_int_max_complexity_bucketer("x", "y", "prec"),
         &mut [
             ("default", &mut |(x, y, prec, rm)| {
-                no_out!(x.div_rational_prec_round_ref_val(y, prec, rm))
+                no_out!(x.div_rational_prec_round_ref_val(y, prec, rm));
             }),
             ("naive", &mut |(x, y, prec, rm)| {
-                no_out!(div_rational_prec_round_naive_ref_val(&x, y, prec, rm))
+                no_out!(div_rational_prec_round_naive_ref_val(&x, y, prec, rm));
             }),
             ("direct", &mut |(x, y, prec, rm)| {
-                no_out!(div_rational_prec_round_direct_ref_val(&x, y, prec, rm))
+                no_out!(div_rational_prec_round_direct_ref_val(&x, y, prec, rm));
             }),
         ],
     );
@@ -3299,13 +3582,13 @@ fn benchmark_float_div_rational_prec_round_ref_ref_algorithms(
         &quadruple_1_2_3_float_rational_primitive_int_max_complexity_bucketer("x", "y", "prec"),
         &mut [
             ("default", &mut |(x, y, prec, rm)| {
-                no_out!(x.div_rational_prec_round_ref_ref(&y, prec, rm))
+                no_out!(x.div_rational_prec_round_ref_ref(&y, prec, rm));
             }),
             ("naive", &mut |(x, y, prec, rm)| {
-                no_out!(div_rational_prec_round_naive_ref_ref(&x, &y, prec, rm))
+                no_out!(div_rational_prec_round_naive_ref_ref(&x, &y, prec, rm));
             }),
             ("direct", &mut |(x, y, prec, rm)| {
-                no_out!(div_rational_prec_round_direct_ref_ref(&x, &y, prec, rm))
+                no_out!(div_rational_prec_round_direct_ref_ref(&x, &y, prec, rm));
             }),
         ],
     );
@@ -3333,7 +3616,7 @@ fn benchmark_float_div_rational_prec_round_assign_evaluation_strategy(
             (
                 "Float.div_rational_prec_round_assign_ref(&Rational, u64, RoundingMode)",
                 &mut |(mut x, y, prec, rm)| {
-                    no_out!(x.div_rational_prec_round_assign_ref(&y, prec, rm))
+                    no_out!(x.div_rational_prec_round_assign_ref(&y, prec, rm));
                 },
             ),
         ],
@@ -3406,12 +3689,12 @@ fn benchmark_rational_div_float_algorithms(
             ("naive", &mut |(y, x)| {
                 let xsb = x.significant_bits();
                 let ysb = y.significant_bits();
-                no_out!(rational_div_float_prec_round_naive(x, y, max(xsb, ysb), Nearest).0)
+                no_out!(rational_div_float_prec_round_naive(x, y, max(xsb, ysb), Nearest).0);
             }),
             ("direct", &mut |(y, x)| {
                 let xsb = x.significant_bits();
                 let ysb = y.significant_bits();
-                no_out!(rational_div_float_prec_round_direct(x, y, max(xsb, ysb), Nearest).0)
+                no_out!(rational_div_float_prec_round_direct(x, y, max(xsb, ysb), Nearest).0);
             }),
         ],
     );
@@ -3468,10 +3751,10 @@ fn benchmark_rational_div_float_prec_library_comparison(
         &pair_2_triple_float_rational_primitive_int_max_complexity_bucketer("x", "y", "prec"),
         &mut [
             ("Malachite", &mut |(_, (y, x, prec))| {
-                no_out!(Float::rational_div_float_prec_ref_ref(&x, &y, prec))
+                no_out!(Float::rational_div_float_prec_ref_ref(&x, &y, prec));
             }),
             ("rug", &mut |((y, x, prec), _)| {
-                no_out!(rug_rational_div_float_prec(&x, &y, prec))
+                no_out!(rug_rational_div_float_prec(&x, &y, prec));
             }),
         ],
     );
@@ -3493,13 +3776,13 @@ fn benchmark_rational_div_float_prec_algorithms(
         &triple_float_rational_primitive_int_max_complexity_bucketer("x", "y", "prec"),
         &mut [
             ("default", &mut |(y, x, prec)| {
-                no_out!(Float::rational_div_float_prec(x, y, prec))
+                no_out!(Float::rational_div_float_prec(x, y, prec));
             }),
             ("naive", &mut |(y, x, prec)| {
-                no_out!(rational_div_float_prec_round_naive(x, y, prec, Nearest))
+                no_out!(rational_div_float_prec_round_naive(x, y, prec, Nearest));
             }),
             ("direct", &mut |(y, x, prec)| {
-                no_out!(rational_div_float_prec_round_direct(x, y, prec, Nearest))
+                no_out!(rational_div_float_prec_round_direct(x, y, prec, Nearest));
             }),
         ],
     );
@@ -3556,10 +3839,10 @@ fn benchmark_rational_div_float_round_library_comparison(
         &pair_2_triple_1_2_float_rational_max_complexity_bucketer("x", "y"),
         &mut [
             ("Malachite", &mut |(_, (y, x, rm))| {
-                no_out!(Float::rational_div_float_round_ref_ref(&x, &y, rm))
+                no_out!(Float::rational_div_float_round_ref_ref(&x, &y, rm));
             }),
             ("rug", &mut |((y, x, rm), _)| {
-                no_out!(rug_rational_div_float_round(&x, &y, rm))
+                no_out!(rug_rational_div_float_round(&x, &y, rm));
             }),
         ],
     );
@@ -3581,7 +3864,7 @@ fn benchmark_rational_div_float_round_algorithms(
         &triple_1_2_float_rational_max_complexity_bucketer("x", "y"),
         &mut [
             ("default", &mut |(y, x, rm)| {
-                no_out!(Float::rational_div_float_round(x, y, rm))
+                no_out!(Float::rational_div_float_round(x, y, rm));
             }),
             ("naive", &mut |(y, x, rm)| {
                 let ysb = y.significant_bits();
@@ -3614,7 +3897,7 @@ fn benchmark_rational_div_float_prec_round_evaluation_strategy(
                 "Float::rational_div_float_prec_round\
                 (Rational, Float, u64, RoundingMode)",
                 &mut |(y, x, prec, rm)| {
-                    no_out!(Float::rational_div_float_prec_round(x, y, prec, rm))
+                    no_out!(Float::rational_div_float_prec_round(x, y, prec, rm));
                 },
             ),
             (
@@ -3623,7 +3906,7 @@ fn benchmark_rational_div_float_prec_round_evaluation_strategy(
                 &mut |(y, x, prec, rm)| {
                     no_out!(Float::rational_div_float_prec_round_val_ref(
                         x, &y, prec, rm
-                    ))
+                    ));
                 },
             ),
             (
@@ -3632,7 +3915,7 @@ fn benchmark_rational_div_float_prec_round_evaluation_strategy(
                 &mut |(y, x, prec, rm)| {
                     no_out!(Float::rational_div_float_prec_round_ref_val(
                         &x, y, prec, rm
-                    ))
+                    ));
                 },
             ),
             (
@@ -3641,7 +3924,7 @@ fn benchmark_rational_div_float_prec_round_evaluation_strategy(
                 &mut |(y, x, prec, rm)| {
                     no_out!(Float::rational_div_float_prec_round_ref_ref(
                         &x, &y, prec, rm
-                    ))
+                    ));
                 },
             ),
         ],
@@ -3668,10 +3951,10 @@ fn benchmark_rational_div_float_prec_round_library_comparison(
             ("Malachite", &mut |(_, (y, x, prec, rm))| {
                 no_out!(Float::rational_div_float_prec_round_ref_ref(
                     &x, &y, prec, rm
-                ))
+                ));
             }),
             ("rug", &mut |((y, x, prec, rm), _)| {
-                no_out!(rug_rational_div_float_prec_round(&x, &y, prec, rm))
+                no_out!(rug_rational_div_float_prec_round(&x, &y, prec, rm));
             }),
         ],
     );
@@ -3693,13 +3976,13 @@ fn benchmark_rational_div_float_prec_round_algorithms(
         &quadruple_1_2_3_float_rational_primitive_int_max_complexity_bucketer("x", "y", "prec"),
         &mut [
             ("default", &mut |(y, x, prec, rm)| {
-                no_out!(Float::rational_div_float_prec_round(x, y, prec, rm))
+                no_out!(Float::rational_div_float_prec_round(x, y, prec, rm));
             }),
             ("naive", &mut |(y, x, prec, rm)| {
-                no_out!(rational_div_float_prec_round_naive(x, y, prec, rm))
+                no_out!(rational_div_float_prec_round_naive(x, y, prec, rm));
             }),
             ("direct", &mut |(y, x, prec, rm)| {
-                no_out!(rational_div_float_prec_round_direct(x, y, prec, rm))
+                no_out!(rational_div_float_prec_round_direct(x, y, prec, rm));
             }),
         ],
     );
@@ -3723,15 +4006,15 @@ fn benchmark_rational_div_float_prec_round_val_ref_algorithms(
             ("default", &mut |(y, x, prec, rm)| {
                 no_out!(Float::rational_div_float_prec_round_val_ref(
                     x, &y, prec, rm
-                ))
+                ));
             }),
             ("naive", &mut |(y, x, prec, rm)| {
-                no_out!(rational_div_float_prec_round_naive_val_ref(x, &y, prec, rm))
+                no_out!(rational_div_float_prec_round_naive_val_ref(x, &y, prec, rm));
             }),
             ("direct", &mut |(y, x, prec, rm)| {
                 no_out!(rational_div_float_prec_round_direct_val_ref(
                     x, &y, prec, rm
-                ))
+                ));
             }),
         ],
     );
@@ -3755,15 +4038,15 @@ fn benchmark_rational_div_float_prec_round_ref_val_algorithms(
             ("default", &mut |(y, x, prec, rm)| {
                 no_out!(Float::rational_div_float_prec_round_ref_val(
                     &x, y, prec, rm
-                ))
+                ));
             }),
             ("naive", &mut |(y, x, prec, rm)| {
-                no_out!(rational_div_float_prec_round_naive_ref_val(&x, y, prec, rm))
+                no_out!(rational_div_float_prec_round_naive_ref_val(&x, y, prec, rm));
             }),
             ("direct", &mut |(y, x, prec, rm)| {
                 no_out!(rational_div_float_prec_round_direct_ref_val(
                     &x, y, prec, rm
-                ))
+                ));
             }),
         ],
     );
@@ -3787,17 +4070,17 @@ fn benchmark_rational_div_float_prec_round_ref_ref_algorithms(
             ("default", &mut |(y, x, prec, rm)| {
                 no_out!(Float::rational_div_float_prec_round_ref_ref(
                     &x, &y, prec, rm
-                ))
+                ));
             }),
             ("naive", &mut |(y, x, prec, rm)| {
                 no_out!(rational_div_float_prec_round_naive_ref_ref(
                     &x, &y, prec, rm
-                ))
+                ));
             }),
             ("direct", &mut |(y, x, prec, rm)| {
                 no_out!(rational_div_float_prec_round_direct_ref_ref(
                     &x, &y, prec, rm
-                ))
+                ));
             }),
         ],
     );

@@ -312,6 +312,8 @@ pub mod windows_registry {
         Vs16,
         /// Visual Studio 17 (2022)
         Vs17,
+        /// Visual Studio 18 (2026)
+        Vs18,
     }
 
     /// Find the most recent installed version of Visual Studio
@@ -326,6 +328,7 @@ pub mod windows_registry {
             ::find_msvc_tools::VsVers::Vs15 => VsVers::Vs15,
             ::find_msvc_tools::VsVers::Vs16 => VsVers::Vs16,
             ::find_msvc_tools::VsVers::Vs17 => VsVers::Vs17,
+            ::find_msvc_tools::VsVers::Vs18 => VsVers::Vs18,
             _ => unreachable!("unknown VS version"),
         })
     }
@@ -402,7 +405,7 @@ pub struct Build {
     host: Option<Arc<str>>,
     out_dir: Option<Arc<Path>>,
     opt_level: Option<Arc<str>>,
-    debug: Option<bool>,
+    debug: Option<Arc<str>>,
     force_frame_pointer: Option<bool>,
     env: Vec<(Arc<OsStr>, Arc<OsStr>)>,
     compiler: Option<Arc<Path>>,
@@ -783,17 +786,19 @@ impl Build {
 
     /// Set the `-shared` flag.
     ///
-    /// When enabled, the compiler will produce a shared object which can
-    /// then be linked with other objects to form an executable.
+    /// This will typically be ignored by the compiler when calling [`Self::compile()`] since it only
+    /// produces static libraries.
     ///
     /// # Example
     ///
     /// ```no_run
+    /// // This will create a library named "liblibfoo.so.a"
     /// cc::Build::new()
     ///     .file("src/foo.c")
     ///     .shared_flag(true)
     ///     .compile("libfoo.so");
     /// ```
+    #[deprecated = "cc only creates static libraries, setting this does nothing"]
     pub fn shared_flag(&mut self, shared_flag: bool) -> &mut Build {
         self.shared_flag = Some(shared_flag);
         self
@@ -801,8 +806,8 @@ impl Build {
 
     /// Set the `-static` flag.
     ///
-    /// When enabled on systems that support dynamic linking, this prevents
-    /// linking with the shared libraries.
+    /// This will typically be ignored by the compiler when calling [`Self::compile()`] since it only
+    /// produces static libraries.
     ///
     /// # Example
     ///
@@ -813,6 +818,7 @@ impl Build {
     ///     .static_flag(true)
     ///     .compile("foo");
     /// ```
+    #[deprecated = "cc only creates static libraries, setting this does nothing"]
     pub fn static_flag(&mut self, static_flag: bool) -> &mut Build {
         self.static_flag = Some(static_flag);
         self
@@ -1174,7 +1180,23 @@ impl Build {
     /// This option is automatically scraped from the `DEBUG` environment
     /// variable by build scripts, so it's not required to call this function.
     pub fn debug(&mut self, debug: bool) -> &mut Build {
-        self.debug = Some(debug);
+        self.debug = Some(debug.to_string().into());
+        self
+    }
+
+    /// Configures whether the compiler will emit debug information when
+    /// generating object files.
+    ///
+    /// This should be one of the values accepted by Cargo's [`debug`][1]
+    /// profile setting, which cc-rs will try to map to the appropriate C
+    /// compiler flag.
+    ///
+    /// This option is automatically scraped from the `DEBUG` environment
+    /// variable by build scripts, so it's not required to call this function.
+    ///
+    /// [1]: https://doc.rust-lang.org/cargo/reference/profiles.html#debug
+    pub fn debug_str(&mut self, debug: &str) -> &mut Build {
+        self.debug = Some(debug.into());
         self
     }
 
@@ -1319,7 +1341,7 @@ impl Build {
     /// always run on every compilation if no rerun cargo metadata is emitted.
     ///
     /// NOTE that cc does not emit metadata to detect changes for `PATH`, since it could
-    /// be changed every comilation yet does not affect the result of compilation
+    /// be changed every compilation yet does not affect the result of compilation
     /// (i.e. rust-analyzer adds temporary directory to `PATH`).
     ///
     /// cc in general, has no way detecting changes to compiler, as there are so many ways to
@@ -1805,7 +1827,7 @@ impl Build {
                 is_arm,
             },
         );
-        // armasm and armasm64 don't requrie -c option
+        // armasm and armasm64 don't require -c option
         if !is_assembler_msvc || !is_arm {
             cmd.arg("-c");
         }
@@ -2155,7 +2177,11 @@ impl Build {
                 cmd.args.push("-G".into());
             }
             let family = cmd.family;
-            family.add_debug_flags(cmd, self.get_dwarf_version());
+            family.add_debug_flags(
+                cmd,
+                self.get_debug_str().as_deref().unwrap_or_default(),
+                self.get_dwarf_version(),
+            );
         }
 
         if self.get_force_frame_pointer() {
@@ -3038,6 +3064,23 @@ impl Build {
             };
         }
 
+        // Under cross-compilation scenarios, llvm-mingw's clang executable is just a
+        // wrapper script that calls the actual clang binary with a suitable `--target`
+        // argument, much like the Android NDK case outlined above. Passing a target
+        // argument ourselves in this case will result in an error, as they expect
+        // targets like `x86_64-w64-mingw32`, and we can't always set such a target
+        // string because it is specific to this MinGW cross-compilation toolchain.
+        //
+        // For example, the following command will always fail due to using an unsuitable
+        // `--target` argument we'd otherwise pass:
+        // $ /opt/llvm-mingw-20250613-ucrt-ubuntu-22.04-x86_64/bin/x86_64-w64-mingw32-clang --target=x86_64-pc-windows-gnu dummy.c
+        //
+        // Code reference:
+        // https://github.com/mstorsjo/llvm-mingw/blob/a1f6413e5c21fd74b64137b56167f4fba500d1d8/wrappers/clang-target-wrapper.sh#L31
+        if !cfg!(windows) && target.os == "windows" && is_llvm_mingw_wrapper(&tool.path) {
+            tool.has_internal_target_arg = true;
+        }
+
         // If we found `cl.exe` in our environment, the tool we're returning is
         // an MSVC-like tool, *and* no env vars were set then set env vars for
         // the tool that we're returning.
@@ -3480,11 +3523,13 @@ impl Build {
                     // Note: there is no `aarch64-pc-windows-gnu` target, only `-gnullvm`
                     "aarch64-pc-windows-gnullvm" => Some("aarch64-w64-mingw32"),
                     "aarch64-uwp-windows-gnu" => Some("aarch64-w64-mingw32"),
+                    "aarch64-unknown-helenos" => Some("aarch64-helenos"),
                     "aarch64-unknown-linux-gnu" => Some("aarch64-linux-gnu"),
                     "aarch64-unknown-linux-musl" => Some("aarch64-linux-musl"),
                     "aarch64-unknown-netbsd" => Some("aarch64--netbsd"),
                     "arm-unknown-linux-gnueabi" => Some("arm-linux-gnueabi"),
                     "armv4t-unknown-linux-gnueabi" => Some("arm-linux-gnueabi"),
+                    "armv5te-unknown-helenos-eabi" => Some("arm-helenos"),
                     "armv5te-unknown-linux-gnueabi" => Some("arm-linux-gnueabi"),
                     "armv5te-unknown-linux-musleabi" => Some("arm-linux-gnueabi"),
                     "arm-unknown-linux-gnueabihf" => Some("arm-linux-gnueabihf"),
@@ -3507,6 +3552,7 @@ impl Build {
                     "i686-pc-windows-gnu" => Some("i686-w64-mingw32"),
                     "i686-pc-windows-gnullvm" => Some("i686-w64-mingw32"),
                     "i686-uwp-windows-gnu" => Some("i686-w64-mingw32"),
+                    "i686-unknown-helenos" => Some("i686-helenos"),
                     "i686-unknown-linux-gnu" => self.find_working_gnu_prefix(&[
                         "i686-linux-gnu",
                         "x86_64-linux-gnu", // transparently support gcc-multilib
@@ -3525,6 +3571,7 @@ impl Build {
                     "mipsisa32r6el-unknown-linux-gnu" => Some("mipsisa32r6el-linux-gnu"),
                     "mipsisa64r6-unknown-linux-gnuabi64" => Some("mipsisa64r6-linux-gnuabi64"),
                     "mipsisa64r6el-unknown-linux-gnuabi64" => Some("mipsisa64r6el-linux-gnuabi64"),
+                    "powerpc-unknown-helenos" => Some("ppc-helenos"),
                     "powerpc-unknown-linux-gnu" => Some("powerpc-linux-gnu"),
                     "powerpc-unknown-linux-gnuspe" => Some("powerpc-linux-gnuspe"),
                     "powerpc-unknown-netbsd" => Some("powerpc--netbsd"),
@@ -3569,6 +3616,7 @@ impl Build {
                     "riscv64gc-unknown-netbsd" => Some("riscv64--netbsd"),
                     "s390x-unknown-linux-gnu" => Some("s390x-linux-gnu"),
                     "sparc-unknown-linux-gnu" => Some("sparc-linux-gnu"),
+                    "sparc64-unknown-helenos" => Some("sparc64-helenos"),
                     "sparc64-unknown-linux-gnu" => Some("sparc64-linux-gnu"),
                     "sparc64-unknown-netbsd" => Some("sparc64--netbsd"),
                     "sparcv9-sun-solaris" => Some("sparcv9-sun-solaris"),
@@ -3590,6 +3638,7 @@ impl Build {
                     "x86_64-pc-windows-gnullvm" => Some("x86_64-w64-mingw32"),
                     "x86_64-uwp-windows-gnu" => Some("x86_64-w64-mingw32"),
                     "x86_64-rumprun-netbsd" => Some("x86_64-rumprun-netbsd"),
+                    "x86_64-unknown-helenos" => Some("amd64-helenos"),
                     "x86_64-unknown-linux-gnu" => self.find_working_gnu_prefix(&[
                         "x86_64-linux-gnu", // rustfmt wrap
                     ]), // explicit None if not found, so caller knows to fall back
@@ -3678,8 +3727,25 @@ impl Build {
         }
     }
 
+    /// Returns true if *any* debug info is enabled.
+    ///
+    /// [`get_debug_str`] provides more detail.
     fn get_debug(&self) -> bool {
-        self.debug.unwrap_or_else(|| self.getenv_boolean("DEBUG"))
+        match self.get_debug_str() {
+            Err(_) => false,
+            Ok(d) => match &*d {
+                // From https://doc.rust-lang.org/cargo/reference/profiles.html#debug
+                "" | "0" | "false" | "none" => false,
+                _ => true,
+            },
+        }
+    }
+
+    fn get_debug_str(&self) -> Result<Cow<'_, str>, Error> {
+        match &self.debug {
+            Some(d) => Ok(Cow::Borrowed(d)),
+            None => self.getenv_unwrap_str("DEBUG").map(Cow::Owned),
+        }
     }
 
     fn get_shell_escaped_flags(&self) -> bool {
@@ -4239,6 +4305,17 @@ fn android_clang_compiler_uses_target_arg_internally(clang_path: &Path) -> bool 
         }
     }
     false
+}
+
+fn is_llvm_mingw_wrapper(clang_path: &Path) -> bool {
+    if let Some(filename) = clang_path
+        .file_name()
+        .and_then(|file_name| file_name.to_str())
+    {
+        filename.ends_with("-w64-mingw32-clang") || filename.ends_with("-w64-mingw32-clang++")
+    } else {
+        false
+    }
 }
 
 // FIXME: Use parsed target.

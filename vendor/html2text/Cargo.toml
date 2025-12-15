@@ -11,9 +11,9 @@
 
 [package]
 edition = "2021"
-rust-version = "1.72"
+rust-version = "1.85"
 name = "html2text"
-version = "0.15.5"
+version = "0.16.5"
 authors = ["Chris Emerson <github@mail.nosreme.org>"]
 build = false
 autolib = false
@@ -63,7 +63,7 @@ version = "0.3"
 optional = true
 
 [dependencies.html5ever]
-version = "0.35.0"
+version = "0.36.1"
 
 [dependencies.log]
 version = "0.4.20"

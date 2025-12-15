@@ -6,19 +6,7 @@ fn size_align() {
   assert_eq!(core::mem::align_of::<i64x2>(), 16);
 }
 
-#[test]
-fn basic_traits() {
-  crate::test_basic_traits::<i64x2, _, 2>();
-}
-
-#[test]
-fn impl_add_for_i64x2() {
-  let a = i64x2::from([i64::MAX - 1, i64::MAX - 1]);
-  let b = i64x2::from([1, 2]);
-  let expected = i64x2::from([i64::MAX, i64::MIN]);
-  let actual = a + b;
-  assert_eq!(expected, actual);
-}
+crate::generate_basic_traits_test!(i64x2, i64);
 
 #[test]
 fn impl_sub_for_i64x2() {
@@ -66,12 +54,40 @@ fn impl_bitxor_for_i64x2() {
 }
 
 #[test]
+fn impl_shl_each_for_i64x2() {
+  let a = i64x2::from([i64::MAX - 1, -1]);
+  let shift = i64x2::from([2, 65 /* test masking behavior */]);
+  let expected = i64x2::from([(i64::MAX - 1) << 2, -1 << 1]);
+  let actual = a << shift;
+  assert_eq!(expected, actual);
+
+  crate::test_random_vector_vs_scalar(
+    |a: i64x2, b| a << b,
+    |a, b| a.wrapping_shl(b as u32),
+  );
+}
+
+#[test]
 fn impl_shl_for_i64x2() {
   let a = i64x2::from([i64::MAX - 1, i64::MAX - 1]);
   let b = 2;
   let expected = i64x2::from([(i64::MAX - 1) << 2, (i64::MAX - 1) << 2]);
   let actual = a << b;
   assert_eq!(expected, actual);
+}
+
+#[test]
+fn impl_shr_each_for_i64x2() {
+  let a = i64x2::from([i64::MAX - 1, -1]);
+  let shift = i64x2::from([2, 65 /* test masking behavior */]);
+  let expected = i64x2::from([(i64::MAX - 1) >> 2, -1 >> 1]);
+  let actual = a >> shift;
+  assert_eq!(expected, actual);
+
+  crate::test_random_vector_vs_scalar(
+    |a: i64x2, b| a >> b,
+    |a, b| a.wrapping_shr(b as u32),
+  );
 }
 
 #[test]
@@ -106,7 +122,7 @@ fn impl_i64x2_cmp_eq() {
   let a = i64x2::from([1_i64, 4]);
   let b = i64x2::from([3_i64, 4]);
   let expected = i64x2::from([0, -1]);
-  let actual = a.cmp_eq(b);
+  let actual = a.simd_eq(b);
   assert_eq!(expected, actual);
 }
 
@@ -115,7 +131,7 @@ fn impl_i64x2_cmp_gt() {
   let a = i64x2::from([3_i64, 4]);
   let b = i64x2::from([1_i64, 4]);
   let expected = i64x2::from([-1, 0]);
-  let actual = a.cmp_gt(b);
+  let actual = a.simd_gt(b);
   assert_eq!(expected, actual);
 }
 
@@ -150,17 +166,17 @@ fn test_i64x2_none() {
 fn test_i64x2_move_mask() {
   let a = i64x2::from([-1, 0]);
   let expected = 0b01;
-  let actual = a.move_mask();
+  let actual = a.to_bitmask();
   assert_eq!(expected, actual);
   //
   let a = i64x2::from([1, -1]);
   let expected = 0b10;
-  let actual = a.move_mask();
+  let actual = a.to_bitmask();
   assert_eq!(expected, actual);
 
   crate::test_random_vector_vs_scalar_reduce(
-    |a: i64x2| a.move_mask(),
-    0i32,
+    |a: i64x2| a.to_bitmask(),
+    0_u32,
     |acc, a, idx| acc | if a < 0 { 1 << idx } else { 0 },
   );
 }

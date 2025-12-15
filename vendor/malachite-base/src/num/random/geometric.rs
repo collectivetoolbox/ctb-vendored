@@ -26,18 +26,18 @@ pub(crate) struct SimpleRational {
 }
 
 impl SimpleRational {
-    pub(crate) fn new(n: u64, d: u64) -> SimpleRational {
+    pub(crate) fn new(n: u64, d: u64) -> Self {
         assert_ne!(d, 0);
         let gcd = n.gcd(d);
-        SimpleRational {
+        Self {
             n: n / gcd,
             d: d / gcd,
         }
     }
 
-    fn inverse(self) -> SimpleRational {
+    fn inverse(self) -> Self {
         assert_ne!(self.n, 0);
-        SimpleRational {
+        Self {
             n: self.d,
             d: self.n,
         }
@@ -45,8 +45,8 @@ impl SimpleRational {
 
     // unwrap not const yet
     #[allow(clippy::missing_const_for_fn)]
-    fn sub_u64(self, x: u64) -> SimpleRational {
-        SimpleRational {
+    fn sub_u64(self, x: u64) -> Self {
+        Self {
             n: self.n.checked_sub(x.checked_mul(self.d).unwrap()).unwrap(),
             d: self.d,
         }
@@ -392,9 +392,9 @@ impl<T: PrimitiveSigned> Iterator for GeometricRandomSignedRange<T> {
 
     fn next(&mut self) -> Option<T> {
         match self {
-            GeometricRandomSignedRange::NonNegative(xs) => xs.next(),
-            GeometricRandomSignedRange::NonPositive(xs) => xs.next(),
-            GeometricRandomSignedRange::BothSigns(xs) => xs.next(),
+            Self::NonNegative(xs) => xs.next(),
+            Self::NonPositive(xs) => xs.next(),
+            Self::BothSigns(xs) => xs.next(),
         }
     }
 }

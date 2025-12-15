@@ -17,10 +17,13 @@ int_uint_consts!(u8, 32, u8x32, 256);
 unsafe impl Zeroable for u8x32 {}
 unsafe impl Pod for u8x32 {}
 
+impl AlignTo for u8x32 {
+  type Elem = u8;
+}
+
 impl Add for u8x32 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn add(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx2")] {
@@ -38,7 +41,6 @@ impl Add for u8x32 {
 impl Sub for u8x32 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn sub(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx2")] {
@@ -56,7 +58,6 @@ impl Sub for u8x32 {
 impl Add<u8> for u8x32 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn add(self, rhs: u8) -> Self::Output {
     self.add(Self::splat(rhs))
   }
@@ -65,7 +66,6 @@ impl Add<u8> for u8x32 {
 impl Sub<u8> for u8x32 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn sub(self, rhs: u8) -> Self::Output {
     self.sub(Self::splat(rhs))
   }
@@ -74,7 +74,6 @@ impl Sub<u8> for u8x32 {
 impl Add<u8x32> for u8 {
   type Output = u8x32;
   #[inline]
-  #[must_use]
   fn add(self, rhs: u8x32) -> Self::Output {
     u8x32::splat(self).add(rhs)
   }
@@ -83,7 +82,6 @@ impl Add<u8x32> for u8 {
 impl Sub<u8x32> for u8 {
   type Output = u8x32;
   #[inline]
-  #[must_use]
   fn sub(self, rhs: u8x32) -> Self::Output {
     u8x32::splat(self).sub(rhs)
   }
@@ -92,7 +90,6 @@ impl Sub<u8x32> for u8 {
 impl BitAnd for u8x32 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn bitand(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx2")] {
@@ -110,7 +107,6 @@ impl BitAnd for u8x32 {
 impl BitOr for u8x32 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn bitor(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx2")] {
@@ -128,7 +124,6 @@ impl BitOr for u8x32 {
 impl BitXor for u8x32 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn bitxor(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx2")] {
@@ -146,15 +141,31 @@ impl BitXor for u8x32 {
 impl CmpEq for u8x32 {
   type Output = Self;
   #[inline]
-  #[must_use]
-  fn cmp_eq(self, rhs: Self) -> Self::Output {
+  fn simd_eq(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx2")] {
         Self { avx : cmp_eq_mask_i8_m256i(self.avx,rhs.avx) }
       } else {
         Self {
-          a : self.a.cmp_eq(rhs.a),
-          b : self.b.cmp_eq(rhs.b),
+          a : self.a.simd_eq(rhs.a),
+          b : self.b.simd_eq(rhs.b),
+        }
+      }
+    }
+  }
+}
+
+impl Not for u8x32 {
+  type Output = Self;
+  #[inline]
+  fn not(self) -> Self {
+    pick! {
+      if #[cfg(target_feature="avx2")] {
+        Self { avx: self.avx.not()  }
+      } else {
+        Self {
+          a : self.a.not(),
+          b : self.b.not(),
         }
       }
     }
@@ -241,8 +252,8 @@ impl u8x32 {
 
   #[inline]
   #[must_use]
-  pub fn move_mask(self) -> i32 {
-    i8x32::move_mask(cast(self))
+  pub fn to_bitmask(self) -> u32 {
+    i8x32::to_bitmask(cast(self)) as u32
   }
 
   #[inline]
@@ -296,12 +307,12 @@ impl u8x32 {
   }
 
   #[inline]
-  pub fn as_array_ref(&self) -> &[u8; 32] {
+  pub fn as_array(&self) -> &[u8; 32] {
     cast_ref(self)
   }
 
   #[inline]
-  pub fn as_array_mut(&mut self) -> &mut [u8; 32] {
+  pub fn as_mut_array(&mut self) -> &mut [u8; 32] {
     cast_mut(self)
   }
 }

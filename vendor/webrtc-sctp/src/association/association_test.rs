@@ -35,6 +35,8 @@ async fn create_new_association_pair(
             max_receive_buffer_size: recv_buf_size,
             max_message_size: 0,
             name: "client".to_owned(),
+            local_port: 5000,
+            remote_port: 5000,
         })
         .await;
 
@@ -51,6 +53,8 @@ async fn create_new_association_pair(
             max_receive_buffer_size: recv_buf_size,
             max_message_size: 0,
             name: "server".to_owned(),
+            local_port: 5000,
+            remote_port: 5000,
         })
         .await;
 
@@ -1825,7 +1829,7 @@ async fn test_assoc_reset_close_one_way() -> Result<()> {
                     let _ = done_ch_tx.send(None).await;
                 }
                 Err(err) => {
-                    log::debug!("s1.read_sctp err {:?}", err);
+                    log::debug!("s1.read_sctp err {err:?}");
                     let _ = done_ch_tx.send(Some(err)).await;
                     break;
                 }
@@ -1842,7 +1846,7 @@ async fn test_assoc_reset_close_one_way() -> Result<()> {
         tokio::select! {
             _ = timer.as_mut() =>{},
             result = done_ch_rx.recv() => {
-                log::debug!("s1. {:?}", result);
+                log::debug!("s1. {result:?}");
                 if let Some(err_opt) = result {
                     if err_opt.is_some() {
                         break;
@@ -1927,7 +1931,7 @@ async fn test_assoc_reset_close_both_ways() -> Result<()> {
                     let _ = done_ch_tx1.send(None).await;
                 }
                 Err(err) => {
-                    log::debug!("s1.read_sctp err {:?}", err);
+                    log::debug!("s1.read_sctp err {err:?}");
                     let _ = done_ch_tx1.send(Some(err)).await;
                     break;
                 }
@@ -1944,7 +1948,7 @@ async fn test_assoc_reset_close_both_ways() -> Result<()> {
         tokio::select! {
             _ = timer.as_mut() =>{},
             result = done_ch_rx.recv() => {
-                log::debug!("s1. {:?}", result);
+                log::debug!("s1. {result:?}");
                 if let Some(err_opt) = result {
                     if err_opt.is_some() {
                         break;
@@ -1973,7 +1977,7 @@ async fn test_assoc_reset_close_both_ways() -> Result<()> {
                 panic!("must be error");
             }
             Err(err) => {
-                log::debug!("s0.read_sctp err {:?}", err);
+                log::debug!("s0.read_sctp err {err:?}");
                 let _ = done_ch_tx0.send(Some(err)).await;
             }
         }
@@ -1988,7 +1992,7 @@ async fn test_assoc_reset_close_both_ways() -> Result<()> {
         tokio::select! {
             _ = timer.as_mut() =>{},
             result = done_ch_rx.recv() => {
-                log::debug!("s0. {:?}", result);
+                log::debug!("s0. {result:?}");
                 if let Some(err_opt) = result {
                     if err_opt.is_some() {
                         break;
@@ -2097,7 +2101,7 @@ type UResult<T> = std::result::Result<T, util::Error>;
 #[async_trait]
 impl Conn for FakeEchoConn {
     async fn connect(&self, _addr: SocketAddr) -> UResult<()> {
-        Err(io::Error::new(io::ErrorKind::Other, "Not applicable").into())
+        Err(io::Error::other("Not applicable").into())
     }
 
     async fn recv(&self, b: &mut [u8]) -> UResult<usize> {
@@ -2115,25 +2119,25 @@ impl Conn for FakeEchoConn {
     }
 
     async fn recv_from(&self, _buf: &mut [u8]) -> UResult<(usize, SocketAddr)> {
-        Err(io::Error::new(io::ErrorKind::Other, "Not applicable").into())
+        Err(io::Error::other("Not applicable").into())
     }
 
     async fn send(&self, b: &[u8]) -> UResult<usize> {
         let wr_tx = self.wr_tx.lock().await;
         match wr_tx.send(b.to_vec()).await {
             Ok(_) => {}
-            Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err.to_string()).into()),
+            Err(err) => return Err(io::Error::other(err.to_string()).into()),
         };
         self.bytes_sent.fetch_add(b.len(), Ordering::SeqCst);
         Ok(b.len())
     }
 
     async fn send_to(&self, _buf: &[u8], _target: SocketAddr) -> UResult<usize> {
-        Err(io::Error::new(io::ErrorKind::Other, "Not applicable").into())
+        Err(io::Error::other("Not applicable").into())
     }
 
     fn local_addr(&self) -> UResult<SocketAddr> {
-        Err(io::Error::new(io::ErrorKind::AddrNotAvailable, "Addr Not Available").into())
+        Err(io::Error::other("Not applicable").into())
     }
 
     fn remote_addr(&self) -> Option<SocketAddr> {
@@ -2174,6 +2178,8 @@ async fn test_stats() -> Result<()> {
         max_receive_buffer_size: 0,
         max_message_size: 0,
         name: "client".to_owned(),
+        local_port: 5000,
+        remote_port: 5000,
     })
     .await?;
 
@@ -2209,6 +2215,8 @@ async fn create_assocs() -> Result<(Association, Association)> {
             max_receive_buffer_size: 0,
             max_message_size: 0,
             name: "client".to_owned(),
+            local_port: 5000,
+            remote_port: 5000,
         })
         .await?;
 
@@ -2223,6 +2231,8 @@ async fn create_assocs() -> Result<(Association, Association)> {
             max_receive_buffer_size: 0,
             max_message_size: 0,
             name: "server".to_owned(),
+            local_port: 5000,
+            remote_port: 5000,
         })
         .await?;
 
@@ -2382,7 +2392,7 @@ async fn test_association_shutdown_during_write() -> Result<()> {
             _ = writing_done_rx.recv() => {
                 log::debug!("writing_done_rx");
                 let result = close_loop_ch_rx.recv().await;
-                log::debug!("a1.close_loop_ch_rx.recv: {:?}", result);
+                log::debug!("a1.close_loop_ch_rx.recv: {result:?}");
             },
         };
     }
@@ -2557,7 +2567,7 @@ async fn test_association_handle_packet_before_init() -> Result<()> {
     ];
 
     for (name, packet) in tests {
-        log::debug!("testing {}", name);
+        log::debug!("testing {name}");
 
         let (a_conn, charlie_conn) = pipe();
 
@@ -2567,6 +2577,8 @@ async fn test_association_handle_packet_before_init() -> Result<()> {
                 max_message_size: 0,
                 max_receive_buffer_size: 0,
                 name: "client".to_owned(),
+                local_port: 5000,
+                remote_port: 5000,
             },
             true,
         )

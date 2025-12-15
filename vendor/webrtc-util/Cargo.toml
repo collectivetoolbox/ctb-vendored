@@ -12,7 +12,7 @@
 [package]
 edition = "2021"
 name = "webrtc-util"
-version = "0.11.0"
+version = "0.12.0"
 authors = ["Rain Liu <yliu@webrtc.rs>"]
 build = false
 autolib = false
@@ -78,7 +78,7 @@ version = "0.4"
 version = "1.6"
 
 [dependencies.rand]
-version = "0.8"
+version = "0.9"
 
 [dependencies.thiserror]
 version = "1"
@@ -98,9 +98,6 @@ features = [
     "time",
 ]
 
-[dev-dependencies.async-global-executor]
-version = "2"
-
 [dev-dependencies.chrono]
 version = "0.4.28"
 
@@ -112,10 +109,7 @@ features = ["async_futures"]
 version = "0.11.3"
 
 [dev-dependencies.tokio-test]
-version = "0.4"
-
-[target."cfg(not(windows))".dependencies.libc]
-version = "0.2.126"
+version = "0.4.4"
 
 [target."cfg(not(windows))".dependencies.nix]
 version = "0.26.2"

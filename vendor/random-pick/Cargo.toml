@@ -11,15 +11,22 @@
 
 [package]
 edition = "2021"
+rust-version = "1.63"
 name = "random-pick"
-version = "1.2.16"
+version = "1.2.17"
 authors = ["Magic Len <len@magiclen.org>"]
+build = false
 include = [
     "src/**/*",
     "Cargo.toml",
     "README.md",
     "LICENSE",
 ]
+autolib = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
 description = "Pick an element from a slice randomly by given weights."
 homepage = "https://magiclen.org/random-pick"
 readme = "README.md"
@@ -34,5 +41,9 @@ categories = ["algorithms"]
 license = "MIT"
 repository = "https://github.com/magiclen/random-pick"
 
-[dependencies.random-number]
-version = "0.1"
+[lib]
+name = "random_pick"
+path = "src/lib.rs"
+
+[dependencies.rand]
+version = "0.9"

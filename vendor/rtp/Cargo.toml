@@ -12,7 +12,7 @@
 [package]
 edition = "2021"
 name = "rtp"
-version = "0.13.0"
+version = "0.14.0"
 authors = [
     "Rain Liu <yliu@webrtc.rs>",
     "Michael Uti <utimichael9@gmail.com>",
@@ -49,7 +49,7 @@ version = "2.1.1"
 version = "1.6"
 
 [dependencies.rand]
-version = "0.8"
+version = "0.9"
 
 [dependencies.serde]
 version = "1"
@@ -59,7 +59,7 @@ features = ["derive"]
 version = "1"
 
 [dependencies.util]
-version = "0.11.0"
+version = "0.12.0"
 features = ["marshal"]
 default-features = false
 package = "webrtc-util"

@@ -4,7 +4,7 @@ use std::{
 };
 
 use bstr::{BString, ByteSlice};
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
 use crate::env::git::EXE_NAME;
 
@@ -40,7 +40,7 @@ pub fn installation_config_prefix() -> Option<&'static Path> {
 /// Note that the returned path might not be a path on disk, if it is a fallback path or if the
 /// file was moved or deleted since the first time this function is called.
 pub fn shell() -> &'static OsStr {
-    static PATH: Lazy<OsString> = Lazy::new(|| {
+    static PATH: LazyLock<OsString> = LazyLock::new(|| {
         if cfg!(windows) {
             auxiliary::find_git_associated_windows_executable_with_fallback("sh")
         } else {
@@ -61,7 +61,7 @@ pub fn exe_invocation() -> &'static Path {
         /// The path to the Git executable as located in the `PATH` or in other locations that it's
         /// known to be installed to. It's `None` if environment variables couldn't be read or if
         /// no executable could be found.
-        static EXECUTABLE_PATH: Lazy<Option<PathBuf>> = Lazy::new(|| {
+        static EXECUTABLE_PATH: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
             std::env::split_paths(&std::env::var_os("PATH")?)
                 .chain(git::ALTERNATIVE_LOCATIONS.iter().map(Into::into))
                 .find_map(|prefix| {
@@ -109,7 +109,7 @@ pub fn xdg_config(file: &str, env_var: &mut dyn FnMut(&str) -> Option<OsString>)
         })
 }
 
-static GIT_CORE_DIR: Lazy<Option<PathBuf>> = Lazy::new(|| {
+static GIT_CORE_DIR: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
     let mut cmd = std::process::Command::new(exe_invocation());
 
     #[cfg(windows)]
@@ -139,6 +139,36 @@ pub fn core_dir() -> Option<&'static Path> {
     GIT_CORE_DIR.as_deref()
 }
 
+fn system_prefix_from_core_dir<F>(core_dir_func: F) -> Option<PathBuf>
+where
+    F: Fn() -> Option<&'static Path>,
+{
+    let path = core_dir_func()?;
+    let one_past_prefix = path.components().enumerate().find_map(|(idx, c)| {
+        matches!(c,std::path::Component::Normal(name) if name.to_str() == Some("libexec")).then_some(idx)
+    })?;
+    Some(path.components().take(one_past_prefix.checked_sub(1)?).collect())
+}
+
+fn system_prefix_from_exepath_var<F>(var_os_func: F) -> Option<PathBuf>
+where
+    F: Fn(&str) -> Option<OsString>,
+{
+    // Only attempt this optimization if the `EXEPATH` variable is set to an absolute path.
+    let root = var_os_func("EXEPATH").map(PathBuf::from).filter(|r| r.is_absolute())?;
+
+    let mut candidates = ["clangarm64", "mingw64", "mingw32"]
+        .iter()
+        .map(|component| root.join(component))
+        .filter(|candidate| candidate.is_dir());
+
+    let path = candidates.next()?;
+    match candidates.next() {
+        Some(_) => None, // Multiple plausible candidates, so don't use the `EXEPATH` optimization.
+        None => Some(path),
+    }
+}
+
 /// Returns the platform dependent system prefix or `None` if it cannot be found (right now only on Windows).
 ///
 /// ### Performance
@@ -152,21 +182,9 @@ pub fn core_dir() -> Option<&'static Path> {
 /// path, or if the git binary wasn't built with a well-known directory structure or environment.
 pub fn system_prefix() -> Option<&'static Path> {
     if cfg!(windows) {
-        static PREFIX: Lazy<Option<PathBuf>> = Lazy::new(|| {
-            if let Some(root) = std::env::var_os("EXEPATH").map(PathBuf::from) {
-                for candidate in ["mingw64", "mingw32"] {
-                    let candidate = root.join(candidate);
-                    if candidate.is_dir() {
-                        return Some(candidate);
-                    }
-                }
-            }
-
-            let path = GIT_CORE_DIR.as_deref()?;
-            let one_past_prefix = path.components().enumerate().find_map(|(idx, c)| {
-                matches!(c,std::path::Component::Normal(name) if name.to_str() == Some("libexec")).then_some(idx)
-            })?;
-            Some(path.components().take(one_past_prefix.checked_sub(1)?).collect())
+        static PREFIX: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
+            system_prefix_from_exepath_var(|key| std::env::var_os(key))
+                .or_else(|| system_prefix_from_core_dir(core_dir))
         });
         PREFIX.as_deref()
     } else {
@@ -181,7 +199,7 @@ pub fn home_dir() -> Option<PathBuf> {
 }
 
 /// Tries to obtain the home directory from `HOME` on all platforms, but falls back to
-/// [`home::home_dir()`] for more complex ways of obtaining a home directory, particularly useful
+/// [`std::env::home_dir()`] for more complex ways of obtaining a home directory, particularly useful
 /// on Windows.
 ///
 /// The reason `HOME` is tried first is to allow Windows users to have a custom location for their
@@ -189,7 +207,7 @@ pub fn home_dir() -> Option<PathBuf> {
 /// inconvenient and perceived as clutter.
 #[cfg(not(target_family = "wasm"))]
 pub fn home_dir() -> Option<PathBuf> {
-    std::env::var_os("HOME").map(Into::into).or_else(home::home_dir)
+    std::env::var_os("HOME").map(Into::into).or_else(std::env::home_dir)
 }
 
 /// Returns the contents of an environment variable of `name` with some special handling for
@@ -201,3 +219,6 @@ pub fn var(name: &str) -> Option<OsString> {
         std::env::var_os(name)
     }
 }
+
+#[cfg(test)]
+mod tests;

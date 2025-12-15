@@ -24,7 +24,6 @@ use alloc::vec::Vec;
 use core::cmp::Ordering::{self, *};
 use core::cmp::{max, min};
 use core::fmt::Debug;
-use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use malachite_base::fail_on_untested_path;
 #[cfg(feature = "32_bit_limbs")]
 use malachite_base::num::arithmetic::traits::ShrRound;
@@ -38,134 +37,7 @@ use malachite_base::num::basic::traits::One;
 use malachite_base::num::conversion::traits::{ExactFrom, SplitInHalf};
 use malachite_base::num::logic::traits::{LeadingZeros, SignificantBits};
 use malachite_base::rounding_modes::RoundingMode::*;
-use wide::{f64x4, u64x4};
-
-// Remove once wide crate has f64x8
-#[allow(non_camel_case_types)]
-#[derive(Clone, Copy)]
-struct f64x8 {
-    hi: f64x4,
-    lo: f64x4,
-}
-
-impl f64x8 {
-    #[inline]
-    fn splat(x: f64) -> f64x8 {
-        let xx = f64x4::splat(x);
-        f64x8 { hi: xx, lo: xx }
-    }
-
-    #[inline]
-    fn to_array(self) -> [f64; 8] {
-        let [x0, x1, x2, x3] = self.lo.to_array();
-        let [x4, x5, x6, x7] = self.hi.to_array();
-        [x0, x1, x2, x3, x4, x5, x6, x7]
-    }
-}
-
-impl Default for f64x8 {
-    #[inline]
-    fn default() -> Self {
-        f64x8 {
-            hi: f64x4::default(),
-            lo: f64x4::default(),
-        }
-    }
-}
-
-impl From<[f64; 8]> for f64x8 {
-    #[inline]
-    fn from(xs: [f64; 8]) -> f64x8 {
-        let (xs_lo, xs_hi) = xs.split_at(4);
-        f64x8 {
-            hi: f64x4::from(xs_hi),
-            lo: f64x4::from(xs_lo),
-        }
-    }
-}
-
-impl From<&[f64]> for f64x8 {
-    #[inline]
-    fn from(xs: &[f64]) -> f64x8 {
-        let (xs_lo, xs_hi) = xs.split_at(4);
-        f64x8 {
-            hi: f64x4::from(xs_hi),
-            lo: f64x4::from(xs_lo),
-        }
-    }
-}
-
-impl Neg for f64x8 {
-    type Output = f64x8;
-
-    #[inline]
-    fn neg(self) -> f64x8 {
-        f64x8 {
-            hi: -self.hi,
-            lo: -self.lo,
-        }
-    }
-}
-
-impl Add<f64x8> for f64x8 {
-    type Output = f64x8;
-
-    #[inline]
-    fn add(self, other: f64x8) -> f64x8 {
-        f64x8 {
-            hi: self.hi + other.hi,
-            lo: self.lo + other.lo,
-        }
-    }
-}
-
-impl Sub<f64x8> for f64x8 {
-    type Output = f64x8;
-
-    #[inline]
-    fn sub(self, other: f64x8) -> f64x8 {
-        f64x8 {
-            hi: self.hi - other.hi,
-            lo: self.lo - other.lo,
-        }
-    }
-}
-
-impl Mul<f64x8> for f64x8 {
-    type Output = f64x8;
-
-    #[inline]
-    fn mul(self, other: f64x8) -> f64x8 {
-        f64x8 {
-            hi: self.hi * other.hi,
-            lo: self.lo * other.lo,
-        }
-    }
-}
-
-impl AddAssign<f64x8> for f64x8 {
-    #[inline]
-    fn add_assign(&mut self, other: f64x8) {
-        self.hi += other.hi;
-        self.lo += other.lo;
-    }
-}
-
-impl SubAssign<f64x8> for f64x8 {
-    #[inline]
-    fn sub_assign(&mut self, other: f64x8) {
-        self.hi -= other.hi;
-        self.lo -= other.lo;
-    }
-}
-
-impl MulAssign<f64x8> for f64x8 {
-    #[inline]
-    fn mul_assign(&mut self, other: f64x8) {
-        self.hi *= other.hi;
-        self.lo *= other.lo;
-    }
-}
+use wide::{f64x4, f64x8, u64x4};
 
 // This is nmod_t from src/flint.h, FLINT 3.3.0-dev.
 #[derive(Debug, Default, Clone, Eq, PartialEq)]
@@ -216,8 +88,8 @@ pub(crate) struct FFTContext {
 }
 
 impl Default for FFTContext {
-    fn default() -> FFTContext {
-        FFTContext {
+    fn default() -> Self {
+        Self {
             p: 0.0,
             pinv: 0.0,
             mod_data: ModData::default(),
@@ -474,15 +346,15 @@ macro_rules! f64x4_reduce_pm1no_to_0n {
     }};
 }
 
-macro_rules! f64x4_round_alt {
+macro_rules! f64x4_round {
     ($x: expr) => {{
         let [x0, x1, x2, x3] = $x.to_array();
         f64x4::from([round_even!(x0), round_even!(x1), round_even!(x2), round_even!(x3)])
     }};
 }
-pub(crate) use f64x4_round_alt;
+pub(crate) use f64x4_round;
 
-macro_rules! f64x8_round_alt {
+macro_rules! f64x8_round {
     ($x: expr) => {{
         let [x0, x1, x2, x3, x4, x5, x6, x7] = $x.to_array();
         f64x8::from([
@@ -498,7 +370,15 @@ macro_rules! f64x8_round_alt {
     }};
 }
 
-// Remove once default implementation is perfectly accurate
+// In this case f64x4::mul_add is not perfectly accurate, so we must fall back to a slower, more
+// accurate implementation
+#[cfg(not(any(
+    all(
+        target_feature = "fma",
+        any(target_arch = "x86", target_arch = "x86_64")
+    ),
+    all(target_feature = "neon", target_arch = "aarch64")
+)))]
 macro_rules! f64x4_mul_add {
     ($a: expr, $b: expr, $c: expr) => {{
         let [a0, a1, a2, a3] = $a.to_array();
@@ -507,9 +387,28 @@ macro_rules! f64x4_mul_add {
         f64x4::from([fma!(a0, b0, c0), fma!(a1, b1, c1), fma!(a2, b2, c2), fma!(a3, b3, c3)])
     }};
 }
+
+#[cfg(any(
+    all(
+        target_feature = "fma",
+        any(target_arch = "x86", target_arch = "x86_64")
+    ),
+    all(target_feature = "neon", target_arch = "aarch64")
+))]
+macro_rules! f64x4_mul_add {
+    ($a: expr, $b: expr, $c: expr) => {{ $a.mul_add($b, $c) }};
+}
 pub(crate) use f64x4_mul_add;
 
-// Remove once default implementation is perfectly accurate
+// In this case f64x8::mul_add is not perfectly accurate, so we must fall back to a slower, more
+// accurate implementation
+#[cfg(not(any(
+    all(
+        target_feature = "fma",
+        any(target_arch = "x86", target_arch = "x86_64")
+    ),
+    all(target_feature = "neon", target_arch = "aarch64")
+)))]
 macro_rules! f64x8_mul_add {
     ($a: expr, $b: expr, $c: expr) => {{
         let [a0, a1, a2, a3, a4, a5, a6, a7] = $a.to_array();
@@ -528,13 +427,24 @@ macro_rules! f64x8_mul_add {
     }};
 }
 
+#[cfg(any(
+    all(
+        target_feature = "fma",
+        any(target_arch = "x86", target_arch = "x86_64")
+    ),
+    all(target_feature = "neon", target_arch = "aarch64")
+))]
+macro_rules! f64x8_mul_add {
+    ($a: expr, $b: expr, $c: expr) => {{ $a.mul_add($b, $c) }};
+}
+
 // return a mod n in (-n,n)
 //
 // This is vec4d_reduce_to_pm1no from src/machine_vectors.h, FLINT 3.3.0-dev.
 macro_rules! f64x4_reduce_to_pm1no {
     ($a: expr, $n: expr, $ninv: expr) => {{
         let a = $a;
-        f64x4_mul_add!(-f64x4_round_alt!(a * $ninv), $n, a)
+        f64x4_mul_add!(-f64x4_round!(a * $ninv), $n, a)
     }};
 }
 
@@ -585,7 +495,7 @@ macro_rules! f64x4_mulmod {
         let a = $a;
         let b = $b;
         let h = a * b;
-        f64x4_mul_add!(-f64x4_round_alt!(h * $ninv), $n, h) - f64x4_mul_add!(-a, b, h)
+        f64x4_mul_add!(-f64x4_round!(h * $ninv), $n, h) - f64x4_mul_add!(-a, b, h)
     }};
 }
 
@@ -595,7 +505,7 @@ macro_rules! f64x8_mulmod {
         let a = $a;
         let b = $b;
         let h = a * b;
-        f64x8_mul_add!(-f64x8_round_alt!(h * $ninv), $n, h) - f64x8_mul_add!(-a, b, h)
+        f64x8_mul_add!(-f64x8_round!(h * $ninv), $n, h) - f64x8_mul_add!(-a, b, h)
     }};
 }
 
@@ -605,7 +515,7 @@ macro_rules! f64x4_nmulmod {
         let a = $a;
         let b = $b;
         let h = a * b;
-        f64x4_mul_add!(-a, b, h) - f64x4_mul_add!(-f64x4_round_alt!(h * $ninv), $n, h)
+        f64x4_mul_add!(-a, b, h) - f64x4_mul_add!(-f64x4_round!(h * $ninv), $n, h)
     }};
 }
 
@@ -615,7 +525,7 @@ macro_rules! f64x8_nmulmod {
         let a = $a;
         let b = $b;
         let h = a * b;
-        f64x8_mul_add!(-a, b, h) - f64x8_mul_add!(-f64x8_round_alt!(h * $ninv), $n, h)
+        f64x8_mul_add!(-a, b, h) - f64x8_mul_add!(-f64x8_round!(h * $ninv), $n, h)
     }};
 }
 
@@ -631,7 +541,7 @@ macro_rules! f64_reduce_to_pm1n {
 macro_rules! f64x4_reduce_to_pm1n {
     ($a: expr, $n: expr, $ninv: expr) => {{
         let a = $a;
-        f64x4_mul_add!(-f64x4_round_alt!(a * $ninv), $n, a)
+        f64x4_mul_add!(-f64x4_round!(a * $ninv), $n, a)
     }};
 }
 
@@ -639,7 +549,7 @@ macro_rules! f64x4_reduce_to_pm1n {
 macro_rules! f64x8_reduce_to_pm1n {
     ($a: expr, $n: expr, $ninv: expr) => {{
         let a = $a;
-        f64x8_mul_add!(-f64x8_round_alt!(a * $ninv), $n, a)
+        f64x8_mul_add!(-f64x8_round!(a * $ninv), $n, a)
     }};
 }
 
@@ -967,6 +877,7 @@ fn mpn_ctx_best_profile(r: &Context, p: &mut ProfileEntry, an: usize, bn: usize)
     // We can also fill in p.to_ffts = None any time to not use the fast mod function and use the
     // slow generic one instead.
     const BIGGEST_BOUND: usize = CONTEXT.profiles[0].bn_bound;
+    const PROFILES_SIZE: usize = CONTEXT.profiles_size;
     if bn > BIGGEST_BOUND {
         p.np = 4;
         p.bits = crt_data_find_bits(&r.crts[p.np - 1], bn);
@@ -978,16 +889,16 @@ fn mpn_ctx_best_profile(r: &Context, p: &mut ProfileEntry, an: usize, bn: usize)
     let mut best_score = 100000000.0 * (an.checked_add(bn).unwrap() as f64);
     loop {
         // maximize r.profiles[i].bits
-        assert!(i < CONTEXT.profiles_size);
-        assert!(bn <= CONTEXT.profiles[i].bn_bound);
-        while i + 1 < CONTEXT.profiles_size
-            && bn <= CONTEXT.profiles[i + 1].bn_bound
-            && CONTEXT.profiles[i + 1].np == CONTEXT.profiles[i].np
+        assert!(i < PROFILES_SIZE);
+        assert!(bn <= r.profiles[i].bn_bound);
+        while i + 1 < PROFILES_SIZE
+            && bn <= r.profiles[i + 1].bn_bound
+            && r.profiles[i + 1].np == r.profiles[i].np
         {
             i += 1;
         }
-        let np = CONTEXT.profiles[i].np;
-        let bits = CONTEXT.profiles[i].bits as usize;
+        let np = r.profiles[i].np;
+        let bits = r.profiles[i].bits as usize;
         let alen = (an << 6).div_round(bits, Ceiling).0;
         let blen = (bn << 6).div_round(bits, Ceiling).0;
         let zlen = alen + blen - 1;
@@ -1003,13 +914,13 @@ fn mpn_ctx_best_profile(r: &Context, p: &mut ProfileEntry, an: usize, bn: usize)
         }
         loop {
             i += 1;
-            if i >= CONTEXT.profiles_size {
-                p.np = CONTEXT.profiles[best_i].np;
-                p.bits = CONTEXT.profiles[best_i].bits;
-                p.to_ffts = CONTEXT.profiles[best_i].to_ffts;
+            if i >= PROFILES_SIZE {
+                p.np = r.profiles[best_i].np;
+                p.bits = r.profiles[best_i].bits;
+                p.to_ffts = r.profiles[best_i].to_ffts;
                 return;
             }
-            if bn <= CONTEXT.profiles[i].bn_bound {
+            if bn <= r.profiles[i].bn_bound {
                 break;
             }
         }
@@ -4222,13 +4133,12 @@ fn sd_ifft_trunc_block(
         return;
     }
     let big_s = s << LG_BLK_SZ;
-    if k == 2 {
-        if let Some(fxn) =
+    if k == 2
+        && let Some(fxn) =
             SD_IFFT_4_MOTH_TRUNC_BLOCK_TABLE[usize::from(f) + ((z - 1 + (n << 2)) << 1)]
-        {
-            fxn(q, j, j.significant_bits(), xs, big_s);
-            return;
-        }
+    {
+        fxn(q, j, j.significant_bits(), xs, big_s);
+        return;
     }
     if k > 1 {
         let k1 = k >> 1;
@@ -4289,13 +4199,12 @@ fn sd_ifft_trunc_block(
         }
         return;
     }
-    if k == 1 {
-        if let Some(fxn) =
+    if k == 1
+        && let Some(fxn) =
             SD_IFFT_2_MOTH_TRUNC_BLOCK_TABLE[usize::from(f) + ((z - 1 + (n << 1)) << 1)]
-        {
-            let (xs0, xs1) = xs.split_at_mut(big_s);
-            fxn(q, j, xs0, xs1);
-        }
+    {
+        let (xs0, xs1) = xs.split_at_mut(big_s);
+        fxn(q, j, xs0, xs1);
     }
 }
 

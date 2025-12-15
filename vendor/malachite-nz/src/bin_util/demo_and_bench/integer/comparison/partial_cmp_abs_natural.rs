@@ -6,6 +6,7 @@
 // Lesser General Public License (LGPL) as published by the Free Software Foundation; either version
 // 3 of the License, or (at your option) any later version. See <https://www.gnu.org/licenses/>.
 
+use malachite_base::num::arithmetic::traits::Abs;
 use malachite_base::num::comparison::traits::PartialOrdAbs;
 use malachite_base::test_util::bench::{BenchmarkType, run_benchmark};
 use malachite_base::test_util::generators::common::{GenConfig, GenMode};
@@ -32,10 +33,12 @@ pub(crate) fn register(runner: &mut Runner) {
         runner,
         benchmark_integer_partial_cmp_abs_natural_library_comparison
     );
+    register_bench!(runner, benchmark_integer_partial_cmp_abs_natural_algorithms);
     register_bench!(
         runner,
         benchmark_natural_partial_cmp_abs_integer_library_comparison
     );
+    register_bench!(runner, benchmark_natural_partial_cmp_abs_integer_algorithms);
     register_bench!(runner, benchmark_integer_lt_abs_natural);
     register_bench!(runner, benchmark_integer_gt_abs_natural);
     register_bench!(runner, benchmark_integer_le_abs_natural);
@@ -162,9 +165,35 @@ fn benchmark_integer_partial_cmp_abs_natural_library_comparison(
         &pair_2_integer_natural_max_bit_bucketer("x", "y"),
         &mut [
             ("Malachite", &mut |(_, (x, y))| {
-                no_out!(x.partial_cmp_abs(&y))
+                no_out!(x.partial_cmp_abs(&y));
             }),
             ("rug", &mut |((x, y), _)| no_out!(x.cmp_abs(&y))),
+        ],
+    );
+}
+
+#[allow(unused_must_use)]
+fn benchmark_integer_partial_cmp_abs_natural_algorithms(
+    gm: GenMode,
+    config: &GenConfig,
+    limit: usize,
+    file_name: &str,
+) {
+    run_benchmark(
+        "Integer.partial_cmp_abs(&Natural)",
+        BenchmarkType::Algorithms,
+        integer_natural_pair_gen().get(gm, config),
+        gm.name(),
+        limit,
+        file_name,
+        &integer_natural_max_bit_bucketer("x", "y"),
+        &mut [
+            ("default", &mut |(x, y)| {
+                no_out!(x.partial_cmp_abs(&y));
+            }),
+            ("using abs", &mut |(x, y)| {
+                no_out!(x.abs().partial_cmp(&y));
+            }),
         ],
     );
 }
@@ -185,9 +214,35 @@ fn benchmark_natural_partial_cmp_abs_integer_library_comparison(
         &pair_2_integer_natural_max_bit_bucketer("x", "y"),
         &mut [
             ("Malachite", &mut |(_, (x, y))| {
-                no_out!(y.partial_cmp_abs(&x))
+                no_out!(y.partial_cmp_abs(&x));
             }),
             ("rug", &mut |((x, y), _)| no_out!(y.cmp_abs(&x))),
+        ],
+    );
+}
+
+#[allow(unused_must_use)]
+fn benchmark_natural_partial_cmp_abs_integer_algorithms(
+    gm: GenMode,
+    config: &GenConfig,
+    limit: usize,
+    file_name: &str,
+) {
+    run_benchmark(
+        "Natural.partial_cmp_abs(&Integer)",
+        BenchmarkType::Algorithms,
+        integer_natural_pair_gen().get(gm, config),
+        gm.name(),
+        limit,
+        file_name,
+        &integer_natural_max_bit_bucketer("x", "y"),
+        &mut [
+            ("default", &mut |(x, y)| {
+                no_out!(y.partial_cmp_abs(&x));
+            }),
+            ("using abs", &mut |(x, y)| {
+                no_out!(y.partial_cmp(&x.abs()));
+            }),
         ],
     );
 }

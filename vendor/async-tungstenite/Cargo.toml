@@ -13,7 +13,7 @@
 edition = "2018"
 rust-version = "1.64"
 name = "async-tungstenite"
-version = "0.29.1"
+version = "0.31.0"
 authors = ["Sebastian Dröge <sebastian@centricular.com>"]
 build = false
 include = [
@@ -57,6 +57,64 @@ features = [
     "async-native-tls",
     "tokio-native-tls",
 ]
+
+[features]
+__rustls-tls = [
+    "tokio-runtime",
+    "real-tokio-rustls",
+    "rustls-pki-types",
+    "tungstenite/__rustls-tls",
+]
+async-native-tls = [
+    "async-std-runtime",
+    "real-async-native-tls",
+    "tungstenite/native-tls",
+]
+async-std-runtime = [
+    "async-std",
+    "handshake",
+]
+async-tls = [
+    "real-async-tls",
+    "handshake",
+]
+default = [
+    "handshake",
+    "futures-03-sink",
+]
+futures-03-sink = ["futures-util"]
+gio-runtime = [
+    "gio",
+    "glib",
+    "handshake",
+]
+handshake = ["tungstenite/handshake"]
+tokio-native-tls = [
+    "tokio-runtime",
+    "real-tokio-native-tls",
+    "real-native-tls",
+    "tungstenite/native-tls",
+]
+tokio-openssl = [
+    "tokio-runtime",
+    "real-tokio-openssl",
+    "openssl",
+]
+tokio-runtime = [
+    "tokio",
+    "handshake",
+]
+tokio-rustls-manual-roots = ["__rustls-tls"]
+tokio-rustls-native-certs = [
+    "__rustls-tls",
+    "rustls-native-certs",
+]
+tokio-rustls-webpki-roots = [
+    "__rustls-tls",
+    "webpki-roots",
+]
+url = ["tungstenite/url"]
+verbose-logging = []
 
 [lib]
 name = "async_tungstenite"
@@ -171,11 +229,11 @@ optional = true
 default-features = false
 
 [dependencies.gio]
-version = "0.20"
+version = "0.21"
 optional = true
 
 [dependencies.glib]
-version = "0.20"
+version = "0.21"
 optional = true
 
 [dependencies.log]
@@ -236,11 +294,11 @@ optional = true
 default-features = false
 
 [dependencies.tungstenite]
-version = "0.26"
+version = "0.27"
 default-features = false
 
 [dependencies.webpki-roots]
-version = "0.26"
+version = "1.0"
 optional = true
 
 [dev-dependencies.async-std]
@@ -251,7 +309,7 @@ features = [
 ]
 
 [dev-dependencies.env_logger]
-version = "0.10"
+version = ">= 0.10, <= 0.11"
 
 [dev-dependencies.futures]
 version = "0.3"
@@ -279,66 +337,8 @@ version = "1.0"
 features = ["full"]
 
 [dev-dependencies.tungstenite]
-version = "0.26"
+version = "0.27"
 features = ["url"]
 
 [dev-dependencies.url]
 version = "2.0.0"
-
-[features]
-__rustls-tls = [
-    "tokio-runtime",
-    "real-tokio-rustls",
-    "rustls-pki-types",
-    "tungstenite/__rustls-tls",
-]
-async-native-tls = [
-    "async-std-runtime",
-    "real-async-native-tls",
-    "tungstenite/native-tls",
-]
-async-std-runtime = [
-    "async-std",
-    "handshake",
-]
-async-tls = [
-    "real-async-tls",
-    "handshake",
-]
-default = [
-    "handshake",
-    "futures-03-sink",
-]
-futures-03-sink = ["futures-util"]
-gio-runtime = [
-    "gio",
-    "glib",
-    "handshake",
-]
-handshake = ["tungstenite/handshake"]
-tokio-native-tls = [
-    "tokio-runtime",
-    "real-tokio-native-tls",
-    "real-native-tls",
-    "tungstenite/native-tls",
-]
-tokio-openssl = [
-    "tokio-runtime",
-    "real-tokio-openssl",
-    "openssl",
-]
-tokio-runtime = [
-    "tokio",
-    "handshake",
-]
-tokio-rustls-manual-roots = ["__rustls-tls"]
-tokio-rustls-native-certs = [
-    "__rustls-tls",
-    "rustls-native-certs",
-]
-tokio-rustls-webpki-roots = [
-    "__rustls-tls",
-    "webpki-roots",
-]
-url = ["tungstenite/url"]
-verbose-logging = []

@@ -33,7 +33,6 @@ pick! {
 
     impl Default for i8x16 {
       #[inline]
-      #[must_use]
       fn default() -> Self {
         Self::splat(0)
       }
@@ -41,7 +40,6 @@ pick! {
 
     impl PartialEq for i8x16 {
       #[inline]
-      #[must_use]
       fn eq(&self, other: &Self) -> bool {
         unsafe { vminvq_u8(vceqq_s8(self.neon, other.neon))==u8::MAX }
       }
@@ -60,10 +58,13 @@ int_uint_consts!(i8, 16, i8x16, 128);
 unsafe impl Zeroable for i8x16 {}
 unsafe impl Pod for i8x16 {}
 
+impl AlignTo for i8x16 {
+  type Elem = i8;
+}
+
 impl Add for i8x16 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn add(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse2")] {
@@ -99,7 +100,6 @@ impl Add for i8x16 {
 impl Sub for i8x16 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn sub(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse2")] {
@@ -135,7 +135,6 @@ impl Sub for i8x16 {
 impl Add<i8> for i8x16 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn add(self, rhs: i8) -> Self::Output {
     self.add(Self::splat(rhs))
   }
@@ -144,7 +143,6 @@ impl Add<i8> for i8x16 {
 impl Sub<i8> for i8x16 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn sub(self, rhs: i8) -> Self::Output {
     self.sub(Self::splat(rhs))
   }
@@ -153,7 +151,6 @@ impl Sub<i8> for i8x16 {
 impl Add<i8x16> for i8 {
   type Output = i8x16;
   #[inline]
-  #[must_use]
   fn add(self, rhs: i8x16) -> Self::Output {
     i8x16::splat(self).add(rhs)
   }
@@ -162,7 +159,6 @@ impl Add<i8x16> for i8 {
 impl Sub<i8x16> for i8 {
   type Output = i8x16;
   #[inline]
-  #[must_use]
   fn sub(self, rhs: i8x16) -> Self::Output {
     i8x16::splat(self).sub(rhs)
   }
@@ -171,7 +167,6 @@ impl Sub<i8x16> for i8 {
 impl BitAnd for i8x16 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn bitand(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse2")] {
@@ -207,7 +202,6 @@ impl BitAnd for i8x16 {
 impl BitOr for i8x16 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn bitor(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse2")] {
@@ -243,7 +237,6 @@ impl BitOr for i8x16 {
 impl BitXor for i8x16 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn bitxor(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse2")] {
@@ -279,8 +272,7 @@ impl BitXor for i8x16 {
 impl CmpEq for i8x16 {
   type Output = Self;
   #[inline]
-  #[must_use]
-  fn cmp_eq(self, rhs: Self) -> Self::Output {
+  fn simd_eq(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse2")] {
         Self { sse: cmp_eq_mask_i8_m128i(self.sse, rhs.sse) }
@@ -315,8 +307,7 @@ impl CmpEq for i8x16 {
 impl CmpGt for i8x16 {
   type Output = Self;
   #[inline]
-  #[must_use]
-  fn cmp_gt(self, rhs: Self) -> Self::Output {
+  fn simd_gt(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse2")] {
         Self { sse: cmp_gt_mask_i8_m128i(self.sse, rhs.sse) }
@@ -351,8 +342,7 @@ impl CmpGt for i8x16 {
 impl CmpLt for i8x16 {
   type Output = Self;
   #[inline]
-  #[must_use]
-  fn cmp_lt(self, rhs: Self) -> Self::Output {
+  fn simd_lt(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse2")] {
         Self { sse: cmp_lt_mask_i8_m128i(self.sse, rhs.sse) }
@@ -423,22 +413,22 @@ impl i8x16 {
         }
 
         i8x16::new([
-          clamp(v.as_array_ref()[0]),
-          clamp(v.as_array_ref()[1]),
-          clamp(v.as_array_ref()[2]),
-          clamp(v.as_array_ref()[3]),
-          clamp(v.as_array_ref()[4]),
-          clamp(v.as_array_ref()[5]),
-          clamp(v.as_array_ref()[6]),
-          clamp(v.as_array_ref()[7]),
-          clamp(v.as_array_ref()[8]),
-          clamp(v.as_array_ref()[9]),
-          clamp(v.as_array_ref()[10]),
-          clamp(v.as_array_ref()[11]),
-          clamp(v.as_array_ref()[12]),
-          clamp(v.as_array_ref()[13]),
-          clamp(v.as_array_ref()[14]),
-          clamp(v.as_array_ref()[15]),
+          clamp(v.as_array()[0]),
+          clamp(v.as_array()[1]),
+          clamp(v.as_array()[2]),
+          clamp(v.as_array()[3]),
+          clamp(v.as_array()[4]),
+          clamp(v.as_array()[5]),
+          clamp(v.as_array()[6]),
+          clamp(v.as_array()[7]),
+          clamp(v.as_array()[8]),
+          clamp(v.as_array()[9]),
+          clamp(v.as_array()[10]),
+          clamp(v.as_array()[11]),
+          clamp(v.as_array()[12]),
+          clamp(v.as_array()[13]),
+          clamp(v.as_array()[14]),
+          clamp(v.as_array()[15]),
         ])
       }
     }
@@ -458,22 +448,22 @@ impl i8x16 {
       } else {
         // no super good intrinsics on other platforms... plain old codegen does a reasonable job
         i8x16::new([
-          v.as_array_ref()[0] as i8,
-          v.as_array_ref()[1] as i8,
-          v.as_array_ref()[2] as i8,
-          v.as_array_ref()[3] as i8,
-          v.as_array_ref()[4] as i8,
-          v.as_array_ref()[5] as i8,
-          v.as_array_ref()[6] as i8,
-          v.as_array_ref()[7] as i8,
-          v.as_array_ref()[8] as i8,
-          v.as_array_ref()[9] as i8,
-          v.as_array_ref()[10] as i8,
-          v.as_array_ref()[11] as i8,
-          v.as_array_ref()[12] as i8,
-          v.as_array_ref()[13] as i8,
-          v.as_array_ref()[14] as i8,
-          v.as_array_ref()[15] as i8,
+          v.as_array()[0] as i8,
+          v.as_array()[1] as i8,
+          v.as_array()[2] as i8,
+          v.as_array()[3] as i8,
+          v.as_array()[4] as i8,
+          v.as_array()[5] as i8,
+          v.as_array()[6] as i8,
+          v.as_array()[7] as i8,
+          v.as_array()[8] as i8,
+          v.as_array()[9] as i8,
+          v.as_array()[10] as i8,
+          v.as_array()[11] as i8,
+          v.as_array()[12] as i8,
+          v.as_array()[13] as i8,
+          v.as_array()[14] as i8,
+          v.as_array()[15] as i8,
         ])
       }
     }
@@ -574,7 +564,7 @@ impl i8x16 {
       } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
         unsafe {Self { neon: vmaxq_s8(self.neon, rhs.neon) }}
       } else {
-        self.cmp_lt(rhs).blend(rhs, self)
+        self.simd_lt(rhs).blend(rhs, self)
       }
     }
   }
@@ -589,7 +579,7 @@ impl i8x16 {
       } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
         unsafe {Self { neon: vminq_s8(self.neon, rhs.neon) }}
       } else {
-        self.cmp_lt(rhs).blend(self, rhs)
+        self.simd_lt(rhs).blend(self, rhs)
       }
     }
   }
@@ -615,12 +605,12 @@ impl i8x16 {
 
   #[inline]
   #[must_use]
-  pub fn move_mask(self) -> i32 {
+  pub fn to_bitmask(self) -> u32 {
     pick! {
       if #[cfg(target_feature="sse2")] {
-        move_mask_i8_m128i(self.sse)
+        move_mask_i8_m128i(self.sse) as u32
       } else if #[cfg(target_feature="simd128")] {
-        i8x16_bitmask(self.simd) as i32
+        i8x16_bitmask(self.simd) as u32
       } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
         unsafe
         {
@@ -636,25 +626,25 @@ impl i8x16 {
           let r = vqtbl1q_u8(out, table);
 
           // horizontally add the 16-bit lanes
-          vaddvq_u16(vreinterpretq_u16_u8(r)) as i32
+          vaddvq_u16(vreinterpretq_u16_u8(r)) as u32
         }
        } else {
-        ((self.arr[0] < 0) as i32) << 0 |
-        ((self.arr[1] < 0) as i32) << 1 |
-        ((self.arr[2] < 0) as i32) << 2 |
-        ((self.arr[3] < 0) as i32) << 3 |
-        ((self.arr[4] < 0) as i32) << 4 |
-        ((self.arr[5] < 0) as i32) << 5 |
-        ((self.arr[6] < 0) as i32) << 6 |
-        ((self.arr[7] < 0) as i32) << 7 |
-        ((self.arr[8] < 0) as i32) << 8 |
-        ((self.arr[9] < 0) as i32) << 9 |
-        ((self.arr[10] < 0) as i32) << 10 |
-        ((self.arr[11] < 0) as i32) << 11 |
-        ((self.arr[12] < 0) as i32) << 12 |
-        ((self.arr[13] < 0) as i32) << 13 |
-        ((self.arr[14] < 0) as i32) << 14 |
-        ((self.arr[15] < 0) as i32) << 15
+        ((self.arr[0] < 0) as u32) << 0 |
+        ((self.arr[1] < 0) as u32) << 1 |
+        ((self.arr[2] < 0) as u32) << 2 |
+        ((self.arr[3] < 0) as u32) << 3 |
+        ((self.arr[4] < 0) as u32) << 4 |
+        ((self.arr[5] < 0) as u32) << 5 |
+        ((self.arr[6] < 0) as u32) << 6 |
+        ((self.arr[7] < 0) as u32) << 7 |
+        ((self.arr[8] < 0) as u32) << 8 |
+        ((self.arr[9] < 0) as u32) << 9 |
+        ((self.arr[10] < 0) as u32) << 10 |
+        ((self.arr[11] < 0) as u32) << 11 |
+        ((self.arr[12] < 0) as u32) << 12 |
+        ((self.arr[13] < 0) as u32) << 13 |
+        ((self.arr[14] < 0) as u32) << 14 |
+        ((self.arr[15] < 0) as u32) << 15
       }
     }
   }
@@ -839,12 +829,12 @@ impl i8x16 {
   }
 
   #[inline]
-  pub fn as_array_ref(&self) -> &[i8; 16] {
+  pub fn as_array(&self) -> &[i8; 16] {
     cast_ref(self)
   }
 
   #[inline]
-  pub fn as_array_mut(&mut self) -> &mut [i8; 16] {
+  pub fn as_mut_array(&mut self) -> &mut [i8; 16] {
     cast_mut(self)
   }
 }

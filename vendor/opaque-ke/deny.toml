@@ -42,7 +42,8 @@ yanked = "warn"
 # A list of advisory IDs to ignore. Note that ignored advisories will still
 # output a note when they are encountered.
 ignore = [
-  #"RUSTSEC-0000-0000",
+  # dev-dependency
+  "RUSTSEC-2024-0436",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
@@ -77,7 +78,7 @@ confidence-threshold = 0.95
 exceptions = [
   # Each entry is the crate and version constraint, and its specific allow
   # list
-  { allow = ["Unicode-DFS-2016"], name = "unicode-ident", version = "*" },
+  { allow = ["Unicode-3.0"], name = "unicode-ident", version = "*" },
 ]
 
 # Some crates don't have (easily) machine readable licensing information,

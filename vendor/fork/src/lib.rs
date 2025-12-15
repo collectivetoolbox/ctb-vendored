@@ -1,32 +1,252 @@
 //! Library for creating a new process detached from the controlling terminal (daemon).
 //!
-//! Example:
-//! ```
-//!use fork::{daemon, Fork};
-//!use std::process::Command;
+//! # Quick Start
 //!
-//!if let Ok(Fork::Child) = daemon(false, false) {
-//!    Command::new("sleep")
-//!        .arg("3")
-//!        .output()
-//!        .expect("failed to execute process");
-//!}
-//!```
+//! ```
+//! use fork::{daemon, Fork};
+//! use std::process::Command;
+//!
+//! if let Ok(Fork::Child) = daemon(false, false) {
+//!     Command::new("sleep")
+//!         .arg("3")
+//!         .output()
+//!         .expect("failed to execute process");
+//! }
+//! ```
+//!
+//! # Common Patterns
+//!
+//! ## Process Supervisor
+//!
+//! Track multiple worker processes:
+//!
+//! ```no_run
+//! use fork::{fork, Fork, waitpid_nohang, WIFEXITED};
+//! use std::collections::HashMap;
+//!
+//! # fn main() -> std::io::Result<()> {
+//! let mut workers = HashMap::new();
+//!
+//! // Spawn 3 workers
+//! for i in 0..3 {
+//!     match fork()? {
+//!         result @ Fork::Parent(_) => {
+//!             workers.insert(result, format!("worker-{}", i));
+//!         }
+//!         Fork::Child => {
+//!             // Do work...
+//!             std::thread::sleep(std::time::Duration::from_secs(5));
+//!             std::process::exit(0);
+//!         }
+//!     }
+//! }
+//!
+//! // Monitor workers without blocking
+//! while !workers.is_empty() {
+//!     workers.retain(|child, name| {
+//!         match waitpid_nohang(child.child_pid().unwrap()) {
+//!             Ok(Some(status)) if WIFEXITED(status) => {
+//!                 println!("{} exited", name);
+//!                 false  // Remove from map
+//!             }
+//!             _ => true  // Keep in map
+//!         }
+//!     });
+//!     std::thread::sleep(std::time::Duration::from_millis(100));
+//! }
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Inter-Process Communication (IPC) via Pipe
+//!
+//! ```no_run
+//! use fork::{fork, Fork};
+//! use std::io::{Read, Write};
+//! use std::os::unix::io::FromRawFd;
+//!
+//! # fn main() -> std::io::Result<()> {
+//! // Create pipe before forking
+//! let mut pipe_fds = [0i32; 2];
+//! unsafe { libc::pipe(pipe_fds.as_mut_ptr()) };
+//!
+//! match fork()? {
+//!     Fork::Parent(_child) => {
+//!         unsafe { libc::close(pipe_fds[1]) };  // Close write end
+//!
+//!         let mut reader = unsafe { std::fs::File::from_raw_fd(pipe_fds[0]) };
+//!         let mut msg = String::new();
+//!         reader.read_to_string(&mut msg)?;
+//!         println!("Received: {}", msg);
+//!     }
+//!     Fork::Child => {
+//!         unsafe { libc::close(pipe_fds[0]) };  // Close read end
+//!
+//!         let mut writer = unsafe { std::fs::File::from_raw_fd(pipe_fds[1]) };
+//!         writer.write_all(b"Hello from child!")?;
+//!         std::process::exit(0);
+//!     }
+//! }
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Daemon with PID File
+//!
+//! ```no_run
+//! use fork::{daemon, Fork, getpid};
+//! use std::fs::File;
+//! use std::io::Write;
+//!
+//! # fn main() -> std::io::Result<()> {
+//! if let Ok(Fork::Child) = daemon(false, false) {
+//!     // Write PID file
+//!     let pid = getpid();
+//!     let mut file = File::create("/var/run/myapp.pid")?;
+//!     writeln!(file, "{}", pid)?;
+//!
+//!     // Run daemon logic...
+//!     loop {
+//!         // Do work
+//!         std::thread::sleep(std::time::Duration::from_secs(60));
+//!     }
+//! }
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # Safety and Best Practices
+//!
+//! - **Always check fork result** - Functions marked `#[must_use]` prevent accidents
+//! - **Use `waitpid()`** - Reap child processes to avoid zombies
+//! - **Prefer `redirect_stdio()`** - Safer than `close_fd()` for daemons
+//! - **Fork early** - Before creating threads, locks, or complex state
+//! - **Close unused file descriptors** - Prevent resource leaks in children
+//! - **Handle signals properly** - Consider what happens in both processes
+//!
+//! # Platform Compatibility
+//!
+//! This library uses POSIX system calls and is designed for Unix-like systems:
+//! - Linux (all distributions)
+//! - macOS (10.5+, replacement for deprecated `daemon(3)`)
+//! - FreeBSD, OpenBSD, NetBSD
+//! - Other POSIX-compliant systems
+//!
+//! Windows is **not supported** as it lacks `fork()` system call.
 
-use std::ffi::CString;
-use std::process::exit;
+use std::io;
+
+// Re-export libc status inspection macros for convenience
+// This allows users to write `use fork::{waitpid, WIFEXITED, WEXITSTATUS}`
+// instead of importing from libc separately
+pub use libc::{WEXITSTATUS, WIFEXITED, WIFSIGNALED, WTERMSIG};
 
 /// Fork result
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Fork {
     Parent(libc::pid_t),
     Child,
 }
 
+/// Close a file descriptor, retrying on `EINTR` and treating `EBADF` as success.
+#[inline]
+fn close_retry(fd: libc::c_int) -> io::Result<()> {
+    loop {
+        let res = unsafe { libc::close(fd) };
+        if res == 0 {
+            return Ok(());
+        }
+
+        let err = io::Error::last_os_error();
+
+        if err.kind() == io::ErrorKind::Interrupted {
+            continue;
+        }
+
+        if err.raw_os_error() == Some(libc::EBADF) {
+            return Ok(());
+        }
+
+        return Err(err);
+    }
+}
+
+impl Fork {
+    /// Returns `true` if this is the parent process
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fork::{fork, Fork};
+    ///
+    /// match fork() {
+    ///     Ok(result) => {
+    ///         if result.is_parent() {
+    ///             println!("I'm the parent");
+    ///         }
+    ///     }
+    ///     Err(_) => {}
+    /// }
+    /// ```
+    #[must_use]
+    #[inline]
+    pub const fn is_parent(&self) -> bool {
+        matches!(self, Self::Parent(_))
+    }
+
+    /// Returns `true` if this is the child process
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fork::{fork, Fork};
+    ///
+    /// match fork() {
+    ///     Ok(result) => {
+    ///         if result.is_child() {
+    ///             println!("I'm the child");
+    ///             std::process::exit(0);
+    ///         }
+    ///     }
+    ///     Err(_) => {}
+    /// }
+    /// ```
+    #[must_use]
+    #[inline]
+    pub const fn is_child(&self) -> bool {
+        matches!(self, Self::Child)
+    }
+
+    /// Returns the child PID if this is the parent, otherwise `None`
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fork::{fork, Fork};
+    ///
+    /// match fork() {
+    ///     Ok(result) => {
+    ///         if let Some(child_pid) = result.child_pid() {
+    ///             println!("Child PID: {}", child_pid);
+    ///         }
+    ///     }
+    ///     Err(_) => {}
+    /// }
+    /// ```
+    #[must_use]
+    #[inline]
+    pub const fn child_pid(&self) -> Option<libc::pid_t> {
+        match self {
+            Self::Parent(pid) => Some(*pid),
+            Self::Child => None,
+        }
+    }
+}
+
 /// Change dir to `/` [see chdir(2)](https://www.freebsd.org/cgi/man.cgi?query=chdir&sektion=2)
 ///
-/// Upon successful completion, 0 shall be returned. Otherwise, -1 shall be
-/// returned, the current working directory shall remain unchanged, and errno
-/// shall be set to indicate the error.
+/// Upon successful completion, the current working directory is changed to `/`.
+/// Otherwise, an error is returned with the system error code.
 ///
 /// Example:
 ///
@@ -39,46 +259,145 @@ pub enum Fork {
 ///       let path = env::current_dir().expect("failed current_dir");
 ///       assert_eq!(Some("/"), path.to_str());
 ///    }
-///    _ => panic!(),
+///    Err(e) => eprintln!("Failed to change directory: {}", e),
 ///}
 ///```
 ///
 /// # Errors
-/// returns `-1` if error
-/// # Panics
-/// Panics if `CString::new` fails
-pub fn chdir() -> Result<libc::c_int, i32> {
-    let dir = CString::new("/").expect("CString::new failed");
-    let res = unsafe { libc::chdir(dir.as_ptr()) };
+/// Returns an [`io::Error`] if the system call fails. Common errors include:
+/// - Permission denied
+/// - Path does not exist
+///
+#[inline]
+pub fn chdir() -> io::Result<()> {
+    // SAFETY: c"/" is a valid null-terminated C string literal
+    let res = unsafe { libc::chdir(c"/".as_ptr()) };
+
     match res {
-        -1 => Err(-1),
-        res => Ok(res),
+        -1 => Err(io::Error::last_os_error()),
+        _ => Ok(()),
     }
 }
 
-/// Close file descriptors stdin,stdout,stderr
+/// Close file descriptors stdin, stdout, stderr
+///
+/// **Warning:** This function closes the file descriptors, making them
+/// available for reuse. If your daemon opens files after calling this,
+/// those files may get fd 0, 1, or 2, causing `println!`, `eprintln!`,
+/// or panic output to corrupt them.
+///
+/// **Use [`redirect_stdio()`] instead**, which is safer and follows
+/// industry best practices by redirecting stdio to `/dev/null` instead
+/// of closing. This keeps fd 0, 1, 2 occupied, ensuring subsequent files
+/// get fd >= 3, preventing silent corruption.
 ///
 /// # Errors
-/// returns `-1` if error
-pub fn close_fd() -> Result<(), i32> {
-    match unsafe { libc::close(0) } {
-        -1 => Err(-1),
-        _ => match unsafe { libc::close(1) } {
-            -1 => Err(-1),
-            _ => match unsafe { libc::close(2) } {
-                -1 => Err(-1),
-                _ => Ok(()),
-            },
-        },
+/// Returns an [`io::Error`] if any of the file descriptors fail to close.
+/// Already-closed descriptors (`EBADF`) are treated as success so the
+/// function is idempotent.
+///
+/// # Example
+///
+/// ```no_run
+/// use fork::close_fd;
+///
+/// // Warning: Files opened after this may get fd 0,1,2!
+/// close_fd()?;
+/// # Ok::<(), std::io::Error>(())
+/// ```
+pub fn close_fd() -> io::Result<()> {
+    for fd in 0..=2 {
+        close_retry(fd)?;
     }
+
+    Ok(())
+}
+
+/// Redirect stdin, stdout, stderr to /dev/null
+///
+/// This is the recommended way to detach from the controlling terminal
+/// in daemon processes. Unlike [`close_fd()`], this keeps file descriptors
+/// 0, 1, 2 occupied (pointing to /dev/null), preventing them from being
+/// reused by subsequent `open()` calls.
+///
+/// This prevents bugs where `println!`, `eprintln!`, or panic output
+/// accidentally writes to data files that happened to get assigned fd 0, 1, or 2.
+///
+/// # Implementation
+///
+/// This function:
+/// 1. Opens `/dev/null` with `O_RDWR`
+/// 2. Uses `dup2()` to redirect fds 0, 1, 2 to `/dev/null`
+/// 3. Closes the extra file descriptor if it was > 2
+///
+/// This is the same approach used by libuv, systemd, and BSD `daemon(3)`.
+///
+/// # Errors
+///
+/// Returns an [`io::Error`] if:
+/// - `/dev/null` cannot be opened
+/// - `dup2()` fails to redirect any of the file descriptors
+///
+/// # Example
+///
+/// ```no_run
+/// use fork::redirect_stdio;
+/// use std::fs::File;
+///
+/// redirect_stdio()?;
+///
+/// // Now safe: files will get fd >= 3
+/// let log = File::create("app.log")?;
+///
+/// // This goes to /dev/null (safely discarded), not to app.log
+/// println!("debug message");
+/// # Ok::<(), std::io::Error>(())
+/// ```
+pub fn redirect_stdio() -> io::Result<()> {
+    let null_fd = loop {
+        let fd = unsafe { libc::open(c"/dev/null".as_ptr(), libc::O_RDWR) };
+        if fd == -1 {
+            let err = io::Error::last_os_error();
+            if err.kind() == io::ErrorKind::Interrupted {
+                continue;
+            }
+            return Err(err);
+        }
+        break fd;
+    };
+
+    // Redirect stdin, stdout, stderr to /dev/null
+    for fd in 0..=2 {
+        loop {
+            if unsafe { libc::dup2(null_fd, fd) } == -1 {
+                let err = io::Error::last_os_error();
+                if err.kind() == io::ErrorKind::Interrupted {
+                    continue;
+                }
+                // Only close null_fd if it's > 2 (not one of the stdio fds we're duplicating to)
+                // If null_fd was 0, 1, or 2, we're in the process of duping it, so don't close
+                if null_fd > 2 {
+                    let _ = close_retry(null_fd);
+                }
+                return Err(err);
+            }
+            break;
+        }
+    }
+
+    // Close the extra fd if it's > 2
+    // (if null_fd was 0, 1, or 2, it's now dup'd to all three, so don't close)
+    if null_fd > 2 {
+        close_retry(null_fd)?;
+    }
+
+    Ok(())
 }
 
 /// Create a new child process [see fork(2)](https://www.freebsd.org/cgi/man.cgi?fork)
 ///
-/// Upon successful completion, `fork()` returns a value of 0 to the child process
-/// and returns the process ID of the child process to the parent process.
-/// Otherwise, a value of -1 is returned to the parent process, no child process
-/// is created.
+/// Upon successful completion, `fork()` returns [`Fork::Child`] in the child process
+/// and `Fork::Parent(pid)` with the child's process ID in the parent process.
 ///
 /// Example:
 ///
@@ -90,7 +409,7 @@ pub fn close_fd() -> Result<(), i32> {
 ///        println!("Continuing execution in parent process, new child has pid: {}", child);
 ///    }
 ///    Ok(Fork::Child) => println!("I'm a new child process"),
-///    Err(_) => println!("Fork failed"),
+///    Err(e) => eprintln!("Fork failed: {}", e),
 ///}
 ///```
 /// This will print something like the following (order indeterministic).
@@ -103,17 +422,38 @@ pub fn close_fd() -> Result<(), i32> {
 /// The thing to note is that you end up with two processes continuing execution
 /// immediately after the fork call but with different match arms.
 ///
+/// # Safety Considerations
+///
+/// After calling `fork()`, the child process is an exact copy of the parent process.
+/// However, there are important safety considerations:
+///
+/// - **File Descriptors**: Inherited from parent but share the same file offset and status flags.
+///   Changes in one process affect the other.
+/// - **Mutexes and Locks**: May be in an inconsistent state in the child. Only the thread that
+///   called `fork()` exists in the child; other threads disappear mid-execution, potentially
+///   leaving mutexes locked.
+/// - **Async-Signal-Safety**: Between `fork()` and `exec()`, only async-signal-safe functions
+///   should be called. This includes most system calls but excludes most library functions,
+///   memory allocation, and I/O operations.
+/// - **Signal Handlers**: Inherited from parent but should be used carefully in multi-threaded programs.
+/// - **Memory**: Child gets a copy-on-write copy of parent's memory. Large memory usage can impact performance.
+///
+/// For detailed information, see the [fork(2) man page](https://man7.org/linux/man-pages/man2/fork.2.html).
+///
 /// # [`nix::unistd::fork`](https://docs.rs/nix/0.15.0/nix/unistd/fn.fork.html)
 ///
 /// The example has been taken from the [`nix::unistd::fork`](https://docs.rs/nix/0.15.0/nix/unistd/fn.fork.html),
 /// please check the [Safety](https://docs.rs/nix/0.15.0/nix/unistd/fn.fork.html#safety) section
 ///
 /// # Errors
-/// returns `-1` if error
-pub fn fork() -> Result<Fork, i32> {
+/// Returns an [`io::Error`] if the fork system call fails. Common errors include:
+/// - Resource temporarily unavailable (EAGAIN) - process limit reached
+/// - Out of memory (ENOMEM)
+#[must_use = "fork result must be checked to determine parent/child"]
+pub fn fork() -> io::Result<Fork> {
     let res = unsafe { libc::fork() };
     match res {
-        -1 => Err(-1),
+        -1 => Err(io::Error::last_os_error()),
         0 => Ok(Fork::Child),
         res => Ok(Fork::Parent(res)),
     }
@@ -121,42 +461,142 @@ pub fn fork() -> Result<Fork, i32> {
 
 /// Wait for process to change status [see wait(2)](https://man.freebsd.org/cgi/man.cgi?waitpid)
 ///
+/// # Behavior
+/// - Retries automatically on `EINTR` (interrupted by signal)
+/// - Returns the raw status (use `libc::WIFEXITED`, `libc::WEXITSTATUS`, etc.)
+///
 /// # Errors
-/// returns `-1` if error
+/// Returns an [`io::Error`] if the waitpid system call fails. Common errors include:
+/// - No child process exists with the given PID
+/// - Invalid options or PID
 ///
 /// Example:
 ///
 /// ```
 ///use fork::{waitpid, Fork};
-///use std::process::Command;
 ///
 ///fn main() {
 ///  match fork::fork() {
 ///     Ok(Fork::Parent(pid)) => {
-///
 ///         println!("Child pid: {pid}");
-///
 ///         match waitpid(pid) {
-///             Ok(_) => println!("Child existed"),
-///             Err(_) => eprintln!("Failted to wait on child"),
+///             Ok(status) => println!("Child exited with status: {status}"),
+///             Err(e) => eprintln!("Failed to wait on child: {e}"),
 ///         }
 ///     }
 ///     Ok(Fork::Child) => {
-///         Command::new("sleep")
-///             .arg("1")
-///             .output()
-///             .expect("failed to execute process");
+///         // Child does trivial work then exits
+///         std::process::exit(0);
 ///     }
-///     Err(_) => eprintln!("Failed to fork"),
+///     Err(e) => eprintln!("Failed to fork: {e}"),
 ///  }
 ///}
 ///```
-pub fn waitpid(pid: i32) -> Result<(), i32> {
-    let mut status: i32 = 0;
-    let res = unsafe { libc::waitpid(pid, &mut status, 0) };
-    match res {
-        -1 => Err(-1),
-        _ => Ok(()),
+pub fn waitpid(pid: libc::pid_t) -> io::Result<libc::c_int> {
+    let mut status: libc::c_int = 0;
+    loop {
+        // SAFETY: &raw mut status provides a raw pointer to initialized memory
+        let res = unsafe { libc::waitpid(pid, &raw mut status, 0) };
+
+        if res == -1 {
+            let err = io::Error::last_os_error();
+
+            if err.kind() == io::ErrorKind::Interrupted {
+                continue;
+            }
+
+            return Err(err);
+        }
+
+        return Ok(status);
+    }
+}
+
+/// Wait for process to change status without blocking [see wait(2)](https://man.freebsd.org/cgi/man.cgi?waitpid)
+///
+/// This is the non-blocking variant of [`waitpid()`]. It checks if the child has
+/// changed status and returns immediately without blocking.
+///
+/// # Return Value
+/// - `Ok(Some(status))` - Child has exited/stopped with the given status
+/// - `Ok(None)` - Child is still running (no state change)
+/// - `Err(...)` - Error occurred (e.g., ECHILD if child doesn't exist)
+///
+/// # Behavior
+/// - Returns immediately (does not block)
+/// - Retries automatically on `EINTR` (interrupted by signal)
+/// - Returns the raw status (use `libc::WIFEXITED`, `libc::WEXITSTATUS`, etc.)
+///
+/// # Use Cases
+/// - **Process supervisors** - Monitor multiple children without blocking
+/// - **Event loops** - Check child status while handling other events
+/// - **Polling patterns** - Parent has other work to do while child runs
+/// - **Non-blocking checks** - Determine if child is still running
+///
+/// # Example
+///
+/// ```
+/// use fork::{fork, Fork, waitpid_nohang};
+/// use std::time::Duration;
+///
+/// match fork::fork() {
+///     Ok(Fork::Parent(child)) => {
+///         // Do work while child runs
+///         for i in 0..5 {
+///             println!("Parent working... iteration {}", i);
+///             std::thread::sleep(Duration::from_millis(100));
+///
+///             match waitpid_nohang(child) {
+///                 Ok(Some(status)) => {
+///                     println!("Child exited with status: {}", status);
+///                     break;
+///                 }
+///                 Ok(None) => {
+///                     println!("Child still running...");
+///                 }
+///                 Err(e) => {
+///                     eprintln!("Error checking child: {}", e);
+///                     break;
+///                 }
+///             }
+///         }
+///     }
+///     Ok(Fork::Child) => {
+///         // Child does work
+///         std::thread::sleep(Duration::from_millis(250));
+///         std::process::exit(0);
+///     }
+///     Err(e) => eprintln!("Fork failed: {}", e),
+/// }
+/// ```
+///
+/// # Errors
+/// Returns an [`io::Error`] if the waitpid system call fails. Common errors include:
+/// - No child process exists with the given PID (ECHILD)
+/// - Invalid options or PID
+pub fn waitpid_nohang(pid: libc::pid_t) -> io::Result<Option<libc::c_int>> {
+    let mut status: libc::c_int = 0;
+    loop {
+        // SAFETY: &raw mut status provides a raw pointer to initialized memory
+        let res = unsafe { libc::waitpid(pid, &raw mut status, libc::WNOHANG) };
+
+        if res == 0 {
+            // Child has not changed state (still running)
+            return Ok(None);
+        }
+
+        if res == -1 {
+            let err = io::Error::last_os_error();
+
+            if err.kind() == io::ErrorKind::Interrupted {
+                continue; // Retry on EINTR
+            }
+
+            return Err(err);
+        }
+
+        // Child changed state (exited, stopped, continued, etc.)
+        return Ok(Some(status));
     }
 }
 
@@ -164,38 +604,132 @@ pub fn waitpid(pid: i32) -> Result<(), i32> {
 ///
 /// Upon successful completion, the `setsid()` system call returns the value of the
 /// process group ID of the new process group, which is the same as the process ID
-/// of the calling process. If an error occurs, `setsid()` returns -1
+/// of the calling process.
 ///
 /// # Errors
-/// returns `-1` if error
-pub fn setsid() -> Result<libc::pid_t, i32> {
+/// Returns an [`io::Error`] if the setsid system call fails. Common errors include:
+/// - The calling process is already a process group leader (EPERM)
+///
+/// # Example
+///
+/// ```
+/// use fork::{fork, Fork, setsid};
+///
+/// match fork::fork() {
+///     Ok(Fork::Parent(child)) => {
+///         println!("Parent process, child PID: {}", child);
+///     }
+///     Ok(Fork::Child) => {
+///         // Create new session
+///         match setsid() {
+///             Ok(sid) => {
+///                 println!("New session ID: {}", sid);
+///                 std::process::exit(0);
+///             }
+///             Err(e) => {
+///                 eprintln!("Failed to create session: {}", e);
+///                 std::process::exit(1);
+///             }
+///         }
+///     }
+///     Err(e) => eprintln!("Fork failed: {}", e),
+/// }
+/// ```
+#[inline]
+#[must_use = "session ID should be used or checked for errors"]
+pub fn setsid() -> io::Result<libc::pid_t> {
     let res = unsafe { libc::setsid() };
+
     match res {
-        -1 => Err(-1),
+        -1 => Err(io::Error::last_os_error()),
         res => Ok(res),
     }
 }
 
-/// The process group of the current process [see getgrp(2)](https://www.freebsd.org/cgi/man.cgi?query=getpgrp)
+/// Get the process group ID of the current process [see getpgrp(2)](https://www.freebsd.org/cgi/man.cgi?query=getpgrp)
 ///
-/// # Errors
-/// returns `-1` if error
-pub fn getpgrp() -> Result<libc::pid_t, i32> {
-    let res = unsafe { libc::getpgrp() };
-    match res {
-        -1 => Err(-1),
-        res => Ok(res),
-    }
+/// Returns the process group ID of the calling process. This function is always successful
+/// and cannot fail according to POSIX specification.
+///
+/// # Example
+///
+/// ```
+/// use fork::getpgrp;
+///
+/// let pgid = getpgrp();
+/// println!("Current process group ID: {}", pgid);
+/// ```
+#[inline]
+#[must_use = "process group ID should be used"]
+pub fn getpgrp() -> libc::pid_t {
+    // SAFETY: getpgrp() has no preconditions and always succeeds per POSIX
+    unsafe { libc::getpgrp() }
+}
+
+/// Get the current process ID [see getpid(2)](https://man.freebsd.org/cgi/man.cgi?getpid)
+///
+/// Returns the process ID of the calling process. This function is always successful.
+///
+/// # Example
+///
+/// ```
+/// use fork::getpid;
+///
+/// let my_pid = getpid();
+/// println!("My process ID: {}", my_pid);
+/// ```
+#[inline]
+#[must_use = "process ID should be used"]
+pub fn getpid() -> libc::pid_t {
+    // SAFETY: getpid() has no preconditions and always succeeds
+    unsafe { libc::getpid() }
+}
+
+/// Get the parent process ID [see getppid(2)](https://man.freebsd.org/cgi/man.cgi?getppid)
+///
+/// Returns the process ID of the parent of the calling process. This function is always successful.
+///
+/// # Example
+///
+/// ```
+/// use fork::getppid;
+///
+/// let parent_pid = getppid();
+/// println!("My parent's process ID: {}", parent_pid);
+/// ```
+#[inline]
+#[must_use = "process ID should be used"]
+pub fn getppid() -> libc::pid_t {
+    // SAFETY: getppid() has no preconditions and always succeeds
+    unsafe { libc::getppid() }
 }
 
 /// The daemon function is for programs wishing to detach themselves from the
 /// controlling terminal and run in the background as system daemons.
 ///
 /// * `nochdir = false`, changes the current working directory to the root (`/`).
-/// * `noclose = false`, will close standard input, standard output, and standard error
+/// * `noclose = false`, redirects stdin, stdout, and stderr to `/dev/null`
+///
+/// # Implementation (double-fork)
+///
+/// 1. **First fork** - Parent exits immediately.
+/// 2. **Session setup** - Child calls `setsid()`, optionally `chdir("/")`, and optionally redirects stdio.
+/// 3. **Second (double) fork** - Session-leader child exits immediately.
+/// 4. **Daemon continues** - Grandchild (daemon) runs with no controlling terminal.
+///
+/// # Behavior Change in v0.4.0
+///
+/// Previously, `noclose = false` would close stdio file descriptors.
+/// Now it redirects them to `/dev/null` instead, which is safer and prevents
+/// file descriptor reuse bugs. This matches industry standard implementations
+/// (libuv, systemd, BSD daemon(3)).
 ///
 /// # Errors
-/// If an error occurs, returns -1
+/// Returns an [`io::Error`] if any of the underlying system calls fail:
+/// - fork fails (e.g., resource limits)
+/// - setsid fails (e.g., already a session leader)
+/// - chdir fails (when `nochdir` is false)
+/// - `redirect_stdio` fails (when `noclose` is false)
 ///
 /// Example:
 ///
@@ -216,30 +750,388 @@ pub fn getpgrp() -> Result<libc::pid_t, i32> {
 ///        .expect("failed to execute process");
 ///}
 ///```
-pub fn daemon(nochdir: bool, noclose: bool) -> Result<Fork, i32> {
-    match fork() {
-        Ok(Fork::Parent(_)) => exit(0),
-        Ok(Fork::Child) => setsid().and_then(|_| {
+#[must_use = "daemon result must be checked to determine if this is the daemon process"]
+pub fn daemon(nochdir: bool, noclose: bool) -> io::Result<Fork> {
+    // 1. First fork: detach from original parent; parent exits immediately
+    match fork()? {
+        // SAFETY: _exit is async-signal-safe and avoids running any Rust/CRT destructors
+        Fork::Parent(_) => unsafe { libc::_exit(0) },
+        Fork::Child => {
+            // 2. Session setup in first child
+            setsid()?;
             if !nochdir {
                 chdir()?;
             }
             if !noclose {
-                close_fd()?;
+                redirect_stdio()?;
             }
-            fork()
-        }),
-        Err(n) => Err(n),
+
+            // 3. Second Fork (Double-fork): drop session leader, keep only the daemon
+            match fork()? {
+                // SAFETY: _exit avoids invoking non-async-signal-safe destructors in the forked process
+                Fork::Parent(_) => unsafe { libc::_exit(0) },
+                Fork::Child => Ok(Fork::Child),
+            }
+        }
     }
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
+#[allow(clippy::panic)]
+#[allow(clippy::match_wild_err_arm)]
+#[allow(clippy::ignored_unit_patterns)]
+#[allow(clippy::uninlined_format_args)]
 mod tests {
-    use super::{fork, Fork};
+    use super::*;
+    use libc::{WEXITSTATUS, WIFEXITED};
+    use std::{
+        env,
+        os::unix::io::FromRawFd,
+        process::{Command, exit},
+    };
 
     #[test]
     fn test_fork() {
-        if let Ok(Fork::Parent(child)) = fork() {
-            assert!(child > 0);
+        match fork() {
+            Ok(Fork::Parent(child)) => {
+                assert!(child > 0);
+                // Wait for child to complete
+                let status = waitpid(child).expect("waitpid failed");
+                assert!(WIFEXITED(status));
+            }
+            Ok(Fork::Child) => {
+                // Child process exits immediately
+                exit(0);
+            }
+            Err(_) => panic!("Fork failed"),
         }
+    }
+
+    #[test]
+    fn test_fork_with_waitpid() {
+        match fork() {
+            Ok(Fork::Parent(child)) => {
+                assert!(child > 0);
+                let status = waitpid(child).expect("waitpid failed");
+                assert!(WIFEXITED(status));
+                assert_eq!(WEXITSTATUS(status), 0);
+            }
+            Ok(Fork::Child) => {
+                let _ = Command::new("true").output();
+                exit(0);
+            }
+            Err(_) => panic!("Fork failed"),
+        }
+    }
+
+    #[test]
+    fn test_chdir() {
+        match fork() {
+            Ok(Fork::Parent(child)) => {
+                let status = waitpid(child).expect("waitpid failed");
+                assert!(WIFEXITED(status));
+            }
+            Ok(Fork::Child) => {
+                // Test changing directory to root
+                match chdir() {
+                    Ok(_) => {
+                        let path = env::current_dir().expect("failed current_dir");
+                        assert_eq!(Some("/"), path.to_str());
+                        exit(0);
+                    }
+                    Err(_) => exit(1),
+                }
+            }
+            Err(_) => panic!("Fork failed"),
+        }
+    }
+
+    #[test]
+    fn test_getpgrp() {
+        match fork() {
+            Ok(Fork::Parent(child)) => {
+                let status = waitpid(child).expect("waitpid failed");
+                assert!(WIFEXITED(status));
+            }
+            Ok(Fork::Child) => {
+                // Get process group and verify it's valid
+                let pgrp = getpgrp();
+                assert!(pgrp > 0);
+                exit(0);
+            }
+            Err(_) => panic!("Fork failed"),
+        }
+    }
+
+    #[test]
+    fn test_setsid() {
+        match fork() {
+            Ok(Fork::Parent(child)) => {
+                let status = waitpid(child).expect("waitpid failed");
+                assert!(WIFEXITED(status));
+            }
+            Ok(Fork::Child) => {
+                // Create new session
+                match setsid() {
+                    Ok(sid) => {
+                        assert!(sid > 0);
+                        // Verify we're the session leader
+                        let pgrp = getpgrp();
+                        assert_eq!(sid, pgrp);
+                        exit(0);
+                    }
+                    Err(_) => exit(1),
+                }
+            }
+            Err(_) => panic!("Fork failed"),
+        }
+    }
+
+    #[test]
+    fn test_daemon_pattern_with_chdir() {
+        // Test the daemon pattern manually without calling daemon()
+        // to avoid exit(0) killing the test process
+        match fork() {
+            Ok(Fork::Parent(child)) => {
+                // Parent waits for child
+                let status = waitpid(child).expect("waitpid failed");
+                assert!(WIFEXITED(status));
+            }
+            Ok(Fork::Child) => {
+                // Child creates new session and forks again
+                setsid().expect("Failed to setsid");
+                chdir().expect("Failed to chdir");
+
+                match fork() {
+                    Ok(Fork::Parent(_)) => {
+                        // Middle process exits
+                        exit(0);
+                    }
+                    Ok(Fork::Child) => {
+                        // Grandchild (daemon) - verify state
+                        let path = env::current_dir().expect("failed current_dir");
+                        assert_eq!(Some("/"), path.to_str());
+
+                        let pgrp = getpgrp();
+                        assert!(pgrp > 0);
+
+                        exit(0);
+                    }
+                    Err(_) => exit(1),
+                }
+            }
+            Err(_) => panic!("Fork failed"),
+        }
+    }
+
+    #[test]
+    fn test_daemon_pattern_no_chdir() {
+        // Test daemon pattern preserving current directory
+        let original_dir = env::current_dir().expect("failed to get current dir");
+
+        match fork() {
+            Ok(Fork::Parent(child)) => {
+                let status = waitpid(child).expect("waitpid failed");
+                assert!(WIFEXITED(status));
+            }
+            Ok(Fork::Child) => {
+                setsid().expect("Failed to setsid");
+                // Don't call chdir - preserve directory
+
+                match fork() {
+                    Ok(Fork::Parent(_)) => exit(0),
+                    Ok(Fork::Child) => {
+                        let current_dir = env::current_dir().expect("failed current_dir");
+                        // Directory should be preserved
+                        if original_dir.to_str() != Some("/") {
+                            assert!(current_dir.to_str().is_some());
+                        }
+                        exit(0);
+                    }
+                    Err(_) => exit(1),
+                }
+            }
+            Err(_) => panic!("Fork failed"),
+        }
+    }
+
+    #[test]
+    fn test_daemon_pattern_with_close_fd() {
+        // Test daemon pattern with file descriptor closure
+        match fork() {
+            Ok(Fork::Parent(child)) => {
+                let status = waitpid(child).expect("waitpid failed");
+                assert!(WIFEXITED(status));
+            }
+            Ok(Fork::Child) => {
+                setsid().expect("Failed to setsid");
+                chdir().expect("Failed to chdir");
+                close_fd().expect("Failed to close fd");
+
+                match fork() {
+                    Ok(Fork::Parent(_)) => exit(0),
+                    Ok(Fork::Child) => {
+                        // Daemon process with closed fds
+                        exit(0);
+                    }
+                    Err(_) => exit(1),
+                }
+            }
+            Err(_) => panic!("Fork failed"),
+        }
+    }
+
+    #[test]
+    fn test_close_fd_functionality() {
+        match fork() {
+            Ok(Fork::Parent(child)) => {
+                let status = waitpid(child).expect("waitpid failed");
+                assert!(WIFEXITED(status));
+            }
+            Ok(Fork::Child) => {
+                // Close standard file descriptors
+                match close_fd() {
+                    Ok(_) => exit(0),
+                    Err(_) => exit(1),
+                }
+            }
+            Err(_) => panic!("Fork failed"),
+        }
+    }
+
+    #[test]
+    fn test_close_fd_idempotent() {
+        match fork() {
+            Ok(Fork::Parent(child)) => {
+                let status = waitpid(child).expect("waitpid failed");
+                assert!(WIFEXITED(status));
+                assert_eq!(WEXITSTATUS(status), 0);
+            }
+            Ok(Fork::Child) => {
+                // First close should succeed
+                close_fd().expect("first close_fd failed");
+                // Second close should treat EBADF as success
+                close_fd().expect("second close_fd failed");
+                exit(0);
+            }
+            Err(_) => panic!("Fork failed"),
+        }
+    }
+
+    #[test]
+    fn test_double_fork_pattern() {
+        // Test the double-fork pattern commonly used for daemons
+        match fork() {
+            Ok(Fork::Parent(child1)) => {
+                assert!(child1 > 0);
+                let status = waitpid(child1).expect("waitpid failed");
+                assert!(WIFEXITED(status));
+            }
+            Ok(Fork::Child) => {
+                // First child creates new session
+                setsid().expect("Failed to setsid");
+
+                // Second fork to ensure we're not session leader
+                match fork() {
+                    Ok(Fork::Parent(_)) => {
+                        // First child exits
+                        exit(0);
+                    }
+                    Ok(Fork::Child) => {
+                        // Grandchild - the daemon process
+                        let pgrp = getpgrp();
+                        assert!(pgrp > 0);
+                        exit(0);
+                    }
+                    Err(_) => exit(1),
+                }
+            }
+            Err(_) => panic!("Fork failed"),
+        }
+    }
+
+    #[test]
+    fn test_waitpid_with_child() {
+        match fork() {
+            Ok(Fork::Parent(child)) => {
+                assert!(child > 0);
+                // Wait for child with timeout to prevent hanging
+                // Simple approach: just call waitpid, the child exits immediately
+                let status = waitpid(child).expect("waitpid failed");
+                assert!(WIFEXITED(status));
+            }
+            Ok(Fork::Child) => {
+                // Child exits immediately to prevent any hanging issues
+                exit(0);
+            }
+            Err(_) => panic!("Fork failed"),
+        }
+    }
+
+    #[test]
+    fn test_fork_child_execution() {
+        match fork() {
+            Ok(Fork::Parent(child)) => {
+                assert!(child > 0);
+                // Wait for child to finish its work
+                let status = waitpid(child).expect("waitpid failed");
+                assert!(WIFEXITED(status));
+            }
+            Ok(Fork::Child) => {
+                // Child executes a simple command
+                let output = Command::new("echo")
+                    .arg("test")
+                    .output()
+                    .expect("Failed to execute command");
+                assert!(output.status.success());
+                exit(0);
+            }
+            Err(_) => panic!("Fork failed"),
+        }
+    }
+
+    #[test]
+    fn test_multiple_forks() {
+        // Test creating multiple child processes
+        for i in 0..3 {
+            match fork() {
+                Ok(Fork::Parent(child)) => {
+                    assert!(child > 0);
+                    let status = waitpid(child).expect("waitpid failed");
+                    assert!(WIFEXITED(status));
+                    assert_eq!(WEXITSTATUS(status), i);
+                }
+                Ok(Fork::Child) => {
+                    // Each child exits with its index
+                    exit(i);
+                }
+                Err(_) => panic!("Fork {} failed", i),
+            }
+        }
+    }
+
+    #[test]
+    fn test_getpgrp_in_parent() {
+        // Test getpgrp in parent process
+        let parent_pgrp = getpgrp();
+        assert!(parent_pgrp > 0);
+    }
+
+    #[test]
+    fn test_close_retry_ok_and_ebadf() {
+        // Create a pipe to obtain valid fds
+        let mut fds = [0; 2];
+        assert_eq!(unsafe { libc::pipe(&raw mut fds[0]) }, 0);
+
+        // Close write end via close_retry (should succeed)
+        close_retry(fds[1]).expect("close_retry should close valid fd");
+
+        // Wrap read end in File to close it once; drop immediately
+        let read_fd = fds[0];
+        unsafe { std::fs::File::from_raw_fd(read_fd) };
+
+        // Second close should be treated as success (EBADF path)
+        close_retry(read_fd).expect("EBADF should be treated as success");
     }
 }

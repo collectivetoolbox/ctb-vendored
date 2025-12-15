@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 use std::sync::Weak;
 
 use super::*;
+use crate::api::setting_engine::SctpMaxMessageSize;
 use crate::rtp_transceiver::{create_stream_info, PayloadType};
 use crate::stats::stats_collector::StatsCollector;
 use crate::stats::{
@@ -152,7 +153,7 @@ impl PeerConnectionInternal {
                     RTCIceTransportState::Disconnected => RTCIceConnectionState::Disconnected,
                     RTCIceTransportState::Closed => RTCIceConnectionState::Closed,
                     _ => {
-                        log::warn!("on_connection_state_change: unhandled ICE state: {}", state);
+                        log::warn!("on_connection_state_change: unhandled ICE state: {state}");
                         return Box::pin(async {});
                     }
                 };
@@ -257,9 +258,9 @@ impl PeerConnectionInternal {
                     continue;
                 }
 
-                log::info!("Stopping receiver {:?}", receiver);
+                log::info!("Stopping receiver {receiver:?}");
                 if let Err(err) = receiver.stop().await {
-                    log::warn!("Failed to stop RtpReceiver: {}", err);
+                    log::warn!("Failed to stop RtpReceiver: {err}");
                     continue;
                 }
 
@@ -281,9 +282,27 @@ impl PeerConnectionInternal {
 
         self.start_rtp_receivers(&mut track_details, &current_transceivers)
             .await?;
-        if let Some(parsed) = &remote_desc.parsed {
-            if have_application_media_section(parsed) {
-                self.start_sctp().await;
+        if let Some(parsed_remote) = &remote_desc.parsed {
+            let current_local_desc = self.current_local_description.lock().await;
+            if let Some(parsed_local) = current_local_desc
+                .as_ref()
+                .and_then(|desc| desc.parsed.as_ref())
+            {
+                if let Some(remote_port) = get_application_media_section_sctp_port(parsed_remote) {
+                    if let Some(local_port) = get_application_media_section_sctp_port(parsed_local)
+                    {
+                        // TODO: Reuse the MediaDescription retrieved when looking for the message size.
+                        let max_message_size =
+                            get_application_media_section_max_message_size(parsed_remote)
+                                .unwrap_or(SctpMaxMessageSize::DEFAULT_MESSAGE_SIZE);
+                        self.start_sctp(
+                            local_port,
+                            remote_port,
+                            SCTPTransportCapabilities { max_message_size },
+                        )
+                        .await;
+                    }
+                }
             }
         }
 
@@ -315,14 +334,14 @@ impl PeerConnectionInternal {
                         return;
                     }
                     Err(err) => {
-                        log::warn!("Failed to accept RTP {}", err);
+                        log::warn!("Failed to accept RTP {err}");
                         return;
                     }
                 };
 
                 if is_closed.load(Ordering::SeqCst) {
                     if let Err(err) = stream.close().await {
-                        log::warn!("Failed to close RTP stream {}", err);
+                        log::warn!("Failed to close RTP stream {err}");
                     }
                     continue;
                 }
@@ -451,18 +470,21 @@ impl PeerConnectionInternal {
     }
 
     /// Start SCTP subsystem
-    async fn start_sctp(&self) {
+    async fn start_sctp(
+        &self,
+        local_port: u16,
+        remote_port: u16,
+        sctp_transport_capabilities: SCTPTransportCapabilities,
+    ) {
         // Start sctp
         if let Err(err) = self
             .sctp_transport
-            .start(SCTPTransportCapabilities {
-                max_message_size: 0,
-            })
+            .start(sctp_transport_capabilities, local_port, remote_port)
             .await
         {
-            log::warn!("Failed to start SCTP: {}", err);
+            log::warn!("Failed to start SCTP: {err}");
             if let Err(err) = self.sctp_transport.stop().await {
-                log::warn!("Failed to stop SCTPTransport: {}", err);
+                log::warn!("Failed to stop SCTPTransport: {err}");
             }
 
             return;
@@ -479,7 +501,7 @@ impl PeerConnectionInternal {
         for d in data_channels {
             if d.ready_state() == RTCDataChannelState::Connecting {
                 if let Err(err) = d.open(Arc::clone(&self.sctp_transport)).await {
-                    log::warn!("failed to open data channel: {}", err);
+                    log::warn!("failed to open data channel: {err}");
                     continue;
                 }
                 opened_dc_count += 1;
@@ -695,7 +717,7 @@ impl PeerConnectionInternal {
             )
             .await
         {
-            log::warn!("Failed to start manager ice: {}", err);
+            log::warn!("Failed to start manager ice: {err}");
             return;
         }
 
@@ -719,7 +741,7 @@ impl PeerConnectionInternal {
         )
         .await;
         if let Err(err) = result {
-            log::warn!("Failed to start manager dtls: {}", err);
+            log::warn!("Failed to start manager dtls: {err}");
         }
     }
 

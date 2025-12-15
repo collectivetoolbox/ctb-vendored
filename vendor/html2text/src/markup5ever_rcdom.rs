@@ -310,16 +310,21 @@ impl RcDom {
     }
 
     /// Serialise the DOM to a writable.
-    pub fn serialize(&self, writer: impl io::Write) -> io::Result<()> {
-        html5ever::serialize(
-            writer,
-            &SerializableHandle(self.document.clone()),
-            html5ever::serialize::SerializeOpts {
-                scripting_enabled: true,
-                traversal_scope: html5ever::serialize::TraversalScope::IncludeNode,
-                create_missing_parent: false,
-            },
-        )
+    pub fn serialize(&self, mut writer: impl io::Write) -> io::Result<()> {
+        let doc = &self.document;
+        let children = doc.children.borrow();
+        for child in &*children {
+            html5ever::serialize(
+                &mut writer,
+                &SerializableHandle(child.clone()),
+                html5ever::serialize::SerializeOpts {
+                    scripting_enabled: true,
+                    traversal_scope: html5ever::serialize::TraversalScope::IncludeNode,
+                    create_missing_parent: false,
+                },
+            )?;
+        }
+        Ok(())
     }
 
     /// Find the node at a child path starting from the root element.  At each level, 1 is the
@@ -327,10 +332,7 @@ impl RcDom {
     pub fn get_node_by_path(&self, path: &[usize]) -> Option<Handle> {
         let mut node = self.document.clone();
         for idx in path {
-            node = match node.nth_child(*idx) {
-                Some(new_node) => new_node,
-                None => return None,
-            };
+            node = node.nth_child(*idx)?;
         }
         Some(node)
     }

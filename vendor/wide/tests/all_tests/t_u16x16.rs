@@ -8,10 +8,7 @@ fn size_align() {
   assert_eq!(core::mem::align_of::<u16x16>(), 32);
 }
 
-#[test]
-fn basic_traits() {
-  crate::test_basic_traits::<u16x16, _, 16>();
-}
+crate::generate_basic_traits_test!(u16x16, u16);
 
 #[test]
 fn impl_add_for_u16x16() {
@@ -314,7 +311,7 @@ fn impl_u16x16_cmp_eq() {
     0,
     u16::MAX,
   ]);
-  let actual = a.cmp_eq(b);
+  let actual = a.simd_eq(b);
   assert_eq!(expected, actual);
 }
 

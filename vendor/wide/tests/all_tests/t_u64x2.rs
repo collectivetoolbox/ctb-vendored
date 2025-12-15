@@ -7,10 +7,7 @@ fn size_align() {
   assert_eq!(core::mem::align_of::<u64x2>(), 16);
 }
 
-#[test]
-fn basic_traits() {
-  crate::test_basic_traits::<u64x2, _, 2>();
-}
+crate::generate_basic_traits_test!(u64x2, u64);
 
 #[test]
 fn impl_add_for_u64x2() {
@@ -72,12 +69,40 @@ fn impl_bitxor_for_u64x2() {
 }
 
 #[test]
+fn impl_shl_each_for_u64x2() {
+  let a = u64x2::from([u64::MAX - 1, u64::MAX]);
+  let shift = u64x2::from([2, 65 /* test masking behavior */]);
+  let expected = u64x2::from([(u64::MAX - 1) << 2, u64::MAX << 1]);
+  let actual = a << shift;
+  assert_eq!(expected, actual);
+
+  crate::test_random_vector_vs_scalar(
+    |a: u64x2, b| a << b,
+    |a, b| a.wrapping_shl(b as u32),
+  );
+}
+
+#[test]
 fn impl_shl_for_u64x2() {
   let a = u64x2::from([u64::MAX - 1, u64::MAX - 1]);
   let b = 2;
   let expected = u64x2::from([(u64::MAX - 1) << 2, (u64::MAX - 1) << 2]);
   let actual = a << b;
   assert_eq!(expected, actual);
+}
+
+#[test]
+fn impl_shr_each_for_u64x2() {
+  let a = u64x2::from([u64::MAX - 1, u64::MAX]);
+  let shift = u64x2::from([2, 65 /* test masking behavior */]);
+  let expected = u64x2::from([(u64::MAX - 1) >> 2, u64::MAX >> 1]);
+  let actual = a >> shift;
+  assert_eq!(expected, actual);
+
+  crate::test_random_vector_vs_scalar(
+    |a: u64x2, b| a >> b,
+    |a, b| a.wrapping_shr(b as u32),
+  );
 }
 
 #[test]
@@ -105,7 +130,7 @@ fn impl_u64x2_cmp_eq() {
   let a = u64x2::from([1_u64, 4]);
   let b = u64x2::from([3_u64, 4]);
   let expected = u64x2::from([0, u64::MAX]);
-  let actual = a.cmp_eq(b);
+  let actual = a.simd_eq(b);
   assert_eq!(expected, actual);
 }
 
@@ -114,11 +139,11 @@ fn impl_u64x2_cmp_gt() {
   let a = u64x2::from([1_u64, 4]);
   let b = u64x2::from([3_u64, 4]);
   let expected = u64x2::from([0, 0]);
-  let actual = a.cmp_gt(b);
+  let actual = a.simd_gt(b);
   assert_eq!(expected, actual);
 
   crate::test_random_vector_vs_scalar(
-    |a: u64x2, b| a.cmp_gt(b),
+    |a: u64x2, b| a.simd_gt(b),
     |a, b| if a > b { u64::MAX } else { 0 },
   );
 }
@@ -128,11 +153,11 @@ fn impl_u64x2_cmp_lt() {
   let a = u64x2::from([3_u64, 4]);
   let b = u64x2::from([1_u64, 4]);
   let expected = u64x2::from([0, 0]);
-  let actual = a.cmp_lt(b);
+  let actual = a.simd_lt(b);
   assert_eq!(expected, actual);
 
   crate::test_random_vector_vs_scalar(
-    |a: u64x2, b| a.cmp_lt(b),
+    |a: u64x2, b| a.simd_lt(b),
     |a, b| if a < b { u64::MAX } else { 0 },
   );
 }

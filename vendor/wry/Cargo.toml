@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.77"
 name = "wry"
-version = "0.53.4"
+version = "0.53.5"
 authors = ["Tauri Programme within The Commons Conservancy"]
 build = "build.rs"
 exclude = [
@@ -45,14 +45,6 @@ targets = [
     "x86_64-unknown-linux-gnu",
     "x86_64-pc-windows-msvc",
     "x86_64-apple-darwin",
-]
-rustc-args = [
-    "--cfg",
-    "docsrs",
-]
-rustdoc-args = [
-    "--cfg",
-    "docsrs",
 ]
 
 [features]

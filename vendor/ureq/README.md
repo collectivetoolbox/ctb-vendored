@@ -143,14 +143,15 @@ The default enabled features are: **rustls** and **gzip**.
 * **platform-verifier** enables verifying the server certificates using a method native to the
   platform ureq is executing on. See [rustls-platform-verifier] crate
 * **socks-proxy** enables proxy config using the `socks4://`, `socks4a://`, `socks5://`
-   and `socks://` (equal to `socks5://`) prefix
+  and `socks://` (equal to `socks5://`) prefix
 * **cookies** enables cookies
 * **gzip** enables requests of gzip-compressed responses and decompresses them
 * **brotli** enables requests brotli-compressed responses and decompresses them
 * **charset** enables interpreting the charset part of the Content-Type header
-   (e.g.  `Content-Type: text/plain; charset=iso-8859-1`). Without this, the
-   library defaults to Rust's built in `utf-8`
+  (e.g.  `Content-Type: text/plain; charset=iso-8859-1`). Without this, the
+  library defaults to Rust's built in `utf-8`
 * **json** enables JSON sending and receiving via serde_json
+* **multipart** enables multipart/form-data sending via [`unversioned::multipart`]
 
 #### Unstable
 
@@ -372,6 +373,15 @@ the former is always available while the latter must be enabled using the featur
 
 Proxies settings are configured on an [`Agent`]. All request sent through the agent will be proxied.
 
+### Environment Variables
+
+ureq automatically reads proxy configuration from environment variables when creating
+a default [`Agent`]. Proxy variables are checked in order: `ALL_PROXY`, `HTTPS_PROXY`,
+then `HTTP_PROXY` (with lowercase variants).
+
+`NO_PROXY` specifies hosts that bypass the proxy, supporting exact hosts, wildcard
+suffixes (`*.example.com`), dot suffixes (`.example.com`), and match-all (`*`).
+
 ### Example using HTTP
 
 ```rust
@@ -462,25 +472,26 @@ something we do lightly; our ambition is to be as conservative with MSRV as poss
 [rustls-platform-verifier]: https://crates.io/crates/rustls-platform-verifier
 [webpki-roots]: https://crates.io/crates/webpki-roots
 [`Arc`]: https://doc.rust-lang.org/std/sync/struct.Arc.html
-[`Agent`]: https://docs.rs/ureq/3.0.0-rc4/ureq/struct.Agent.html
-[`Error`]: https://docs.rs/ureq/3.0.0-rc4/ureq/enum.Error.html
-[`http_status_as_error()`]: https://docs.rs/ureq/3.0.0-rc4/ureq/config/struct.ConfigBuilder.html#method.http_status_as_error
+[`Agent`]: https://docs.rs/ureq/latest/ureq/struct.Agent.html
+[`Error`]: https://docs.rs/ureq/latest/ureq/enum.Error.html
+[`http_status_as_error()`]: https://docs.rs/ureq/latest/ureq/config/struct.ConfigBuilder.html#method.http_status_as_error
 [SCT]: https://en.wikipedia.org/wiki/Certificate_Transparency
 [CRL]: https://en.wikipedia.org/wiki/Certificate_revocation_list
-[PR818]: https://github.com/algesten/ureq/pull/818
-[`request.send_json()`]: https://docs.rs/ureq/3.0.0-rc4/ureq/struct.RequestBuilder.html#method.send_json
-[`body.read_json()`]: https://docs.rs/ureq/3.0.0-rc4/ureq/struct.Body.html#method.read_json
-[`AsSendBody`]: https://docs.rs/ureq/3.0.0-rc4/ureq/trait.AsSendBody.html
-[`SendBody::from_json()`]: https://docs.rs/ureq/3.0.0-rc4/ureq/struct.SendBody.html#method.from_json
+[PR 818]: https://github.com/algesten/ureq/pull/818
+[`request.send_json()`]: https://docs.rs/ureq/latest/ureq/struct.RequestBuilder.html#method.send_json
+[`body.read_json()`]: https://docs.rs/ureq/latest/ureq/struct.Body.html#method.read_json
+[`AsSendBody`]: https://docs.rs/ureq/latest/ureq/trait.AsSendBody.html
+[`SendBody::from_json()`]: https://docs.rs/ureq/latest/ureq/struct.SendBody.html#method.from_json
 [`std::io::Read`]: https://doc.rust-lang.org/std/io/trait.Read.html
-[`SendBody::from_reader()`]: https://docs.rs/ureq/3.0.0-rc4/ureq/struct.SendBody.html#method.from_reader
-[`SendBody::from_owned_reader()`]: https://docs.rs/ureq/3.0.0-rc4/ureq/struct.SendBody.html#method.from_owned_reader
-[`Body`]: https://docs.rs/ureq/3.0.0-rc4/ureq/struct.Body.html
-[`request.send_form()`]: https://docs.rs/ureq/3.0.0-rc4/ureq/struct.RequestBuilder.html#method.send_form
-[`Body::read_to_string()`]: https://docs.rs/ureq/3.0.0-rc4/ureq/struct.Body.html#method.read_to_string
-[`Body::as_reader()`]: https://docs.rs/ureq/3.0.0-rc4/ureq/struct.Body.html#method.as_reader
-[`Body::with_config()`]: https://docs.rs/ureq/3.0.0-rc4/ureq/struct.Body.html#method.with_config
-[`Transport`]: https://docs.rs/ureq/3.0.0-rc4/ureq/unversioned/transport/trait.Transport.html
-[`Resolver`]: https://docs.rs/ureq/3.0.0-rc4/ureq/unversioned/resolver/trait.Resolver.html
-[`unversioned`]: https://docs.rs/ureq/3.0.0-rc4/ureq/unversioned/index.html
+[`SendBody::from_reader()`]: https://docs.rs/ureq/latest/ureq/struct.SendBody.html#method.from_reader
+[`SendBody::from_owned_reader()`]: https://docs.rs/ureq/latest/ureq/struct.SendBody.html#method.from_owned_reader
+[`Body`]: https://docs.rs/ureq/latest/ureq/struct.Body.html
+[`request.send_form()`]: https://docs.rs/ureq/latest/ureq/struct.RequestBuilder.html#method.send_form
+[`Body::read_to_string()`]: https://docs.rs/ureq/latest/ureq/struct.Body.html#method.read_to_string
+[`Body::as_reader()`]: https://docs.rs/ureq/latest/ureq/struct.Body.html#method.as_reader
+[`Body::with_config()`]: https://docs.rs/ureq/latest/ureq/struct.Body.html#method.with_config
+[`Transport`]: https://docs.rs/ureq/latest/ureq/unversioned/transport/trait.Transport.html
+[`Resolver`]: https://docs.rs/ureq/latest/ureq/unversioned/resolver/trait.Resolver.html
+[`unversioned`]: https://docs.rs/ureq/latest/ureq/unversioned/index.html
 [`CryptoProvider`]: https://docs.rs/rustls/latest/rustls/crypto/struct.CryptoProvider.html
+[`unversioned::multipart`]: https://docs.rs/ureq/latest/ureq/unversioned/multipart/index.html

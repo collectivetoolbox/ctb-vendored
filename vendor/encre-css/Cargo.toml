@@ -12,7 +12,7 @@
 [package]
 edition = "2021"
 name = "encre-css"
-version = "0.19.1"
+version = "0.20.0"
 build = false
 autolib = false
 autobins = false

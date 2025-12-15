@@ -33,14 +33,12 @@ use crate::num::arithmetic::traits::{
     WrappingSquareAssign, WrappingSub, WrappingSubAssign, WrappingSubMul, WrappingSubMulAssign,
 };
 use crate::num::basic::traits::{One, Two, Zero};
-use crate::num::comparison::traits::{EqAbs, OrdAbs, PartialOrdAbs};
 use crate::num::conversion::traits::{
     ConvertibleFrom, ExactFrom, ExactInto, FromSciString, FromStringBase, IsInteger,
     OverflowingFrom, OverflowingInto, RoundingFrom, RoundingInto, SaturatingFrom, SaturatingInto,
     ToSci, ToStringBase, WrappingFrom, WrappingInto,
 };
-#[cfg(feature = "random")]
-use crate::num::factorization::traits::IsSquare;
+use crate::num::factorization::traits::{ExpressAsPower, IsPower, IsSquare};
 use crate::num::float::NiceFloat;
 use crate::num::logic::traits::{
     BitAccess, BitBlockAccess, BitConvertible, BitIterable, BitScan, CountOnes, CountZeros,
@@ -164,7 +162,6 @@ pub trait PrimitiveInt:
     + DivisibleBy<Self>
     + DivisibleByPowerOf2
     + Eq
-    + EqAbs<Self>
     + EqMod<Self, Self>
     + EqModPowerOf2<Self>
     + ExactFrom<i128>
@@ -191,6 +188,7 @@ pub trait PrimitiveInt:
     + ExactInto<u64>
     + ExactInto<u8>
     + ExactInto<usize>
+    + ExpressAsPower
     + ExtendedGcd<Self>
     + FloorRoot<u64, Output = Self>
     + FloorRootAssign<u64>
@@ -203,6 +201,7 @@ pub trait PrimitiveInt:
     + HasRandomPrimitiveInts
     + Hash
     + IsInteger
+    + IsPower
     + IsSquare
     + JacobiSymbol<Self>
     + KroneckerSymbol<Self>
@@ -224,7 +223,6 @@ pub trait PrimitiveInt:
     + Octal
     + One
     + Ord
-    + OrdAbs
     + OverflowingAdd<Self, Output = Self>
     + OverflowingAddAssign<Self>
     + OverflowingAddMul<Self, Self, Output = Self>
@@ -270,7 +268,6 @@ pub trait PrimitiveInt:
     + Parity
     + PartialEq<Self>
     + PartialOrd<Self>
-    + PartialOrdAbs<Self>
     + Pow<u64, Output = Self>
     + PowAssign<u64>
     + PowerOf2<u64>
@@ -642,7 +639,6 @@ pub trait PrimitiveInt:
     + DivisibleBy<Self>
     + DivisibleByPowerOf2
     + Eq
-    + EqAbs<Self>
     + EqMod<Self, Self>
     + EqModPowerOf2<Self>
     + ExactFrom<i128>
@@ -669,6 +665,7 @@ pub trait PrimitiveInt:
     + ExactInto<u64>
     + ExactInto<u8>
     + ExactInto<usize>
+    + ExpressAsPower
     + ExtendedGcd<Self>
     + FloorRoot<u64, Output = Self>
     + FloorRootAssign<u64>
@@ -680,6 +677,8 @@ pub trait PrimitiveInt:
     + FromStringBase
     + Hash
     + IsInteger
+    + IsPower
+    + IsSquare
     + JacobiSymbol<Self>
     + KroneckerSymbol<Self>
     + LeadingZeros
@@ -700,7 +699,6 @@ pub trait PrimitiveInt:
     + Octal
     + One
     + Ord
-    + OrdAbs
     + OverflowingAdd<Self, Output = Self>
     + OverflowingAddAssign<Self>
     + OverflowingAddMul<Self, Self, Output = Self>
@@ -746,7 +744,6 @@ pub trait PrimitiveInt:
     + Parity
     + PartialEq<Self>
     + PartialOrd<Self>
-    + PartialOrdAbs<Self>
     + Pow<u64, Output = Self>
     + PowAssign<u64>
     + PowerOf2<u64>

@@ -12,7 +12,7 @@
 [package]
 edition = "2021"
 name = "turn"
-version = "0.10.0"
+version = "0.11.0"
 authors = ["Rain Liu <yliu@webrtc.rs>"]
 build = false
 autolib = false
@@ -68,13 +68,13 @@ version = "0.10"
 version = "1.6"
 
 [dependencies.rand]
-version = "0.8"
+version = "0.9"
 
 [dependencies.ring]
 version = "0.17.14"
 
 [dependencies.stun]
-version = "0.8.0"
+version = "0.9.0"
 
 [dependencies.thiserror]
 version = "1"
@@ -99,16 +99,13 @@ features = [
 version = "0.7"
 
 [dependencies.util]
-version = "0.11.0"
+version = "0.12.0"
 features = [
     "conn",
     "vnet",
 ]
 default-features = false
 package = "webrtc-util"
-
-[dev-dependencies.chrono]
-version = "0.4.28"
 
 [dev-dependencies.clap]
 version = "3"
@@ -120,7 +117,4 @@ version = "0.5"
 version = "0.11.3"
 
 [dev-dependencies.hex]
-version = "0.4"
-
-[dev-dependencies.tokio-test]
 version = "0.4"

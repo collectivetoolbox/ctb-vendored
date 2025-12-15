@@ -31,6 +31,10 @@ const VALID_PLUGIN_HINT: [&str; 13] = [
     "shadow",
 ];
 
+const LAYER_CUSTOM: i8 = -1;
+const LAYER_BUILTIN: i8 = 0;
+const LAYER_ARBITRARY: i8 = i8::MAX;
+
 /// Remove the first and last character of a string.
 pub(crate) fn unwrap_string(val: &mut &str) {
     let len = val.len();
@@ -142,7 +146,7 @@ pub(crate) fn parse<'a>(
         ))];
     }
 
-    parse_recursive(val, span, full_class, config, config_derived_variants)
+    parse_recursive(val, span, full_class, None, config, config_derived_variants)
 }
 
 #[allow(clippy::too_many_lines)]
@@ -150,6 +154,7 @@ fn push_variant<'a>(
     is_arbitrary: bool,
     full_variant: &'a str,
     variant_list: &mut Vec<Variant<'a>>,
+    forced_variant: &mut Option<i8>,
     val: &'a str,
     span: &Range<usize>,
     config: &Config,
@@ -181,6 +186,174 @@ fn push_variant<'a>(
     {
         variant_list.push(variant.1.clone());
         return Ok(());
+    } else if let Some(group_variant) = full_variant.strip_prefix("group-") {
+        let (group_variant, name) = if let Some((variant, name)) = group_variant.split_once('/') {
+            (variant, Some(name.to_string()))
+        } else {
+            (group_variant, None)
+        };
+
+        if let Some(mut variant) = BUILTIN_VARIANTS.get(group_variant).cloned() {
+            if !variant.template.starts_with('@') {
+                variant.order += 1000;
+
+                let suffix = if let Some(name) = name {
+                    Cow::Owned(format!("\\/{name}"))
+                } else {
+                    Cow::Borrowed("")
+                };
+
+                variant.template = Cow::Owned(format!(
+                    "{} &",
+                    variant.template.replace('&', &format!(".group{suffix}"))
+                ));
+                variant_list.push(variant.clone());
+                return Ok(());
+            }
+        } else if let Some(arbitrary_variant) = group_variant
+            .strip_prefix(ARBITRARY_START)
+            .and_then(|p| p.strip_suffix(ARBITRARY_END))
+        {
+            if !arbitrary_variant.starts_with('@') {
+                let template =
+                    replace_escape_codes(underscores_to_spaces(Cow::from(arbitrary_variant)));
+
+                let suffix = if let Some(name) = name {
+                    Cow::Owned(format!("\\/{name}"))
+                } else {
+                    Cow::Borrowed("")
+                };
+
+                let template = if template.contains('&') {
+                    template.replace('&', &format!(".group{suffix}"))
+                } else {
+                    format!(".group{suffix}{template}")
+                };
+
+                let template = Cow::Owned(format!("{} &", template));
+                let variant = Variant {
+                    order: config.last_variant_order(),
+                    prefixed: false,
+                    template,
+                };
+
+                variant_list.push(variant.clone());
+                return Ok(());
+            }
+        }
+    } else if let Some(peer_not_variant) = full_variant.strip_prefix("peer-not-") {
+        let (peer_not_variant, name) =
+            if let Some((variant, name)) = peer_not_variant.split_once('/') {
+                (variant, Some(name.to_string()))
+            } else {
+                (peer_not_variant, None)
+            };
+
+        if let Some(mut variant) = BUILTIN_VARIANTS.get(peer_not_variant).cloned() {
+            if !variant.template.starts_with('@') {
+                variant.order += 2000;
+
+                let suffix = if let Some(name) = name {
+                    Cow::Owned(format!("\\/{name}"))
+                } else {
+                    Cow::Borrowed("")
+                };
+
+                variant.template = Cow::Owned(format!(
+                    "{}) ~ &",
+                    variant
+                        .template
+                        .replace('&', &format!(".peer{suffix}:not("))
+                ));
+                variant_list.push(variant.clone());
+                return Ok(());
+            }
+        } else if let Some(arbitrary_variant) = peer_not_variant
+            .strip_prefix(ARBITRARY_START)
+            .and_then(|p| p.strip_suffix(ARBITRARY_END))
+        {
+            if !arbitrary_variant.starts_with('@') {
+                let template =
+                    replace_escape_codes(underscores_to_spaces(Cow::from(arbitrary_variant)));
+
+                let suffix = if let Some(name) = name {
+                    Cow::Owned(format!("\\/{name}"))
+                } else {
+                    Cow::Borrowed("")
+                };
+
+                let template = if template.contains('&') {
+                    template.replace('&', &format!(".peer{suffix}:not("))
+                } else {
+                    format!(".peer{suffix}:not({template}")
+                };
+
+                let template = Cow::Owned(format!("{}) ~ &", template));
+                let variant = Variant {
+                    order: config.last_variant_order(),
+                    prefixed: false,
+                    template,
+                };
+
+                variant_list.push(variant.clone());
+                return Ok(());
+            }
+        }
+    } else if let Some(peer_variant) = full_variant.strip_prefix("peer-") {
+        let (peer_variant, name) = if let Some((variant, name)) = peer_variant.split_once('/') {
+            (variant, Some(name.to_string()))
+        } else {
+            (peer_variant, None)
+        };
+
+        if let Some(mut variant) = BUILTIN_VARIANTS.get(peer_variant).cloned() {
+            if !variant.template.starts_with('@') {
+                variant.order += 3000;
+
+                let suffix = if let Some(name) = name {
+                    Cow::Owned(format!("\\/{name}"))
+                } else {
+                    Cow::Borrowed("")
+                };
+
+                variant.template = Cow::Owned(format!(
+                    "{} ~ &",
+                    variant.template.replace('&', &format!(".peer{suffix}"))
+                ));
+                variant_list.push(variant.clone());
+                return Ok(());
+            }
+        } else if let Some(arbitrary_variant) = peer_variant
+            .strip_prefix(ARBITRARY_START)
+            .and_then(|p| p.strip_suffix(ARBITRARY_END))
+        {
+            if !arbitrary_variant.starts_with('@') {
+                let template =
+                    replace_escape_codes(underscores_to_spaces(Cow::from(arbitrary_variant)));
+
+                let suffix = if let Some(name) = name {
+                    Cow::Owned(format!("\\/{name}"))
+                } else {
+                    Cow::Borrowed("")
+                };
+
+                let template = if template.contains('&') {
+                    template.replace('&', &format!(".peer{suffix}"))
+                } else {
+                    format!(".peer{suffix}{template}")
+                };
+
+                let template = Cow::Owned(format!("{} ~ &", template));
+                let variant = Variant {
+                    order: config.last_variant_order(),
+                    prefixed: false,
+                    template,
+                };
+
+                variant_list.push(variant.clone());
+                return Ok(());
+            }
+        }
     } else if let Some((prefix, value)) = full_variant.split_once(ARBITRARY_START) {
         if let Some(prefix) = prefix.strip_suffix("-") {
             if let Some(value) = value.strip_suffix(ARBITRARY_END) {
@@ -206,87 +379,10 @@ fn push_variant<'a>(
                 return Ok(());
             }
         }
-    } else {
-        // Maybe a group or peer variant
-        if let Some(group_variant) = full_variant.strip_prefix("group-") {
-            let (group_variant, name) = if let Some((variant, name)) = group_variant.split_once('/')
-            {
-                (variant, Some(name.to_string()))
-            } else {
-                (group_variant, None)
-            };
-
-            if let Some(mut variant) = BUILTIN_VARIANTS.get(group_variant).cloned() {
-                if !variant.template.starts_with('@') {
-                    variant.order += 1000;
-
-                    let suffix = if let Some(name) = name {
-                        Cow::Owned(format!("\\/{name}"))
-                    } else {
-                        Cow::Borrowed("")
-                    };
-
-                    variant.template = Cow::Owned(format!(
-                        "{} &",
-                        variant.template.replace('&', &format!(".group{suffix}"))
-                    ));
-                    variant_list.push(variant.clone());
-                    return Ok(());
-                }
-            }
-        } else if let Some(peer_not_variant) = full_variant.strip_prefix("peer-not-") {
-            let (peer_not_variant, name) =
-                if let Some((variant, name)) = peer_not_variant.split_once('/') {
-                    (variant, Some(name.to_string()))
-                } else {
-                    (peer_not_variant, None)
-                };
-
-            if let Some(mut variant) = BUILTIN_VARIANTS.get(peer_not_variant).cloned() {
-                if !variant.template.starts_with('@') {
-                    variant.order += 2000;
-
-                    let suffix = if let Some(name) = name {
-                        Cow::Owned(format!("\\/{name}"))
-                    } else {
-                        Cow::Borrowed("")
-                    };
-
-                    variant.template = Cow::Owned(format!(
-                        "{}) ~ &",
-                        variant
-                            .template
-                            .replace('&', &format!(".peer{suffix}:not("))
-                    ));
-                    variant_list.push(variant.clone());
-                    return Ok(());
-                }
-            }
-        } else if let Some(peer_variant) = full_variant.strip_prefix("peer-") {
-            let (peer_variant, name) = if let Some((variant, name)) = peer_variant.split_once('/') {
-                (variant, Some(name.to_string()))
-            } else {
-                (peer_variant, None)
-            };
-
-            if let Some(mut variant) = BUILTIN_VARIANTS.get(peer_variant).cloned() {
-                if !variant.template.starts_with('@') {
-                    variant.order += 3000;
-
-                    let suffix = if let Some(name) = name {
-                        Cow::Owned(format!("\\/{name}"))
-                    } else {
-                        Cow::Borrowed("")
-                    };
-
-                    variant.template = Cow::Owned(format!(
-                        "{} ~ &",
-                        variant.template.replace('&', &format!(".peer{suffix}"))
-                    ));
-                    variant_list.push(variant.clone());
-                    return Ok(());
-                }
-            }
+    } else if let Some(layer_name) = full_variant.strip_prefix("l-") {
+        if let Some(layer_index) = config.layers.get(layer_name) {
+            *forced_variant = Some(*layer_index);
+            return Ok(());
         }
     }
 
@@ -301,17 +397,19 @@ fn parse_recursive<'a>(
     val: &'a str,
     span: Option<Range<usize>>,
     full_class: Option<&'a str>,
+    parent_forced_layer: Option<i8>,
     config: &Config,
     config_derived_variants: &[(Cow<'static, str>, Variant<'static>)],
 ) -> Vec<Result<Selector<'a>, ParseError<'a>>> {
     let span = span.unwrap_or(0..val.len());
 
     // Parse variants
-    let (variants, mut remaining) = {
+    let (variants, forced_layer, mut remaining) = {
         let mut arbitraries = 0usize;
         let mut groups = 0usize;
         let mut last_index = 0;
         let mut variants = vec![vec![]];
+        let mut forced_layer = None;
 
         for ch in val.char_indices() {
             if last_index > val.len() {
@@ -370,6 +468,7 @@ fn parse_recursive<'a>(
                             is_arbitrary,
                             variant,
                             &mut new_variant_list,
+                            &mut forced_layer,
                             val,
                             &span,
                             config,
@@ -403,6 +502,7 @@ fn parse_recursive<'a>(
                         is_arbitrary,
                         variant,
                         variant_list,
+                        &mut forced_layer,
                         val,
                         &span,
                         config,
@@ -418,7 +518,7 @@ fn parse_recursive<'a>(
             }
         }
 
-        (variants, (last_index, &val[last_index..]))
+        (variants, forced_layer, (last_index, &val[last_index..]))
     };
 
     if remaining.1.is_empty() {
@@ -454,6 +554,7 @@ fn parse_recursive<'a>(
                     } else {
                         val
                     }),
+                    forced_layer,
                     config,
                     config_derived_variants,
                 );
@@ -504,7 +605,9 @@ fn parse_recursive<'a>(
                 .map(|variants| {
                     Ok(Selector {
                         // Arbitrary properties will be placed at the end of the CSS
-                        order: BUILTIN_PLUGINS.len() + config.custom_plugins.len(),
+                        layer: forced_layer
+                            .unwrap_or(parent_forced_layer.unwrap_or(LAYER_ARBITRARY)),
+                        order: usize::MAX,
                         full: if let Some(full_class) = full_class {
                             full_class
                         } else {
@@ -523,14 +626,27 @@ fn parse_recursive<'a>(
                 .collect()
         } else {
             // Find the right plugin for handling this selector
-            for (order, (namespace, plugin)) in BUILTIN_PLUGINS
+            for (order, layer, (namespace, plugin)) in BUILTIN_PLUGINS
                 .iter()
                 .enumerate()
-                // Selectors generated using custom plugins are placed first to be easily
-                // overridden, so we need to shift the order of builtin plugins to take that
-                // into account
-                .map(|p| (p.0 + config.custom_plugins.len(), p.1))
-                .chain(config.custom_plugins.iter().enumerate())
+                .map(|p| {
+                    (
+                        p.0,
+                        forced_layer.unwrap_or(parent_forced_layer.unwrap_or(LAYER_BUILTIN)),
+                        p.1,
+                    )
+                })
+                .chain(
+                    // Selectors generated using custom plugins are placed first to be easily
+                    // overridden
+                    config.custom_plugins.iter().enumerate().map(|p| {
+                        (
+                            p.0,
+                            forced_layer.unwrap_or(parent_forced_layer.unwrap_or(LAYER_CUSTOM)),
+                            p.1,
+                        )
+                    }),
+                )
             {
                 // Find the modifier
                 if let Some(modifier) = remaining
@@ -557,6 +673,7 @@ fn parse_recursive<'a>(
                             .into_iter()
                             .map(|variants| {
                                 Ok(Selector {
+                                    layer,
                                     order,
                                     full: if let Some(full_class) = full_class {
                                         full_class
@@ -664,6 +781,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "absolute",
                 order: Default::default(), // order is not checked in tests
                 plugin: &layout::position::PluginDefinition,
@@ -691,6 +809,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "text-center",
                 order: Default::default(),
                 plugin: &typography::text_align::PluginDefinition,
@@ -718,6 +837,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "bg-red-500/25",
                 order: Default::default(),
                 plugin: &background::background_color::PluginDefinition,
@@ -739,6 +859,7 @@ mod tests {
                 .as_ref()
                 .unwrap(),
             &Selector {
+                layer: 0,
                 full: "!px-4",
                 order: Default::default(),
                 plugin: &spacing::padding::PluginDefinition,
@@ -760,6 +881,7 @@ mod tests {
                 .as_ref()
                 .unwrap(),
             &Selector {
+                layer: 0,
                 full: "-px-4",
                 order: Default::default(),
                 plugin: &spacing::padding::PluginDefinition,
@@ -787,6 +909,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "!-px-4",
                 order: Default::default(),
                 plugin: &spacing::padding::PluginDefinition,
@@ -808,6 +931,7 @@ mod tests {
                 .as_ref()
                 .unwrap(),
             &Selector {
+                layer: 0,
                 full: "px-4",
                 order: Default::default(),
                 plugin: &spacing::padding::PluginDefinition,
@@ -835,6 +959,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "px-1.5",
                 order: Default::default(),
                 plugin: &spacing::padding::PluginDefinition,
@@ -862,6 +987,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "hover:text-center",
                 order: Default::default(),
                 plugin: &typography::text_align::PluginDefinition,
@@ -893,6 +1019,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "marker:xl:hover:text-center",
                 order: Default::default(),
                 plugin: &typography::text_align::PluginDefinition,
@@ -936,6 +1063,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "marker:xl:hover:-mx-4",
                 order: Default::default(),
                 plugin: &spacing::margin::PluginXDefinition,
@@ -979,6 +1107,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "[&>*]:text-center",
                 order: Default::default(),
                 plugin: &typography::text_align::PluginDefinition,
@@ -1010,6 +1139,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "group-checked:block",
                 order: Default::default(),
                 plugin: &layout::display::PluginDefinition,
@@ -1037,6 +1167,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "peer-checked:block",
                 order: Default::default(),
                 plugin: &layout::display::PluginDefinition,
@@ -1064,6 +1195,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "peer-not-checked:block",
                 order: Default::default(),
                 plugin: &layout::display::PluginDefinition,
@@ -1071,6 +1203,62 @@ mod tests {
                     order: Default::default(),
                     prefixed: false,
                     template: Cow::from(".peer:not(:checked) ~ &"),
+                }],
+                modifier: Modifier::Builtin {
+                    is_negative: false,
+                    value: "block",
+                },
+                is_important: false,
+            }
+        );
+
+        assert_eq!(
+            parse(
+                "peer-[:focus-within]:block",
+                None,
+                None,
+                &config,
+                &config.get_derived_variants()
+            )[0]
+            .as_ref()
+            .unwrap(),
+            &Selector {
+                layer: 0,
+                full: "peer-[:focus-within]:block",
+                order: Default::default(),
+                plugin: &layout::display::PluginDefinition,
+                variants: vec![Variant {
+                    order: Default::default(),
+                    prefixed: false,
+                    template: Cow::from(".peer:focus-within ~ &"),
+                }],
+                modifier: Modifier::Builtin {
+                    is_negative: false,
+                    value: "block",
+                },
+                is_important: false,
+            }
+        );
+
+        assert_eq!(
+            parse(
+                "peer-[:nth-of-type(3)_&]:block",
+                None,
+                None,
+                &config,
+                &config.get_derived_variants()
+            )[0]
+            .as_ref()
+            .unwrap(),
+            &Selector {
+                layer: 0,
+                full: "peer-[:nth-of-type(3)_&]:block",
+                order: Default::default(),
+                plugin: &layout::display::PluginDefinition,
+                variants: vec![Variant {
+                    order: Default::default(),
+                    prefixed: false,
+                    template: Cow::from(":nth-of-type(3) .peer ~ &"),
                 }],
                 modifier: Modifier::Builtin {
                     is_negative: false,
@@ -1095,6 +1283,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "group-checked/item:block",
                 order: Default::default(),
                 plugin: &layout::display::PluginDefinition,
@@ -1122,6 +1311,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "peer-checked/item:block",
                 order: Default::default(),
                 plugin: &layout::display::PluginDefinition,
@@ -1149,6 +1339,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "peer-not-checked/item:block",
                 order: Default::default(),
                 plugin: &layout::display::PluginDefinition,
@@ -1156,6 +1347,34 @@ mod tests {
                     order: Default::default(),
                     prefixed: false,
                     template: Cow::from(r".peer\/item:not(:checked) ~ &"),
+                }],
+                modifier: Modifier::Builtin {
+                    is_negative: false,
+                    value: "block",
+                },
+                is_important: false,
+            }
+        );
+
+        assert_eq!(
+            parse(
+                "peer-[:focus-within]/item:block",
+                None,
+                None,
+                &config,
+                &config.get_derived_variants()
+            )[0]
+            .as_ref()
+            .unwrap(),
+            &Selector {
+                layer: 0,
+                full: "peer-[:focus-within]/item:block",
+                order: Default::default(),
+                plugin: &layout::display::PluginDefinition,
+                variants: vec![Variant {
+                    order: Default::default(),
+                    prefixed: false,
+                    template: Cow::from(".peer\\/item:focus-within ~ &"),
                 }],
                 modifier: Modifier::Builtin {
                     is_negative: false,
@@ -1180,6 +1399,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "[@supports_not_(display:grid)]:grid",
                 order: Default::default(),
                 plugin: &layout::display::PluginDefinition,
@@ -1211,6 +1431,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "xl:[&>*]:focus:text-center",
                 order: Default::default(),
                 plugin: &typography::text_align::PluginDefinition,
@@ -1254,6 +1475,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "xl:[&>*]:focus:-m-4",
                 order: Default::default(),
                 plugin: &spacing::margin::PluginDefinition,
@@ -1297,6 +1519,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "mx-[12px]",
                 order: Default::default(),
                 plugin: &spacing::margin::PluginDefinition,
@@ -1325,6 +1548,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "bg-[url('/hello_world.png')]",
                 order: Default::default(),
                 plugin: &background::background_image::PluginDefinition,
@@ -1353,6 +1577,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "bg-[color:#fff]",
                 order: Default::default(),
                 plugin: &background::background_color::PluginDefinition,
@@ -1381,6 +1606,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "xl:marker:bg-[#fff]",
                 order: Default::default(),
                 plugin: &background::background_color::PluginDefinition,
@@ -1420,6 +1646,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "xl:marker:bg-[color:#fff]",
                 order: Default::default(),
                 plugin: &background::background_color::PluginDefinition,
@@ -1459,6 +1686,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "[&>*]:bg-[#fff]",
                 order: Default::default(),
                 plugin: &background::background_color::PluginDefinition,
@@ -1491,6 +1719,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: r"[&#91;type=&#39;input&#39;&#93;_&>:*]:bg-red-300",
                 order: Default::default(),
                 plugin: &background::background_color::PluginDefinition,
@@ -1522,6 +1751,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "xl:[&>*]:hover:bg-[#fff]",
                 order: Default::default(),
                 plugin: &background::background_color::PluginDefinition,
@@ -1566,6 +1796,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: "xl:[&>*]:hover:bg-[color:#fff]",
                 order: Default::default(),
                 plugin: &background::background_color::PluginDefinition,
@@ -1610,6 +1841,7 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 0,
                 full: r"bg-[url(&#34;/url_with_&#93;&#41;&#39;.png&#34;)]",
                 order: Default::default(),
                 plugin: &background::background_image::PluginDefinition,
@@ -1638,8 +1870,9 @@ mod tests {
             .as_ref()
             .unwrap(),
             &Selector {
+                layer: 127,
                 full: "hover:[mask-type:luminance]",
-                order: BUILTIN_PLUGINS.len(),
+                order: Default::default(),
                 plugin: &CssPropertyPlugin,
                 variants: vec![Variant {
                     order: Default::default(),
@@ -1669,6 +1902,7 @@ mod tests {
             ),
             vec![
                 Ok(Selector {
+                    layer: 0,
                     full: "hover:(focus:bg-gray-500,text-[color:black,])",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -1691,6 +1925,7 @@ mod tests {
                     is_important: false,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: "hover:(focus:bg-gray-500,text-[color:black,])",
                     order: Default::default(),
                     plugin: &typography::text_color::PluginDefinition,
@@ -1722,6 +1957,7 @@ mod tests {
                 &config.get_derived_variants()
             ),
             vec![Ok(Selector {
+                layer: 0,
                 full: "hover:(bg-gray-500)",
                 order: Default::default(),
                 plugin: &background::background_color::PluginDefinition,
@@ -1765,6 +2001,7 @@ mod tests {
                 &config.get_derived_variants()
             ),
             vec![Ok(Selector {
+                layer: 0,
                 full: "min-[475px]:visible",
                 order: Default::default(),
                 plugin: &layout::visibility::PluginDefinition,
@@ -1795,6 +2032,7 @@ mod tests {
             ),
             vec![
                 Ok(Selector {
+                    layer: 0,
                     full: "focus:([&>*]:-m-4,xl:dark:(bg-red-100,rtl:text-[color:black]))",
                     order: Default::default(),
                     plugin: &spacing::margin::PluginDefinition,
@@ -1817,6 +2055,7 @@ mod tests {
                     is_important: false,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: "focus:([&>*]:-m-4,xl:dark:(bg-red-100,rtl:text-[color:black]))",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -1844,6 +2083,7 @@ mod tests {
                     is_important: false,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: "focus:([&>*]:-m-4,xl:dark:(bg-red-100,rtl:text-[color:black]))",
                     order: Default::default(),
                     plugin: &typography::text_color::PluginDefinition,
@@ -1893,6 +2133,7 @@ mod tests {
             ),
             vec![
                 Ok(Selector {
+                    layer: 0,
                     full: r"focus:([&>*]:-m-4,xl:dark:([&#91;type=&#39;text&#39;&#93;.light_&,.foo]:bg-red-100,text-[color:black,]))",
                     order: Default::default(),
                     plugin: &spacing::margin::PluginDefinition,
@@ -1915,6 +2156,7 @@ mod tests {
                     is_important: false,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: r"focus:([&>*]:-m-4,xl:dark:([&#91;type=&#39;text&#39;&#93;.light_&,.foo]:bg-red-100,text-[color:black,]))",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -1947,6 +2189,7 @@ mod tests {
                     is_important: false,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: r"focus:([&>*]:-m-4,xl:dark:([&#91;type=&#39;text&#39;&#93;.light_&,.foo]:bg-red-100,text-[color:black,]))",
                     order: Default::default(),
                     plugin: &typography::text_color::PluginDefinition,
@@ -1991,6 +2234,7 @@ mod tests {
             ),
             vec![
                 Ok(Selector {
+                    layer: 0,
                     full: r"xl:(focus:(outline,outline-red-200),dark:(bg-black,text-white))",
                     order: Default::default(),
                     plugin: &border::outline_style::PluginDefinition,
@@ -2013,6 +2257,7 @@ mod tests {
                     is_important: false,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: r"xl:(focus:(outline,outline-red-200),dark:(bg-black,text-white))",
                     order: Default::default(),
                     plugin: &border::outline_color::PluginDefinition,
@@ -2035,6 +2280,7 @@ mod tests {
                     is_important: false,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: r"xl:(focus:(outline,outline-red-200),dark:(bg-black,text-white))",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -2057,6 +2303,7 @@ mod tests {
                     is_important: false,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: r"xl:(focus:(outline,outline-red-200),dark:(bg-black,text-white))",
                     order: Default::default(),
                     plugin: &typography::text_color::PluginDefinition,
@@ -2096,6 +2343,7 @@ mod tests {
             ),
             vec![
                 Ok(Selector {
+                    layer: 0,
                     full: "(hover,focus):bg-red-400",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -2111,6 +2359,7 @@ mod tests {
                     is_important: false,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: "(hover,focus):bg-red-400",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -2138,6 +2387,7 @@ mod tests {
             ),
             vec![
                 Ok(Selector {
+                    layer: 0,
                     full: "([@supports_(display:flex)],focus-visible):flex",
                     order: Default::default(),
                     plugin: &flexbox::flex::PluginDefinition,
@@ -2153,6 +2403,7 @@ mod tests {
                     is_important: false,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: "([@supports_(display:flex)],focus-visible):flex",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -2180,6 +2431,7 @@ mod tests {
             ),
             vec![
                 Ok(Selector {
+                    layer: 0,
                     full: "([@supports_(display:flex)],focus-visible):!-m-4",
                     order: Default::default(),
                     plugin: &spacing::margin::PluginDefinition,
@@ -2195,6 +2447,7 @@ mod tests {
                     is_important: true,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: "([@supports_(display:flex)],focus-visible):!-m-4",
                     order: Default::default(),
                     plugin: &spacing::margin::PluginDefinition,
@@ -2222,6 +2475,7 @@ mod tests {
             ),
             vec![
                 Ok(Selector {
+                    layer: 0,
                     full: "xl:(hover,focus):bg-red-400",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -2244,6 +2498,7 @@ mod tests {
                     is_important: false,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: "xl:(hover,focus):bg-red-400",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -2280,6 +2535,7 @@ mod tests {
             ),
             vec![
                 Ok(Selector {
+                    layer: 0,
                     full: "(hover:bg-red-400,focus:bg-green-400)",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -2295,6 +2551,7 @@ mod tests {
                     is_important: false,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: "(hover:bg-red-400,focus:bg-green-400)",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -2322,6 +2579,7 @@ mod tests {
             ),
             vec![
                 Ok(Selector {
+                    layer: 0,
                     full: "xl:(hover,focus):target:(dark:bg-red-400,bg-green-400)",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -2354,6 +2612,7 @@ mod tests {
                     is_important: false,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: "xl:(hover,focus):target:(dark:bg-red-400,bg-green-400)",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -2386,6 +2645,7 @@ mod tests {
                     is_important: false,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: "xl:(hover,focus):target:(dark:bg-red-400,bg-green-400)",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -2413,6 +2673,7 @@ mod tests {
                     is_important: false,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: "xl:(hover,focus):target:(dark:bg-red-400,bg-green-400)",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -2452,6 +2713,7 @@ mod tests {
             ),
             vec![
                 Ok(Selector {
+                    layer: 0,
                     full: "(hover,focus):(focus-within,target):bg-red-400",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -2474,6 +2736,7 @@ mod tests {
                     is_important: false,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: "(hover,focus):(focus-within,target):bg-red-400",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -2496,6 +2759,7 @@ mod tests {
                     is_important: false,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: "(hover,focus):(focus-within,target):bg-red-400",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -2518,6 +2782,7 @@ mod tests {
                     is_important: false,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: "(hover,focus):(focus-within,target):bg-red-400",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -2552,6 +2817,7 @@ mod tests {
             ),
             vec![
                 Ok(Selector {
+                    layer: 0,
                     full: "(hover,focus):(bg-red-400,(target,focus-within):bg-green-400)",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -2567,6 +2833,7 @@ mod tests {
                     is_important: false,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: "(hover,focus):(bg-red-400,(target,focus-within):bg-green-400)",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -2582,6 +2849,7 @@ mod tests {
                     is_important: false,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: "(hover,focus):(bg-red-400,(target,focus-within):bg-green-400)",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -2604,6 +2872,7 @@ mod tests {
                     is_important: false,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: "(hover,focus):(bg-red-400,(target,focus-within):bg-green-400)",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -2626,6 +2895,7 @@ mod tests {
                     is_important: false,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: "(hover,focus):(bg-red-400,(target,focus-within):bg-green-400)",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,
@@ -2648,6 +2918,7 @@ mod tests {
                     is_important: false,
                 }),
                 Ok(Selector {
+                    layer: 0,
                     full: "(hover,focus):(bg-red-400,(target,focus-within):bg-green-400)",
                     order: Default::default(),
                     plugin: &background::background_color::PluginDefinition,

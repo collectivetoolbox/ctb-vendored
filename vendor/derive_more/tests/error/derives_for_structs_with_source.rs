@@ -1,6 +1,11 @@
 #![allow(dead_code)] // some code is tested for type checking only
 
+#[cfg(not(feature = "std"))]
+use alloc::boxed::Box;
+
 use super::*;
+
+type RenamedOption<T> = Option<T>;
 
 #[test]
 fn unit() {
@@ -28,6 +33,61 @@ fn named_implicit_source() {
     }
 
     let err = TestErr::default();
+
+    assert!(err.source().is_some());
+    assert!(err.source().unwrap().is::<SimpleErr>());
+}
+
+#[test]
+fn named_implicit_boxed_source() {
+    derive_display!(TestErr);
+    #[derive(Debug, Error)]
+    struct TestErr {
+        source: Box<dyn Error + Send + 'static>,
+        field: i32,
+    }
+
+    let err = TestErr {
+        source: Box::new(SimpleErr),
+        field: 0,
+    };
+
+    assert!(err.source().is_some());
+    assert!(err.source().unwrap().is::<SimpleErr>());
+}
+
+#[test]
+fn named_implicit_optional_source() {
+    derive_display!(TestErr);
+    #[derive(Default, Debug, Error)]
+    struct TestErr {
+        source: Option<SimpleErr>,
+        field: i32,
+    }
+
+    let err = TestErr {
+        source: Some(SimpleErr),
+        ..TestErr::default()
+    };
+
+    assert!(err.source().is_some());
+    assert!(err.source().unwrap().is::<SimpleErr>());
+}
+
+#[test]
+fn named_implicit_optional_boxed_source() {
+    derive_display!(TestErr);
+    #[derive(Default, Debug, Error)]
+    struct TestErr {
+        source: Option<Box<dyn Error + Send + 'static>>,
+        field: i32,
+    }
+
+    let err = TestErr {
+        source: Some(Box::new(SimpleErr)),
+        ..TestErr::default()
+    };
+
     assert!(err.source().is_some());
     assert!(err.source().unwrap().is::<SimpleErr>());
 }
@@ -56,6 +116,102 @@ fn named_explicit_source() {
     }
 
     let err = TestErr::default();
+
+    assert!(err.source().is_some());
+    assert!(err.source().unwrap().is::<SimpleErr>());
+}
+
+#[test]
+fn named_explicit_boxed_source() {
+    derive_display!(TestErr);
+    #[derive(Debug, Error)]
+    struct TestErr {
+        #[error(source)]
+        explicit_source: Box<dyn Error + Send + 'static>,
+        field: i32,
+    }
+
+    let err = TestErr {
+        explicit_source: Box::new(SimpleErr),
+        field: 0,
+    };
+
+    assert!(err.source().is_some());
+    assert!(err.source().unwrap().is::<SimpleErr>());
+}
+
+#[test]
+fn named_explicit_optional_source() {
+    derive_display!(TestErr);
+    #[derive(Default, Debug, Error)]
+    struct TestErr {
+        #[error(source)]
+        explicit_source: Option<SimpleErr>,
+        field: i32,
+    }
+
+    let err = TestErr {
+        explicit_source: Some(SimpleErr),
+        ..TestErr::default()
+    };
+
+    assert!(err.source().is_some());
+    assert!(err.source().unwrap().is::<SimpleErr>());
+}
+
+#[test]
+fn named_explicit_optional_boxed_source() {
+    derive_display!(TestErr);
+    #[derive(Default, Debug, Error)]
+    struct TestErr {
+        #[error(source)]
+        explicit_source: Option<Box<dyn Error + Send + 'static>>,
+        field: i32,
+    }
+
+    let err = TestErr {
+        explicit_source: Some(Box::new(SimpleErr)),
+        ..TestErr::default()
+    };
+
+    assert!(err.source().is_some());
+    assert!(err.source().unwrap().is::<SimpleErr>());
+}
+
+#[test]
+fn named_explicit_renamed_optional_source() {
+    derive_display!(TestErr);
+    #[derive(Default, Debug, Error)]
+    struct TestErr {
+        #[error(source(optional))]
+        explicit_source: RenamedOption<SimpleErr>,
+        field: i32,
+    }
+
+    let err = TestErr {
+        explicit_source: Some(SimpleErr),
+        ..TestErr::default()
+    };
+
+    assert!(err.source().is_some());
+    assert!(err.source().unwrap().is::<SimpleErr>());
+}
+
+#[test]
+fn named_explicit_renamed_optional_boxed_source() {
+    derive_display!(TestErr);
+    #[derive(Default, Debug, Error)]
+    struct TestErr {
+        #[error(source(optional))]
+        explicit_source: RenamedOption<Box<dyn Error + Send + 'static>>,
+        field: i32,
+    }
+
+    let err = TestErr {
+        explicit_source: Some(Box::new(SimpleErr)),
+        ..TestErr::default()
+    };
+
     assert!(err.source().is_some());
     assert!(err.source().unwrap().is::<SimpleErr>());
 }
@@ -83,6 +239,7 @@ fn named_explicit_source_redundant() {
     }
 
     let err = TestErr::default();
+
     assert!(err.source().is_some());
     assert!(err.source().unwrap().is::<SimpleErr>());
 }
@@ -98,6 +255,26 @@ fn named_explicit_suppresses_implicit() {
     }
 
     let err = TestErr::default();
+
+    assert!(err.source().is_some());
+    assert!(err.source().unwrap().is::<SimpleErr>());
+}
+
+#[test]
+fn named_explicit_optional_suppresses_implicit() {
+    derive_display!(TestErr);
+    #[derive(Default, Debug, Error)]
+    struct TestErr {
+        source: i32,
+        #[error(source)]
+        field: Option<SimpleErr>,
+    }
+
+    let err = TestErr {
+        field: Some(SimpleErr),
+        ..TestErr::default()
+    };
+
     assert!(err.source().is_some());
     assert!(err.source().unwrap().is::<SimpleErr>());
 }
@@ -118,6 +295,19 @@ fn unnamed_implicit_source() {
     struct TestErr(SimpleErr);
 
     let err = TestErr::default();
+
+    assert!(err.source().is_some());
+    assert!(err.source().unwrap().is::<SimpleErr>());
+}
+
+#[test]
+fn unnamed_implicit_optional_source() {
+    derive_display!(TestErr);
+    #[derive(Default, Debug, Error)]
+    struct TestErr(Option<SimpleErr>);
+
+    let err = TestErr(Some(SimpleErr));
+
     assert!(err.source().is_some());
     assert!(err.source().unwrap().is::<SimpleErr>());
 }
@@ -138,6 +328,55 @@ fn unnamed_explicit_source() {
     struct TestErr(#[error(source)] SimpleErr, i32);
 
     let err = TestErr::default();
+
+    assert!(err.source().is_some());
+    assert!(err.source().unwrap().is::<SimpleErr>());
+}
+
+#[test]
+fn unnamed_explicit_optional_source() {
+    derive_display!(TestErr);
+    #[derive(Default, Debug, Error)]
+    struct TestErr(#[error(source)] Option<SimpleErr>, i32);
+
+    let err = TestErr {
+        0: Some(SimpleErr),
+        ..TestErr::default()
+    };
+
+    assert!(err.source().is_some());
+    assert!(err.source().unwrap().is::<SimpleErr>());
+}
+
+#[test]
+fn unnamed_explicit_renamed_optional_source() {
+    derive_display!(TestErr);
+    #[derive(Default, Debug, Error)]
+    struct TestErr(#[error(source(optional))] RenamedOption<SimpleErr>, i32);
+
+    let err = TestErr {
+        0: Some(SimpleErr),
+        ..TestErr::default()
+    };
+
+    assert!(err.source().is_some());
+    assert!(err.source().unwrap().is::<SimpleErr>());
+}
+
+#[test]
+fn unnamed_explicit_renamed_optional_boxed_source() {
+    derive_display!(TestErr);
+    #[derive(Default, Debug, Error)]
+    struct TestErr(
+        #[error(source(optional))] RenamedOption<Box<dyn Error + Send + 'static>>,
+        i32,
+    );
+
+    let err = TestErr {
+        0: Some(Box::new(SimpleErr)),
+        ..TestErr::default()
+    };
+
     assert!(err.source().is_some());
     assert!(err.source().unwrap().is::<SimpleErr>());
 }
@@ -158,6 +397,7 @@ fn unnamed_explicit_source_redundant() {
     struct TestErr(#[error(source)] SimpleErr);
 
     let err = TestErr::default();
+
     assert!(err.source().is_some());
     assert!(err.source().unwrap().is::<SimpleErr>());
 }

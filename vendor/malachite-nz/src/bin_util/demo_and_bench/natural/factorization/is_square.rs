@@ -11,11 +11,14 @@ use malachite_base::num::factorization::traits::IsSquare;
 use malachite_base::test_util::bench::{BenchmarkType, run_benchmark};
 use malachite_base::test_util::generators::common::{GenConfig, GenMode};
 use malachite_base::test_util::runner::Runner;
-use malachite_nz::test_util::bench::bucketers::natural_bit_bucketer;
-use malachite_nz::test_util::generators::natural_gen;
+use malachite_nz::test_util::bench::bucketers::{
+    natural_bit_bucketer, pair_2_natural_bit_bucketer,
+};
+use malachite_nz::test_util::generators::{natural_gen, natural_gen_rm};
 
 pub(crate) fn register(runner: &mut Runner) {
     register_demo!(runner, demo_natural_is_square);
+    register_bench!(runner, benchmark_natural_is_square_library_comparison);
     register_bench!(runner, benchmark_natural_is_square_algorithms);
 }
 
@@ -29,6 +32,27 @@ fn demo_natural_is_square(gm: GenMode, config: &GenConfig, limit: usize) {
     }
 }
 
+fn benchmark_natural_is_square_library_comparison(
+    gm: GenMode,
+    config: &GenConfig,
+    limit: usize,
+    file_name: &str,
+) {
+    run_benchmark(
+        "Natural.is_square()",
+        BenchmarkType::LibraryComparison,
+        natural_gen_rm().get(gm, config),
+        gm.name(),
+        limit,
+        file_name,
+        &pair_2_natural_bit_bucketer("n"),
+        &mut [
+            ("Malachite", &mut |(_, n)| no_out!(n.is_square())),
+            ("rug", &mut |(n, _)| no_out!(n.is_perfect_square())),
+        ],
+    );
+}
+
 #[allow(unused_must_use)]
 fn benchmark_natural_is_square_algorithms(
     gm: GenMode,
@@ -37,7 +61,7 @@ fn benchmark_natural_is_square_algorithms(
     file_name: &str,
 ) {
     run_benchmark(
-        "Natural.square()",
+        "Natural.is_square()",
         BenchmarkType::Algorithms,
         natural_gen().get(gm, config),
         gm.name(),
@@ -47,7 +71,7 @@ fn benchmark_natural_is_square_algorithms(
         &mut [
             ("default", &mut |n| no_out!(n.is_square())),
             ("using checked_sqrt", &mut |n| {
-                no_out!(n.checked_sqrt().is_some())
+                no_out!(n.checked_sqrt().is_some());
             }),
         ],
     );

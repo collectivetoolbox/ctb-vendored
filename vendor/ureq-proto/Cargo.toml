@@ -13,9 +13,16 @@
 edition = "2021"
 rust-version = "1.71.1"
 name = "ureq-proto"
-version = "0.5.2"
+version = "0.5.3"
 authors = ["Martin Algesten <martin@algesten.se>"]
 build = false
+exclude = [
+    "/cargo_deny.sh",
+    "/deny.toml",
+    "/doc/",
+    "/run-fuzz.sh",
+    "/test.sh",
+]
 autolib = false
 autobins = false
 autoexamples = false

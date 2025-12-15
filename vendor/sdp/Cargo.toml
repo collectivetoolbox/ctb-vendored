@@ -12,7 +12,7 @@
 [package]
 edition = "2021"
 name = "sdp"
-version = "0.8.0"
+version = "0.10.0"
 authors = ["Rain Liu <yliu@webrtc.rs>"]
 build = false
 autolib = false
@@ -37,7 +37,7 @@ path = "benches/bench.rs"
 harness = false
 
 [dependencies.rand]
-version = "0.8"
+version = "0.9"
 
 [dependencies.substring]
 version = "1"

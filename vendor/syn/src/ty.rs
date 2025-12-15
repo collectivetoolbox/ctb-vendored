@@ -350,7 +350,7 @@ pub(crate) mod parsing {
                         Path::parse_rest(input, &mut ty.path, false)?;
                         return Ok(Type::Path(ty));
                     } else {
-                        group.elem = Box::new(Type::Path(ty));
+                        *group.elem = Type::Path(ty);
                     }
                 }
             }
@@ -1080,7 +1080,7 @@ mod printing {
         TypeTraitObject, TypeTuple,
     };
     use proc_macro2::TokenStream;
-    use quote::{ToTokens, TokenStreamExt};
+    use quote::{ToTokens, TokenStreamExt as _};
 
     #[cfg_attr(docsrs, doc(cfg(feature = "printing")))]
     impl ToTokens for TypeSlice {

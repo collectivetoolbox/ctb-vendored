@@ -17,6 +17,7 @@ use std::cmp::Ordering::*;
 
 pub(crate) fn register(runner: &mut Runner) {
     register_primitive_float_demos!(runner, demo_nice_float_cmp);
+
     register_primitive_float_benches!(runner, benchmark_nice_float_cmp_algorithms);
 }
 
@@ -49,7 +50,7 @@ fn benchmark_nice_float_cmp_algorithms<T: PrimitiveFloat>(
         &pair_max_primitive_float_bucketer("f", "g"),
         &mut [
             ("Malachite", &mut |(x, y)| {
-                no_out!(NiceFloat(x).cmp(&NiceFloat(y)))
+                no_out!(NiceFloat(x).cmp(&NiceFloat(y)));
             }),
             ("Rust default", &mut |(x, y)| no_out!(x.partial_cmp(&y))),
         ],

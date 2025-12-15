@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.60"
 name = "webbrowser"
-version = "1.0.5"
+version = "1.0.6"
 authors = ["Amod Malviya @amodm"]
 build = false
 autolib = false

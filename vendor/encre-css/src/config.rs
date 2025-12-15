@@ -708,8 +708,6 @@ pub const BUILTIN_VARIANTS: phf::OrderedMap<&'static str, Variant> = {
 
     phf_ordered_map! {
         "not" => Variant::new_const(&mut counter, "&:not({})").with_prefixed(),
-        "group" => Variant::new_const(&mut counter, "&:is(:where(.group){} *)").with_prefixed(),
-        "peer" => Variant::new_const(&mut counter, "&:is(:where(.peer){} ~ *)").with_prefixed(),
 
         "first-letter" => Variant::new_const(&mut counter, "&::first-letter"),
         "first-line" => Variant::new_const(&mut counter, "&::first-line"),
@@ -1348,6 +1346,77 @@ impl Shortcuts {
     }
 }
 
+/// Configuration for the [`Config::layers`] field.
+///
+/// It defines a list of layers used to change the ordering of the generated classes.
+///
+/// ### Layers and ordering
+///
+/// By default, every class is ordered based on its plugin, variants and modifier.
+///
+/// If you want more control over the ordering of a specific set of classes, you can define a
+/// _layer_ in the configuration (see the example below) and use the variant `l-<layer_name>` to
+/// put the class in the corresponding layer.
+///
+/// By default, the layer containing builtin plugins has the index `0` and the layer containing
+/// custom plugins has index `-1`.
+///
+/// The index is an `i8`, so it's between -128 and 127.
+///
+/// # Example
+///
+/// ```
+/// use encre_css::Config;
+///
+/// let mut config = Config::default();
+/// config.layers.add("components", -2);
+/// config.layers.add("utilities", 2);
+///
+/// let generated = encre_css::generate(
+///     [r#"<button class="l-components:bg-red-500 l-utilities:bg-red-100">Click me</button>"#],
+///     &config,
+/// );
+///
+/// // Without the use of layers, `bg-red-100` would have been generated first and would have been
+/// // overridden by `bg-red-500`.
+/// // Here the layer `components` has an index smaller than the layer
+/// // `utilities`, so all the classes on this layer will be generated first.
+/// assert!(generated.ends_with(r#".l-components\:bg-red-500 {
+///   background-color: oklch(63.7% .237 25.331);
+/// }
+///
+/// .l-utilities\:bg-red-100 {
+///   background-color: oklch(93.6% .032 17.717);
+/// }"#));
+/// ```
+///
+/// ### Corresponding TOML configuration
+///
+/// <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">[layers]</span>
+/// components = <span class="number">-2</span>
+/// utilities = <span class="number">2</span></code></pre></div>
+#[derive(Debug, PartialEq, Eq, Default, Serialize, Deserialize, Clone)]
+pub struct Layers(BTreeMap<Cow<'static, str>, i8>);
+
+impl Layers {
+    /// Add a layer to the list.
+    #[inline]
+    pub fn add<T1: Into<Cow<'static, str>>>(&mut self, key: T1, val: i8) {
+        self.0.insert(key.into(), val.into());
+    }
+
+    /// Remove a layer from the list.
+    #[inline]
+    pub fn remove<T: Into<Cow<'static, str>>>(&mut self, key: T) {
+        self.0.remove(&key.into());
+    }
+
+    #[inline]
+    pub(crate) fn get<'a, T: Into<Cow<'a, str>>>(&'a self, key: T) -> Option<&'a i8> {
+        self.0.get(&key.into())
+    }
+}
+
 /// The maximum depth at which shortcuts will be resolved.
 ///
 /// During the shortcut expansion, if the depth is greater than `max_shortcut_depth`, only the already expanded selectors until the maximum depth will be added.
@@ -1630,6 +1699,10 @@ pub struct Config {
     /// Shortcuts configuration.
     #[serde(default)]
     pub shortcuts: Shortcuts,
+
+    /// Layers configuration.
+    #[serde(default)]
+    pub layers: Layers,
 
     /// The maximum depth at which shortcuts will be resolved.
     #[serde(default)]
@@ -2087,6 +2160,10 @@ mod tests {
 }
 
 .btn-primary {
+  background-color: oklch(62.3% .214 259.815);
+}
+
+.btn-primary {
   background-color: oklch(63.7% .237 25.331);
 }"
             )
@@ -2112,6 +2189,10 @@ mod tests {
 
 .btn-primary {
   border-width: 1px;
+}
+
+.btn-primary {
+  background-color: oklch(62.3% .214 259.815);
 }
 
 .btn-primary {

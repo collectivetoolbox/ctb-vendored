@@ -8,10 +8,7 @@ fn size_align() {
   assert_eq!(core::mem::align_of::<u32x4>(), 16);
 }
 
-#[test]
-fn basic_traits() {
-  crate::test_basic_traits::<u32x4, _, 4>();
-}
+crate::generate_basic_traits_test!(u32x4, u32);
 
 #[test]
 fn impl_add_for_u32x4() {
@@ -108,7 +105,7 @@ fn impl_u32x4_cmp_eq() {
   let a = u32x4::from([1, 2, 3, 4]);
   let b = u32x4::from([2_u32; 4]);
   let expected = u32x4::from([0, u32::MAX, 0, 0]);
-  let actual = a.cmp_eq(b);
+  let actual = a.simd_eq(b);
   assert_eq!(expected, actual);
 }
 
@@ -117,11 +114,11 @@ fn impl_u32x4_cmp_gt() {
   let a = u32x4::from([1, 2, 3, u32::MAX]);
   let b = u32x4::from([u32::MAX, 2, 2, 2]);
   let expected = u32x4::from([0, 0, u32::MAX, u32::MAX]);
-  let actual = a.cmp_gt(b);
+  let actual = a.simd_gt(b);
   assert_eq!(expected, actual);
 
   crate::test_random_vector_vs_scalar(
-    |a: u32x4, b| a.cmp_gt(b),
+    |a: u32x4, b| a.simd_gt(b),
     |a, b| if a > b { u32::MAX } else { 0 },
   );
 }
@@ -131,15 +128,15 @@ fn impl_u32x4_cmp_lt() {
   let a = u32x4::from([1, 2, 3, u32::MAX]);
   let b = u32x4::from([u32::MAX, 3, 3, 3]);
   let expected = u32x4::from([u32::MAX, u32::MAX, 0, 0]);
-  let actual = a.cmp_lt(b);
+  let actual = a.simd_lt(b);
   assert_eq!(expected, actual);
 
   let expected = u32x4::from([0, 0, 0, 0]);
-  let actual = a.cmp_lt(a);
+  let actual = a.simd_lt(a);
   assert_eq!(expected, actual);
 
   crate::test_random_vector_vs_scalar(
-    |a: u32x4, b| a.cmp_lt(b),
+    |a: u32x4, b| a.simd_lt(b),
     |a, b| if a < b { u32::MAX } else { 0 },
   );
 }

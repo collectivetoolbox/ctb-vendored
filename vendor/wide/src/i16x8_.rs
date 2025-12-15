@@ -33,7 +33,6 @@ pick! {
 
     impl Default for i16x8 {
       #[inline]
-      #[must_use]
       fn default() -> Self {
         Self::splat(0)
       }
@@ -41,7 +40,6 @@ pick! {
 
     impl PartialEq for i16x8 {
       #[inline]
-      #[must_use]
       fn eq(&self, other: &Self) -> bool {
         unsafe { vminvq_u16(vceqq_s16(self.neon, other.neon))==u16::MAX }
       }
@@ -60,10 +58,13 @@ int_uint_consts!(i16, 8, i16x8, 128);
 unsafe impl Zeroable for i16x8 {}
 unsafe impl Pod for i16x8 {}
 
+impl AlignTo for i16x8 {
+  type Elem = i16;
+}
+
 impl Add for i16x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn add(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse2")] {
@@ -91,7 +92,6 @@ impl Add for i16x8 {
 impl Sub for i16x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn sub(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse2")] {
@@ -119,7 +119,6 @@ impl Sub for i16x8 {
 impl Mul for i16x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn mul(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse2")] {
@@ -147,7 +146,6 @@ impl Mul for i16x8 {
 impl Add<i16> for i16x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn add(self, rhs: i16) -> Self::Output {
     self.add(Self::splat(rhs))
   }
@@ -156,7 +154,6 @@ impl Add<i16> for i16x8 {
 impl Sub<i16> for i16x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn sub(self, rhs: i16) -> Self::Output {
     self.sub(Self::splat(rhs))
   }
@@ -165,7 +162,6 @@ impl Sub<i16> for i16x8 {
 impl Mul<i16> for i16x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn mul(self, rhs: i16) -> Self::Output {
     self.mul(Self::splat(rhs))
   }
@@ -174,7 +170,6 @@ impl Mul<i16> for i16x8 {
 impl Add<i16x8> for i16 {
   type Output = i16x8;
   #[inline]
-  #[must_use]
   fn add(self, rhs: i16x8) -> Self::Output {
     i16x8::splat(self).add(rhs)
   }
@@ -183,7 +178,6 @@ impl Add<i16x8> for i16 {
 impl Sub<i16x8> for i16 {
   type Output = i16x8;
   #[inline]
-  #[must_use]
   fn sub(self, rhs: i16x8) -> Self::Output {
     i16x8::splat(self).sub(rhs)
   }
@@ -192,7 +186,6 @@ impl Sub<i16x8> for i16 {
 impl Mul<i16x8> for i16 {
   type Output = i16x8;
   #[inline]
-  #[must_use]
   fn mul(self, rhs: i16x8) -> Self::Output {
     i16x8::splat(self).mul(rhs)
   }
@@ -201,7 +194,6 @@ impl Mul<i16x8> for i16 {
 impl BitAnd for i16x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn bitand(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse2")] {
@@ -229,7 +221,6 @@ impl BitAnd for i16x8 {
 impl BitOr for i16x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn bitor(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse2")] {
@@ -257,7 +248,6 @@ impl BitOr for i16x8 {
 impl BitXor for i16x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn bitxor(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse2")] {
@@ -288,7 +278,6 @@ macro_rules! impl_shl_t_for_i16x8 {
       type Output = Self;
       /// Shifts all lanes by the value given.
       #[inline]
-      #[must_use]
       fn shl(self, rhs: $shift_type) -> Self::Output {
         pick! {
           if #[cfg(target_feature="sse2")] {
@@ -299,16 +288,16 @@ macro_rules! impl_shl_t_for_i16x8 {
           } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
             unsafe {Self { neon: vshlq_s16(self.neon, vmovq_n_s16(rhs as i16)) }}
           } else {
-            let u = rhs as u64;
+            let u = rhs as u32;
             Self { arr: [
-              self.arr[0] << u,
-              self.arr[1] << u,
-              self.arr[2] << u,
-              self.arr[3] << u,
-              self.arr[4] << u,
-              self.arr[5] << u,
-              self.arr[6] << u,
-              self.arr[7] << u,
+              self.arr[0].wrapping_shl(u),
+              self.arr[1].wrapping_shl(u),
+              self.arr[2].wrapping_shl(u),
+              self.arr[3].wrapping_shl(u),
+              self.arr[4].wrapping_shl(u),
+              self.arr[5].wrapping_shl(u),
+              self.arr[6].wrapping_shl(u),
+              self.arr[7].wrapping_shl(u),
             ]}
           }
         }
@@ -324,7 +313,6 @@ macro_rules! impl_shr_t_for_i16x8 {
       type Output = Self;
       /// Shifts all lanes by the value given.
       #[inline]
-      #[must_use]
       fn shr(self, rhs: $shift_type) -> Self::Output {
         pick! {
           if #[cfg(target_feature="sse2")] {
@@ -335,16 +323,16 @@ macro_rules! impl_shr_t_for_i16x8 {
           } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
             unsafe {Self { neon: vshlq_s16(self.neon, vmovq_n_s16( -(rhs as i16))) }}
           } else {
-            let u = rhs as u64;
+            let u = rhs as u32;
             Self { arr: [
-              self.arr[0] >> u,
-              self.arr[1] >> u,
-              self.arr[2] >> u,
-              self.arr[3] >> u,
-              self.arr[4] >> u,
-              self.arr[5] >> u,
-              self.arr[6] >> u,
-              self.arr[7] >> u,
+              self.arr[0].wrapping_shr(u),
+              self.arr[1].wrapping_shr(u),
+              self.arr[2].wrapping_shr(u),
+              self.arr[3].wrapping_shr(u),
+              self.arr[4].wrapping_shr(u),
+              self.arr[5].wrapping_shr(u),
+              self.arr[6].wrapping_shr(u),
+              self.arr[7].wrapping_shr(u),
             ]}
           }
         }
@@ -357,8 +345,7 @@ impl_shr_t_for_i16x8!(i8, u8, i16, u16, i32, u32, i64, u64, i128, u128);
 impl CmpEq for i16x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
-  fn cmp_eq(self, rhs: Self) -> Self::Output {
+  fn simd_eq(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse2")] {
         Self { sse: cmp_eq_mask_i16_m128i(self.sse, rhs.sse) }
@@ -385,8 +372,7 @@ impl CmpEq for i16x8 {
 impl CmpGt for i16x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
-  fn cmp_gt(self, rhs: Self) -> Self::Output {
+  fn simd_gt(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse2")] {
         Self { sse: cmp_gt_mask_i16_m128i(self.sse, rhs.sse) }
@@ -413,8 +399,7 @@ impl CmpGt for i16x8 {
 impl CmpLt for i16x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
-  fn cmp_lt(self, rhs: Self) -> Self::Output {
+  fn simd_lt(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse2")] {
         Self { sse: cmp_lt_mask_i16_m128i(self.sse, rhs.sse) }
@@ -447,12 +432,12 @@ impl i16x8 {
 
   #[inline]
   #[must_use]
-  pub fn move_mask(self) -> i32 {
+  pub fn to_bitmask(self) -> u32 {
     pick! {
       if #[cfg(target_feature="sse2")] {
-        move_mask_i8_m128i( pack_i16_to_i8_m128i(self.sse,self.sse)) & 0xff
+        (move_mask_i8_m128i( pack_i16_to_i8_m128i(self.sse,self.sse)) as u32) & 0xff
       } else if #[cfg(target_feature="simd128")] {
-        i16x8_bitmask(self.simd) as i32
+        i16x8_bitmask(self.simd) as u32
       } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
         unsafe
         {
@@ -464,17 +449,17 @@ impl i16x8 {
           let r = vandq_u16(masked, selectbit);
 
           // horizontally add the 16-bit lanes
-          vaddvq_u16(r) as i32
+          vaddvq_u16(r) as u32
          }
        } else {
-        ((self.arr[0] < 0) as i32) << 0 |
-        ((self.arr[1] < 0) as i32) << 1 |
-        ((self.arr[2] < 0) as i32) << 2 |
-        ((self.arr[3] < 0) as i32) << 3 |
-        ((self.arr[4] < 0) as i32) << 4 |
-        ((self.arr[5] < 0) as i32) << 5 |
-        ((self.arr[6] < 0) as i32) << 6 |
-        ((self.arr[7] < 0) as i32) << 7
+        ((self.arr[0] < 0) as u32) << 0 |
+        ((self.arr[1] < 0) as u32) << 1 |
+        ((self.arr[2] < 0) as u32) << 2 |
+        ((self.arr[3] < 0) as u32) << 3 |
+        ((self.arr[4] < 0) as u32) << 4 |
+        ((self.arr[5] < 0) as u32) << 5 |
+        ((self.arr[6] < 0) as u32) << 6 |
+        ((self.arr[7] < 0) as u32) << 7
       }
     }
   }
@@ -601,14 +586,14 @@ impl i16x8 {
         }
 
         i16x8::new([
-          clamp(v.as_array_ref()[0]),
-          clamp(v.as_array_ref()[1]),
-          clamp(v.as_array_ref()[2]),
-          clamp(v.as_array_ref()[3]),
-          clamp(v.as_array_ref()[4]),
-          clamp(v.as_array_ref()[5]),
-          clamp(v.as_array_ref()[6]),
-          clamp(v.as_array_ref()[7]),
+          clamp(v.as_array()[0]),
+          clamp(v.as_array()[1]),
+          clamp(v.as_array()[2]),
+          clamp(v.as_array()[3]),
+          clamp(v.as_array()[4]),
+          clamp(v.as_array()[5]),
+          clamp(v.as_array()[6]),
+          clamp(v.as_array()[7]),
         ])
       }
     }
@@ -629,14 +614,14 @@ impl i16x8 {
         i16x8 { sse: pack_i32_to_i16_m128i( a, b)  }
       } else {
       i16x8::new([
-        v.as_array_ref()[0] as i16,
-        v.as_array_ref()[1] as i16,
-        v.as_array_ref()[2] as i16,
-        v.as_array_ref()[3] as i16,
-        v.as_array_ref()[4] as i16,
-        v.as_array_ref()[5] as i16,
-        v.as_array_ref()[6] as i16,
-        v.as_array_ref()[7] as i16,
+        v.as_array()[0] as i16,
+        v.as_array()[1] as i16,
+        v.as_array()[2] as i16,
+        v.as_array()[3] as i16,
+        v.as_array()[4] as i16,
+        v.as_array()[5] as i16,
+        v.as_array()[6] as i16,
+        v.as_array()[7] as i16,
       ])
       }
     }
@@ -679,7 +664,7 @@ impl i16x8 {
   #[inline]
   #[must_use]
   pub fn is_negative(self) -> Self {
-    self.cmp_lt(Self::zeroed())
+    self.simd_lt(Self::zeroed())
   }
 
   /// horizontal add of all the elements of the vector
@@ -847,7 +832,7 @@ impl i16x8 {
       } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
         unsafe {Self { neon: vmaxq_s16(self.neon, rhs.neon) }}
       } else {
-        self.cmp_lt(rhs).blend(rhs, self)
+        self.simd_lt(rhs).blend(rhs, self)
       }
     }
   }
@@ -862,7 +847,7 @@ impl i16x8 {
       } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
         unsafe {Self { neon: vminq_s16(self.neon, rhs.neon) }}
       } else {
-        self.cmp_lt(rhs).blend(self, rhs)
+        self.simd_lt(rhs).blend(self, rhs)
       }
     }
   }
@@ -1014,14 +999,14 @@ impl i16x8 {
         Self { simd: i16x8_shuffle::<1, 3, 5, 7, 9, 11, 13, 15>(low, high) }
       } else {
         i16x8::new([
-          ((i32::from(rhs.as_array_ref()[0]) * i32::from(lhs.as_array_ref()[0])) >> 16) as i16,
-          ((i32::from(rhs.as_array_ref()[1]) * i32::from(lhs.as_array_ref()[1])) >> 16) as i16,
-          ((i32::from(rhs.as_array_ref()[2]) * i32::from(lhs.as_array_ref()[2])) >> 16) as i16,
-          ((i32::from(rhs.as_array_ref()[3]) * i32::from(lhs.as_array_ref()[3])) >> 16) as i16,
-          ((i32::from(rhs.as_array_ref()[4]) * i32::from(lhs.as_array_ref()[4])) >> 16) as i16,
-          ((i32::from(rhs.as_array_ref()[5]) * i32::from(lhs.as_array_ref()[5])) >> 16) as i16,
-          ((i32::from(rhs.as_array_ref()[6]) * i32::from(lhs.as_array_ref()[6])) >> 16) as i16,
-          ((i32::from(rhs.as_array_ref()[7]) * i32::from(lhs.as_array_ref()[7])) >> 16) as i16,
+          ((i32::from(rhs.as_array()[0]) * i32::from(lhs.as_array()[0])) >> 16) as i16,
+          ((i32::from(rhs.as_array()[1]) * i32::from(lhs.as_array()[1])) >> 16) as i16,
+          ((i32::from(rhs.as_array()[2]) * i32::from(lhs.as_array()[2])) >> 16) as i16,
+          ((i32::from(rhs.as_array()[3]) * i32::from(lhs.as_array()[3])) >> 16) as i16,
+          ((i32::from(rhs.as_array()[4]) * i32::from(lhs.as_array()[4])) >> 16) as i16,
+          ((i32::from(rhs.as_array()[5]) * i32::from(lhs.as_array()[5])) >> 16) as i16,
+          ((i32::from(rhs.as_array()[6]) * i32::from(lhs.as_array()[6])) >> 16) as i16,
+          ((i32::from(rhs.as_array()[7]) * i32::from(lhs.as_array()[7])) >> 16) as i16,
         ])
       }
     }
@@ -1055,8 +1040,8 @@ impl i16x8 {
 
          i32x8 { a: i32x4 { neon: low }, b: i32x4 {neon: high } }
        } else {
-        let a = self.as_array_ref();
-        let b = rhs.as_array_ref();
+        let a = self.as_array();
+        let b = rhs.as_array();
          i32x8::new([
            i32::from(a[0]) * i32::from(b[0]),
            i32::from(a[1]) * i32::from(b[1]),
@@ -1181,14 +1166,14 @@ impl i16x8 {
         #[inline(always)]
         fn transpose_column(data: &[i16x8; 8], index: usize) -> i16x8 {
           i16x8::new([
-            data[0].as_array_ref()[index],
-            data[1].as_array_ref()[index],
-            data[2].as_array_ref()[index],
-            data[3].as_array_ref()[index],
-            data[4].as_array_ref()[index],
-            data[5].as_array_ref()[index],
-            data[6].as_array_ref()[index],
-            data[7].as_array_ref()[index],
+            data[0].as_array()[index],
+            data[1].as_array()[index],
+            data[2].as_array()[index],
+            data[3].as_array()[index],
+            data[4].as_array()[index],
+            data[5].as_array()[index],
+            data[6].as_array()[index],
+            data[7].as_array()[index],
           ])
         }
 
@@ -1257,12 +1242,12 @@ impl i16x8 {
   }
 
   #[inline]
-  pub fn as_array_ref(&self) -> &[i16; 8] {
+  pub fn as_array(&self) -> &[i16; 8] {
     cast_ref(self)
   }
 
   #[inline]
-  pub fn as_array_mut(&mut self) -> &mut [i16; 8] {
+  pub fn as_mut_array(&mut self) -> &mut [i16; 8] {
     cast_mut(self)
   }
 }

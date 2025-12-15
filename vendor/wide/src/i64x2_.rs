@@ -33,7 +33,6 @@ pick! {
 
     impl Default for i64x2 {
       #[inline]
-      #[must_use]
       fn default() -> Self {
         unsafe { Self { neon: vdupq_n_s64(0)} }
       }
@@ -41,7 +40,6 @@ pick! {
 
     impl PartialEq for i64x2 {
       #[inline]
-      #[must_use]
       fn eq(&self, other: &Self) -> bool {
         unsafe {
           vgetq_lane_s64(self.neon,0) == vgetq_lane_s64(other.neon,0) && vgetq_lane_s64(self.neon,1) == vgetq_lane_s64(other.neon,1)
@@ -62,10 +60,13 @@ int_uint_consts!(i64, 2, i64x2, 128);
 unsafe impl Zeroable for i64x2 {}
 unsafe impl Pod for i64x2 {}
 
+impl AlignTo for i64x2 {
+  type Elem = i64;
+}
+
 impl Add for i64x2 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn add(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse2")] {
@@ -87,7 +88,6 @@ impl Add for i64x2 {
 impl Sub for i64x2 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn sub(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse2")] {
@@ -110,7 +110,6 @@ impl Sub for i64x2 {
 impl Mul for i64x2 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn mul(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="simd128")] {
@@ -130,7 +129,6 @@ impl Mul for i64x2 {
 impl Add<i64> for i64x2 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn add(self, rhs: i64) -> Self::Output {
     self.add(Self::splat(rhs))
   }
@@ -139,7 +137,6 @@ impl Add<i64> for i64x2 {
 impl Sub<i64> for i64x2 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn sub(self, rhs: i64) -> Self::Output {
     self.sub(Self::splat(rhs))
   }
@@ -148,7 +145,6 @@ impl Sub<i64> for i64x2 {
 impl Mul<i64> for i64x2 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn mul(self, rhs: i64) -> Self::Output {
     self.mul(Self::splat(rhs))
   }
@@ -157,7 +153,6 @@ impl Mul<i64> for i64x2 {
 impl Add<i64x2> for i64 {
   type Output = i64x2;
   #[inline]
-  #[must_use]
   fn add(self, rhs: i64x2) -> Self::Output {
     i64x2::splat(self).add(rhs)
   }
@@ -166,7 +161,6 @@ impl Add<i64x2> for i64 {
 impl Sub<i64x2> for i64 {
   type Output = i64x2;
   #[inline]
-  #[must_use]
   fn sub(self, rhs: i64x2) -> Self::Output {
     i64x2::splat(self).sub(rhs)
   }
@@ -175,7 +169,6 @@ impl Sub<i64x2> for i64 {
 impl Mul<i64x2> for i64 {
   type Output = i64x2;
   #[inline]
-  #[must_use]
   fn mul(self, rhs: i64x2) -> Self::Output {
     i64x2::splat(self).mul(rhs)
   }
@@ -184,7 +177,6 @@ impl Mul<i64x2> for i64 {
 impl BitAnd for i64x2 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn bitand(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse2")] {
@@ -206,7 +198,6 @@ impl BitAnd for i64x2 {
 impl BitOr for i64x2 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn bitor(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse2")] {
@@ -228,7 +219,6 @@ impl BitOr for i64x2 {
 impl BitXor for i64x2 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn bitxor(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse2")] {
@@ -247,13 +237,45 @@ impl BitXor for i64x2 {
   }
 }
 
+/// Shifts lanes by the corresponding lane.
+///
+/// Bitwise shift-left; yields `self << mask(rhs)`, where mask removes any
+/// high-order bits of `rhs` that would cause the shift to exceed the bitwidth
+/// of the type. (same as `wrapping_shl`)
+impl Shl for i64x2 {
+  type Output = Self;
+
+  #[inline]
+  fn shl(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(target_feature="avx2")] {
+        // mask the shift count to 63 to have same behavior on all platforms
+        let shift_by = rhs & Self::splat(63);
+        Self { sse: shl_each_u64_m128i(self.sse, shift_by.sse) }
+      } else if #[cfg(all(target_feature="neon", target_arch="aarch64"))] {
+        unsafe {
+          // mask the shift count to 63 to have same behavior on all platforms
+          let shift_by = vandq_s64(rhs.neon, vmovq_n_s64(63));
+          Self { neon: vshlq_s64(self.neon, shift_by) }
+        }
+      } else {
+        let arr: [i64; 2] = cast(self);
+        let rhs: [i64; 2] = cast(rhs);
+        cast([
+          arr[0].wrapping_shl(rhs[0] as u32),
+          arr[1].wrapping_shl(rhs[1] as u32),
+        ])
+      }
+    }
+  }
+}
+
 macro_rules! impl_shl_t_for_i64x2 {
   ($($shift_type:ty),+ $(,)?) => {
     $(impl Shl<$shift_type> for i64x2 {
       type Output = Self;
       /// Shifts all lanes by the value given.
       #[inline]
-      #[must_use]
       fn shl(self, rhs: $shift_type) -> Self::Output {
         pick! {
           if #[cfg(target_feature="sse2")] {
@@ -264,10 +286,10 @@ macro_rules! impl_shl_t_for_i64x2 {
           } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
             unsafe {Self { neon: vshlq_s64(self.neon, vmovq_n_s64(rhs as i64)) }}
           } else {
-            let u = rhs as u64;
+            let u = rhs as u32;
             Self { arr: [
-              self.arr[0] << u,
-              self.arr[1] << u,
+              self.arr[0].wrapping_shl(u),
+              self.arr[1].wrapping_shl(u),
             ]}
           }
         }
@@ -277,23 +299,52 @@ macro_rules! impl_shl_t_for_i64x2 {
 }
 impl_shl_t_for_i64x2!(i8, u8, i16, u16, i32, u32, i64, u64, i128, u128);
 
+/// Shifts lanes by the corresponding lane.
+///
+/// Bitwise shift-right; yields `self >> mask(rhs)`, where mask removes any
+/// high-order bits of `rhs` that would cause the shift to exceed the bitwidth
+/// of the type. (same as `wrapping_shr`)
+impl Shr for i64x2 {
+  type Output = Self;
+
+  #[inline]
+  fn shr(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(all(target_feature="neon", target_arch="aarch64"))] {
+        unsafe {
+          // mask the shift count to 63 to have same behavior on all platforms
+          // no right shift, have to pass negative value to left shift on neon
+          let shift_by = vnegq_s64(vandq_s64(rhs.neon, vmovq_n_s64(63)));
+          Self { neon: vshlq_s64(self.neon, shift_by) }
+        }
+      } else {
+        let arr: [i64; 2] = cast(self);
+        let rhs: [i64; 2] = cast(rhs);
+        cast([
+          arr[0].wrapping_shr(rhs[0] as u32),
+          arr[1].wrapping_shr(rhs[1] as u32),
+        ])
+      }
+    }
+  }
+}
+
 macro_rules! impl_shr_t_for_i64x2 {
   ($($shift_type:ty),+ $(,)?) => {
     $(impl Shr<$shift_type> for i64x2 {
       type Output = Self;
       /// Shifts all lanes by the value given.
       #[inline]
-      #[must_use]
       fn shr(self, rhs: $shift_type) -> Self::Output {
         pick! {
           if #[cfg(target_feature="simd128")] {
             Self { simd: i64x2_shr(self.simd, rhs as u32) }
           } else {
-            let u = rhs as u64;
+            let u = rhs as u32;
             let arr: [i64; 2] = cast(self);
             cast([
-              arr[0] >> u,
-              arr[1] >> u,
+              arr[0].wrapping_shr(u),
+              arr[1].wrapping_shr(u),
             ])
           }
         }
@@ -307,8 +358,7 @@ impl_shr_t_for_i64x2!(i8, u8, i16, u16, i32, u32, i64, u64, i128, u128);
 impl CmpEq for i64x2 {
   type Output = Self;
   #[inline]
-  #[must_use]
-  fn cmp_eq(self, rhs: Self) -> Self::Output {
+  fn simd_eq(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse4.1")] {
         Self { sse: cmp_eq_mask_i64_m128i(self.sse, rhs.sse) }
@@ -331,8 +381,7 @@ impl CmpEq for i64x2 {
 impl CmpGt for i64x2 {
   type Output = Self;
   #[inline]
-  #[must_use]
-  fn cmp_gt(self, rhs: Self) -> Self::Output {
+  fn simd_gt(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse4.2")] {
         Self { sse: cmp_gt_mask_i64_m128i(self.sse, rhs.sse) }
@@ -355,11 +404,11 @@ impl CmpGt for i64x2 {
 impl CmpLt for i64x2 {
   type Output = Self;
   #[inline]
-  #[must_use]
-  fn cmp_lt(self, rhs: Self) -> Self::Output {
+  fn simd_lt(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse4.2")] {
-        Self { sse: !cmp_gt_mask_i64_m128i(self.sse, rhs.sse) }
+        // only has gt, so flip arguments around to get lt
+        Self { sse: cmp_gt_mask_i64_m128i( rhs.sse, self.sse) }
       } else if #[cfg(target_feature="simd128")] {
         Self { simd: i64x2_lt(self.simd, rhs.simd) }
       } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
@@ -449,17 +498,17 @@ impl i64x2 {
   /// lane being the lowest bit
   #[inline]
   #[must_use]
-  pub fn move_mask(self) -> i32 {
+  pub fn to_bitmask(self) -> u32 {
     pick! {
       if #[cfg(target_feature="sse")] {
         // use f64 move_mask since it is the same size as i64
-        move_mask_m128d(cast(self.sse))
+        move_mask_m128d(cast(self.sse)) as u32
       } else if #[cfg(target_feature="simd128")] {
-        i64x2_bitmask(self.simd) as i32
+        i64x2_bitmask(self.simd) as u32
       } else {
         // nothing amazingly efficient for neon
         let arr: [u64; 2] = cast(self);
-        (arr[0] >> 63 | ((arr[1] >> 62) & 2)) as i32
+        (arr[0] >> 63 | ((arr[1] >> 62) & 2)) as u32
       }
     }
   }
@@ -511,12 +560,12 @@ impl i64x2 {
   }
 
   #[inline]
-  pub fn as_array_ref(&self) -> &[i64; 2] {
+  pub fn as_array(&self) -> &[i64; 2] {
     cast_ref(self)
   }
 
   #[inline]
-  pub fn as_array_mut(&mut self) -> &mut [i64; 2] {
+  pub fn as_mut_array(&mut self) -> &mut [i64; 2] {
     cast_mut(self)
   }
 }

@@ -10,10 +10,16 @@
 // Lesser General Public License (LGPL as published by the Free Software Foundation; either version
 // 3 of the License, or (at your option any later version. See <https://www.gnu.org/licenses/>.
 
-use crate::num::arithmetic::traits::{RootRem, SqrtRem};
+use crate::num::arithmetic::traits::{
+    CheckedRoot, DivAssignMod, DivMod, GcdAssign, Parity, RootRem, SqrtRem,
+};
 use crate::num::basic::integers::USIZE_IS_U32;
 use crate::num::conversion::traits::{ExactFrom, WrappingFrom};
-use crate::num::factorization::traits::{ExpressAsPower, IsPower, IsSquare};
+use crate::num::factorization::primes::SMALL_PRIMES;
+use crate::num::factorization::traits::{
+    ExpressAsPower, Factor, IsPower, IsPrime, IsSquare, Primes,
+};
+use crate::num::logic::traits::{SignificantBits, TrailingZeros};
 
 // The following arrays are bitmasks indicating whether an integer is a 2, 3, or 5th power residue.
 // For example, modulo 31 we have:
@@ -131,7 +137,7 @@ fn get_perfect_power_u32(n: u32) -> Option<(u32, u64)> {
     }
     // Check other powers (exp >= 17, root <= 13 and odd)
     let mut exp = 0;
-    while n % 3 == 0 {
+    while n.is_multiple_of(3) {
         n /= 3;
         exp += 1;
     }
@@ -195,7 +201,7 @@ fn get_perfect_power_u32_bool(n: u32) -> bool {
     }
     // Check other powers (exp >= 17, root <= 13 and odd)
     let mut exp = 0;
-    while n % 3 == 0 {
+    while n.is_multiple_of(3) {
         n /= 3;
         exp += 1;
     }
@@ -268,7 +274,7 @@ fn get_perfect_power_u64(n: u64) -> Option<(u64, u64)> {
     }
     // Check other powers (exp >= 17, root <= 13 and odd)
     let mut exp = 0;
-    while n % 3 == 0 {
+    while n.is_multiple_of(3) {
         n /= 3;
         exp += 1;
     }
@@ -286,7 +292,7 @@ fn get_perfect_power_u64(n: u64) -> Option<(u64, u64)> {
     }
     // Check powers of 5
     exp = 0;
-    while n % 5 == 0 {
+    while n.is_multiple_of(5) {
         n /= 5;
         exp += 1;
     }
@@ -305,7 +311,7 @@ fn get_perfect_power_u64(n: u64) -> Option<(u64, u64)> {
     }
     // Check powers of 7
     exp = 0;
-    while n % 7 == 0 {
+    while n.is_multiple_of(7) {
         n /= 7;
         exp += 1;
     }
@@ -317,7 +323,7 @@ fn get_perfect_power_u64(n: u64) -> Option<(u64, u64)> {
     }
     // Check powers of 11
     exp = 0;
-    while n % 11 == 0 {
+    while n.is_multiple_of(11) {
         n /= 11;
         exp += 1;
     }
@@ -329,7 +335,7 @@ fn get_perfect_power_u64(n: u64) -> Option<(u64, u64)> {
     }
     // Check powers of 13
     exp = 0;
-    while n % 13 == 0 {
+    while n.is_multiple_of(13) {
         n /= 13;
         exp += 1;
     }
@@ -387,7 +393,7 @@ fn get_perfect_power_u64_bool(n: u64) -> bool {
     }
     // Check other powers (exp >= 17, root <= 13 and odd)
     let mut exp = 0;
-    while n % 3 == 0 {
+    while n.is_multiple_of(3) {
         n /= 3;
         exp += 1;
     }
@@ -396,7 +402,7 @@ fn get_perfect_power_u64_bool(n: u64) -> bool {
     }
     // Check powers of 5
     exp = 0;
-    while n % 5 == 0 {
+    while n.is_multiple_of(5) {
         n /= 5;
         exp += 1;
     }
@@ -408,7 +414,7 @@ fn get_perfect_power_u64_bool(n: u64) -> bool {
     }
     // Check powers of 7
     exp = 0;
-    while n % 7 == 0 {
+    while n.is_multiple_of(7) {
         n /= 7;
         exp += 1;
     }
@@ -417,7 +423,7 @@ fn get_perfect_power_u64_bool(n: u64) -> bool {
     }
     // Check powers of 11
     exp = 0;
-    while n % 11 == 0 {
+    while n.is_multiple_of(11) {
         n /= 11;
         exp += 1;
     }
@@ -426,11 +432,149 @@ fn get_perfect_power_u64_bool(n: u64) -> bool {
     }
     // Check powers of 13
     exp = 0;
-    while n % 13 == 0 {
+    while n.is_multiple_of(13) {
         n /= 13;
         exp += 1;
     }
     n == 1 && exp > 1
+}
+
+fn get_perfect_power_u128(n: u128) -> Option<(u128, u64)> {
+    if let Ok(n) = u64::try_from(n) {
+        return get_perfect_power_u64(n).map(|(p, e)| (u128::from(p), e));
+    }
+    // Find largest power of 2 dividing n
+    let mut pow_2 = TrailingZeros::trailing_zeros(n);
+    // Two divides exactly once - not a perfect power
+    if pow_2 == 1 {
+        return None;
+    }
+    // If pow_2 is prime, just check if n is a perfect pow_2-th power
+    if pow_2.is_prime() {
+        return n.checked_root(pow_2).map(|root| (root, pow_2));
+    }
+    // Divide out 2^pow_2 to get the odd part
+    let mut q = n >> pow_2;
+    // Factor out powers of small primes
+    for &prime in SMALL_PRIMES[..168].iter().skip(1) {
+        let prime = u128::from(prime);
+        let (new_q, r) = q.div_mod(prime);
+        if r == 0 {
+            q = new_q;
+            if q.div_assign_mod(prime) != 0 {
+                return None; // prime divides exactly once, reject
+            }
+            let mut pow_p = 2u64;
+            loop {
+                let (new_q, r) = q.div_mod(prime);
+                if r == 0 {
+                    q = new_q;
+                    pow_p += 1;
+                } else {
+                    break;
+                }
+            }
+            pow_2.gcd_assign(pow_p);
+            if pow_2 == 1 {
+                return None; // we have multiplicity 1 of some factor
+            }
+            // As soon as pow_2 becomes prime, stop factoring
+            if q == 1 || pow_2.is_prime() {
+                return n.checked_root(pow_2).map(|root| (root, pow_2));
+            }
+        }
+    }
+    // After factoring, check remaining cases
+    if pow_2 == 0 {
+        // No factors found above; exhaustively check all prime exponents
+        let bits = n.significant_bits();
+        for nth in u64::primes() {
+            // Terminate if exponent exceeds bit length (n ^ (1 / nth) < 2 for nth > bits)
+            if nth > bits {
+                return None;
+            }
+            if let Some(root) = n.checked_root(nth) {
+                return Some((root, nth));
+            }
+        }
+    } else {
+        // Found some factors; only check prime divisors of pow_2
+        for (nth, _) in pow_2.factor() {
+            if let Some(root) = n.checked_root(nth) {
+                return Some((root, nth));
+            }
+        }
+    }
+    None
+}
+
+fn get_perfect_power_u128_bool(n: u128) -> bool {
+    if let Ok(n) = u64::try_from(n) {
+        return get_perfect_power_u64_bool(n);
+    }
+    // Find largest power of 2 dividing n
+    let mut pow_2 = TrailingZeros::trailing_zeros(n);
+    // Two divides exactly once - not a perfect power
+    if pow_2 == 1 {
+        return false;
+    }
+    // If pow_2 is prime, check if n is a perfect pow_2-th power
+    if pow_2.is_prime() {
+        return n.checked_root(pow_2).is_some();
+    }
+    // Divide out 2^pow_2 to get the odd part
+    let mut q = n >> pow_2;
+    // Factor out powers of small primes
+    for &prime in SMALL_PRIMES[..168].iter().skip(1) {
+        let prime = u128::from(prime);
+        let (new_q, r) = q.div_mod(prime);
+        if r == 0 {
+            q = new_q;
+            if q.div_assign_mod(prime) != 0 {
+                return false; // prime divides exactly once, reject
+            }
+            let mut pow_p = 2u64;
+            loop {
+                let (new_q, r) = q.div_mod(prime);
+                if r == 0 {
+                    q = new_q;
+                    pow_p += 1;
+                } else {
+                    break;
+                }
+            }
+            pow_2.gcd_assign(pow_p);
+            if pow_2 == 1 {
+                return false; // we have multiplicity 1 of some factor
+            }
+            // As soon as pow_2 becomes prime, stop factoring
+            if q == 1 || pow_2.is_prime() {
+                return n.checked_root(pow_2).is_some();
+            }
+        }
+    }
+    // After factoring, check remaining cases
+    if pow_2 == 0 {
+        // No factors found above; exhaustively check all prime exponents
+        let bits = n.significant_bits();
+        for nth in u64::primes() {
+            // Terminate if exponent exceeds bit length (n ^ (1 / nth) < 2 for nth > bits)
+            if nth > bits {
+                return false;
+            }
+            if n.checked_root(nth).is_some() {
+                return true;
+            }
+        }
+    } else {
+        // Found some factors; only check prime divisors of pow_2
+        for (nth, _) in pow_2.factor() {
+            if n.checked_root(nth).is_some() {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn express_as_power_u32(n: u32) -> Option<(u32, u64)> {
@@ -473,6 +617,26 @@ fn express_as_power_u64(n: u64) -> Option<(u64, u64)> {
     Some((base, exp))
 }
 
+fn express_as_power_u128(n: u128) -> Option<(u128, u64)> {
+    if n <= 1 {
+        return Some((n, 2));
+    }
+    // continue until we have largest possible exponent
+    let (mut base, mut exp) = get_perfect_power_u128(n)?;
+    while base > 3 {
+        match get_perfect_power_u128(base) {
+            Some((base2, exp2)) => {
+                base = base2;
+                exp *= exp2;
+            }
+            None => {
+                return Some((base, exp));
+            }
+        }
+    }
+    Some((base, exp))
+}
+
 fn express_as_power_i32(n: i32) -> Option<(i32, u64)> {
     if n == 0 || n == 1 {
         return Some((n, 2));
@@ -489,8 +653,8 @@ fn express_as_power_i32(n: i32) -> Option<(i32, u64)> {
         }
     }
     // handle negative input
-    if n < 0 && (exp & 1) == 0 {
-        while (exp & 1) == 0 {
+    if n < 0 && exp.even() {
+        while exp.even() {
             base *= base;
             exp >>= 1;
         }
@@ -518,8 +682,8 @@ fn express_as_power_i64(n: i64) -> Option<(i64, u64)> {
         }
     }
     // handle negative input
-    if n < 0 && (exp & 1) == 0 {
-        while (exp & 1) == 0 {
+    if n < 0 && exp.even() {
+        while exp.even() {
             base *= base;
             exp >>= 1;
         }
@@ -528,6 +692,35 @@ fn express_as_power_i64(n: i64) -> Option<(i64, u64)> {
         }
     }
     let ibase = i64::exact_from(base);
+    Some((if n >= 0 { ibase } else { -ibase }, exp))
+}
+
+fn express_as_power_i128(n: i128) -> Option<(i128, u64)> {
+    if n == 0 || n == 1 {
+        return Some((n, 2));
+    }
+    // continue until we have largest possible exponent
+    let (mut base, mut exp) = get_perfect_power_u128(n.unsigned_abs())?;
+    while base > 3 {
+        match get_perfect_power_u128(base) {
+            Some((base2, exp2)) => {
+                base = base2;
+                exp *= exp2;
+            }
+            None => break,
+        }
+    }
+    // handle negative input
+    if n < 0 && exp.even() {
+        while exp.even() {
+            base *= base;
+            exp >>= 1;
+        }
+        if exp == 1 {
+            return None;
+        }
+    }
+    let ibase = i128::exact_from(base);
     Some((if n >= 0 { ibase } else { -ibase }, exp))
 }
 
@@ -545,6 +738,12 @@ fn is_power_i32(n: i32) -> bool {
     if n == 0 || n == 1 {
         return true;
     }
+    if n > 0 {
+        // For positive numbers, just check if it's a perfect power
+        return get_perfect_power_u32_bool(n.unsigned_abs());
+    }
+    // For negative numbers, we need to check if there's an odd exponent representation
+    //
     // continue until we have largest possible exponent
     let (mut base, mut exp) = if let Some((base, exp)) = get_perfect_power_u32(n.unsigned_abs()) {
         (base, exp)
@@ -560,22 +759,20 @@ fn is_power_i32(n: i32) -> bool {
             None => break,
         }
     }
-    // handle negative input
-    if n < 0 && (exp & 1) == 0 {
-        while (exp & 1) == 0 {
-            base *= base;
-            exp >>= 1;
-        }
-        exp != 1
-    } else {
-        true
-    }
+    // Check if we can make the exponent odd
+    !exp.is_power_of_two()
 }
 
 fn is_power_i64(n: i64) -> bool {
     if n == 0 || n == 1 {
         return true;
     }
+    if n > 0 {
+        // For positive numbers, just check if it's a perfect power
+        return get_perfect_power_u64_bool(n.unsigned_abs());
+    }
+    // For negative numbers, we need to check if there's an odd exponent representation
+    //
     // continue until we have largest possible exponent
     let (mut base, mut exp) = if let Some((base, exp)) = get_perfect_power_u64(n.unsigned_abs()) {
         (base, exp)
@@ -591,16 +788,37 @@ fn is_power_i64(n: i64) -> bool {
             None => break,
         }
     }
-    // handle negative input
-    if n < 0 && (exp & 1) == 0 {
-        while (exp & 1) == 0 {
-            base *= base;
-            exp >>= 1;
-        }
-        exp != 1
-    } else {
-        true
+    // Check if we can make the exponent odd
+    !exp.is_power_of_two()
+}
+
+fn is_power_i128(n: i128) -> bool {
+    if n == 0 || n == 1 {
+        return true;
     }
+    if n > 0 {
+        // For positive numbers, just check if it's a perfect power
+        return get_perfect_power_u128_bool(n.unsigned_abs());
+    }
+    // For negative numbers, we need to check if there's an odd exponent representation
+    //
+    // continue until we have largest possible exponent
+    let (mut base, mut exp) = if let Some((base, exp)) = get_perfect_power_u128(n.unsigned_abs()) {
+        (base, exp)
+    } else {
+        return false;
+    };
+    while base > 3 {
+        match get_perfect_power_u128(base) {
+            Some((base2, exp2)) => {
+                base = base2;
+                exp *= exp2;
+            }
+            None => break,
+        }
+    }
+    // Check if we can make the exponent odd
+    !exp.is_power_of_two()
 }
 
 impl ExpressAsPower for u64 {
@@ -626,6 +844,29 @@ impl ExpressAsPower for u64 {
     }
 }
 
+impl ExpressAsPower for u128 {
+    /// Expresses a number as a perfect power, if such a representation exists. We define a perfect
+    /// power as any number of the form $a^x$ where $x > 1$, with $a$ and $x$ both integers. In
+    /// particular, 0 and 1 are considered perfect powers. If a number has more than one
+    /// representation as a power, the representation with the smallest base is returned. For
+    /// example, $64=2^6=4^3=8^2$, but this function returns `(2,6)` rather than `(4,3)` or `(8,2)`.
+    ///
+    /// # Worst-case complexity
+    /// Constant time and additional memory.
+    ///
+    /// # Examples
+    /// See [here](super::is_power#express_as_power).
+    ///
+    /// # Notes
+    /// - This returns an [`Option`] which is either `Some((base, exp))` if the input is a perfect
+    ///   power equal to $\text{base}^\text{exp}$, otherwise `None`.
+    /// - For 0 this returns `Some((0, 2))` and for 1 this returns `Some((1, 2))`.
+    #[inline]
+    fn express_as_power(&self) -> Option<(Self, u64)> {
+        express_as_power_u128(*self)
+    }
+}
+
 impl ExpressAsPower for usize {
     /// Expresses a number as a perfect power, if such a representation exists. We define a perfect
     /// power as any number of the form $a^x$ where $x > 1$, with $a$ and $x$ both integers. In
@@ -643,15 +884,15 @@ impl ExpressAsPower for usize {
     /// - This returns an [`Option`] which is either `Some((base, exp))` if the input is a perfect
     ///   power equal to $\text{base}^\text{exp}$, otherwise `None`.
     /// - For 0 this returns `Some((0, 2))` and for 1 this returns `Some((1, 2))`.
-    fn express_as_power(&self) -> Option<(usize, u64)> {
+    fn express_as_power(&self) -> Option<(Self, u64)> {
         if USIZE_IS_U32 {
             match express_as_power_u32(u32::wrapping_from(*self)) {
-                Some((base, exp)) => Some((usize::wrapping_from(base), exp)),
+                Some((base, exp)) => Some((Self::wrapping_from(base), exp)),
                 _ => None,
             }
         } else {
             match express_as_power_u64(u64::wrapping_from(*self)) {
-                Some((base, exp)) => Some((usize::wrapping_from(base), exp)),
+                Some((base, exp)) => Some((Self::wrapping_from(base), exp)),
                 _ => None,
             }
         }
@@ -673,6 +914,24 @@ impl IsPower for u64 {
     #[inline]
     fn is_power(&self) -> bool {
         is_power_u64(*self)
+    }
+}
+
+impl IsPower for u128 {
+    /// Determines whether an integer is a perfect power. We define a perfect power as any number of
+    /// the form $a^x$ where $x > 1$, with $a$ and $x$ both integers. In particular 0 and 1 are
+    /// considered perfect powers.
+    ///
+    /// $f(x) = (\exists b \in \Z, e \in \N : e > 1 \ \text{and} \ b^e = x)$.
+    ///
+    /// # Worst-case complexity
+    /// Constant time and additional memory.
+    ///
+    /// # Examples
+    /// See [here](super::is_power#is_power).
+    #[inline]
+    fn is_power(&self) -> bool {
+        get_perfect_power_u128_bool(*self)
     }
 }
 
@@ -766,8 +1025,31 @@ impl ExpressAsPower for i64 {
     ///   power equal to $\text{base}^\text{exp}$, otherwise `None`.
     /// - For 0 this returns `Some((0, 2))` and for 1 this returns `Some((1, 2))`.
     #[inline]
-    fn express_as_power(&self) -> Option<(i64, u64)> {
+    fn express_as_power(&self) -> Option<(Self, u64)> {
         express_as_power_i64(*self)
+    }
+}
+
+impl ExpressAsPower for i128 {
+    /// Expresses a number as a perfect power, if such a representation exists. We define a perfect
+    /// power as any number of the form $a^x$ where $x > 1$, with $a$ and $x$ both integers. In
+    /// particular, 0 and 1 are considered perfect powers. If a number has more than one
+    /// representation as a power, the representation with the smallest base is returned. For
+    /// example, $64=2^6=4^3=8^2$, but this function returns `(2,6)` rather than `(4,3)` or `(8,2)`.
+    ///
+    /// # Worst-case complexity
+    /// Constant time and additional memory.
+    ///
+    /// # Examples
+    /// See [here](super::is_power#express_as_power).
+    ///
+    /// # Notes
+    /// - This returns an [`Option`] which is either `Some((base, exp))` if the input is a perfect
+    ///   power equal to $\text{base}^\text{exp}$, otherwise `None`.
+    /// - For 0 this returns `Some((0, 2))` and for 1 this returns `Some((1, 2))`.
+    #[inline]
+    fn express_as_power(&self) -> Option<(Self, u64)> {
+        express_as_power_i128(*self)
     }
 }
 
@@ -788,15 +1070,15 @@ impl ExpressAsPower for isize {
     /// - This returns an [`Option`] which is either `Some((base, exp))` if the input is a perfect
     ///   power equal to $\text{base}^\text{exp}$, otherwise `None`.
     /// - For 0 this returns `Some((0, 2))` and for 1 this returns `Some((1, 2))`.
-    fn express_as_power(&self) -> Option<(isize, u64)> {
+    fn express_as_power(&self) -> Option<(Self, u64)> {
         if USIZE_IS_U32 {
             match express_as_power_i32(i32::wrapping_from(*self)) {
-                Some((base, exp)) => Some((isize::wrapping_from(base), exp)),
+                Some((base, exp)) => Some((Self::wrapping_from(base), exp)),
                 _ => None,
             }
         } else {
             match express_as_power_i64(i64::wrapping_from(*self)) {
-                Some((base, exp)) => Some((isize::wrapping_from(base), exp)),
+                Some((base, exp)) => Some((Self::wrapping_from(base), exp)),
                 _ => None,
             }
         }
@@ -818,6 +1100,24 @@ impl IsPower for i64 {
     #[inline]
     fn is_power(&self) -> bool {
         is_power_i64(*self)
+    }
+}
+
+impl IsPower for i128 {
+    /// Determines whether an integer is a perfect power. We define a perfect power as any number of
+    /// the form $a^x$ where $x > 1$, with $a$ and $x$ both integers. In particular 0 and 1 are
+    /// considered perfect powers.
+    ///
+    /// $f(x) = (\exists b \in \Z, e \in \N : e > 1 \ \text{and} \ b^e = x)$.
+    ///
+    /// # Worst-case complexity
+    /// Constant time and additional memory.
+    ///
+    /// # Examples
+    /// See [here](super::is_power#is_power).
+    #[inline]
+    fn is_power(&self) -> bool {
+        is_power_i128(*self)
     }
 }
 

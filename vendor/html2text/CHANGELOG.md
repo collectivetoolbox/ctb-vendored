@@ -9,7 +9,35 @@ Possible log types:
 - `[fixed]` for any bug fixes.
 - `[security]` to invite users to upgrade in case of vulnerabilities.
 
-### Latest
+### 0.16.5
+
+- [fixed] Fix a subtract with underflow with rowspans and empty rows (thanks
+  mdierksen)
+
+### 0.16.4
+
+- [fixed] Further fix for RcDom::serialize() when there is a `<doctype>`.
+
+### 0.16.3
+
+- [fixed] RcDom::serialize() panicked.
+- [changed] Bumped html5ever dependency
+- [fixed] Fixed a subtraction underflow in the `html2term` example.
+
+### 0.16.2
+
+- [fixed] Removed spurious `dbg!()` accidentally left in.
+
+### 0.16.1
+
+- [added] Add `Config::empty_img_mode()` to configure how images with no alt text
+  are handled.
+
+### 0.16.0
+
+- [changed] Updated MSRV to 1.85.
+- [fixed] Fix a panic in debug mode (subtraction underflow) with some table/rowspan
+  edge cases (thanks mtorromeo)
 
 ### 0.15.5
 

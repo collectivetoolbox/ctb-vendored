@@ -7,10 +7,7 @@ fn size_align() {
   assert_eq!(core::mem::align_of::<i64x4>(), 32);
 }
 
-#[test]
-fn basic_traits() {
-  crate::test_basic_traits::<i64x4, _, 4>();
-}
+crate::generate_basic_traits_test!(i64x4, i64);
 
 #[test]
 fn impl_add_for_i64x4() {
@@ -72,6 +69,20 @@ fn impl_bitxor_for_i64x4() {
 }
 
 #[test]
+fn impl_shl_each_for_i64x4() {
+  let a = i64x4::from([i64::MAX - 1, -1, 0, -1]);
+  let shift = i64x4::from([2, 3, 4, 65 /* test masking behavior */]);
+  let expected = i64x4::from([(i64::MAX - 1) << 2, -1 << 3, 0 << 4, -1 << 1]);
+  let actual = a << shift;
+  assert_eq!(expected, actual);
+
+  crate::test_random_vector_vs_scalar(
+    |a: i64x4, b| a << b,
+    |a, b| a.wrapping_shl(b as u32),
+  );
+}
+
+#[test]
 fn impl_shl_for_i64x4() {
   let a = i64x4::from([i64::MAX - 1, i64::MAX - 1, 65535, 0]);
   let b = 2;
@@ -79,6 +90,20 @@ fn impl_shl_for_i64x4() {
     i64x4::from([(i64::MAX - 1) << 2, (i64::MAX - 1) << 2, 65535 << 2, 0 << 2]);
   let actual = a << b;
   assert_eq!(expected, actual);
+}
+
+#[test]
+fn impl_shr_each_for_i64x4() {
+  let a = i64x4::from([i64::MAX - 1, -1, 0, -1]);
+  let shift = i64x4::from([2, 3, 4, 65 /* test masking behavior */]);
+  let expected = i64x4::from([(i64::MAX - 1) >> 2, -1 >> 3, 0 >> 4, -1 >> 1]);
+  let actual = a >> shift;
+  assert_eq!(expected, actual);
+
+  crate::test_random_vector_vs_scalar(
+    |a: i64x4, b| a >> b,
+    |a, b| a.wrapping_shr(b as u32),
+  );
 }
 
 #[test]
@@ -123,7 +148,7 @@ fn impl_i64x4_cmp_eq() {
   let a = i64x4::from([1_i64, 4, i64::MAX, 5]);
   let b = i64x4::from([3_i64, 4, i64::MAX, 1]);
   let expected = i64x4::from([0, -1, -1, 0]);
-  let actual = a.cmp_eq(b);
+  let actual = a.simd_eq(b);
   assert_eq!(expected, actual);
 }
 
@@ -131,17 +156,17 @@ fn impl_i64x4_cmp_eq() {
 fn test_i64x4_move_mask() {
   let a = i64x4::from([-1, 0, -2, -3]);
   let expected = 0b1101;
-  let actual = a.move_mask();
+  let actual = a.to_bitmask();
   assert_eq!(expected, actual);
   //
   let a = i64x4::from([i64::MAX, 0, 2, -3]);
   let expected = 0b1000;
-  let actual = a.move_mask();
+  let actual = a.to_bitmask();
   assert_eq!(expected, actual);
 
   crate::test_random_vector_vs_scalar_reduce(
-    |a: i64x4| a.move_mask(),
-    0i32,
+    |a: i64x4| a.to_bitmask(),
+    0_u32,
     |acc, a, idx| acc | if a < 0 { 1 << idx } else { 0 },
   );
 }

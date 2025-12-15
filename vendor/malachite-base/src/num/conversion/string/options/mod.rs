@@ -23,15 +23,15 @@ pub enum SciSizeOptions {
 }
 
 impl Default for SciSizeOptions {
-    fn default() -> SciSizeOptions {
-        SciSizeOptions::Precision(16) // Similar to f64 string output
+    fn default() -> Self {
+        Self::Precision(16) // Similar to f64 string output
     }
 }
 
 #[cfg(feature = "test_build")]
 impl SciSizeOptions {
     pub const fn is_valid(&self) -> bool {
-        if let SciSizeOptions::Precision(p) = *self {
+        if let Self::Precision(p) = *self {
             p != 0
         } else {
             true
@@ -84,8 +84,8 @@ pub struct ToSciOptions {
 }
 
 impl Default for ToSciOptions {
-    fn default() -> ToSciOptions {
-        ToSciOptions {
+    fn default() -> Self {
+        Self {
             base: 10,
             rounding_mode: Nearest,
             size_options: SciSizeOptions::default(),
@@ -256,8 +256,8 @@ pub struct FromSciStringOptions {
 }
 
 impl Default for FromSciStringOptions {
-    fn default() -> FromSciStringOptions {
-        FromSciStringOptions {
+    fn default() -> Self {
+        Self {
             base: 10,
             rounding_mode: Nearest,
         }

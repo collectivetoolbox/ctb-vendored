@@ -7,6 +7,7 @@
 // 3 of the License, or (at your option) any later version. See <https://www.gnu.org/licenses/>.
 
 use alloc::vec::Vec;
+
 /// Remembers values produced by an iterator.
 ///
 /// After wrapping an iterator with an `IteratorCache`, you can retrieve a reference to the $n$th
@@ -33,8 +34,8 @@ impl<I: Iterator> IteratorCache<I> {
     ///
     /// IteratorCache::new([1, 2, 3].iter());
     /// ```
-    pub const fn new(xs: I) -> IteratorCache<I> {
-        IteratorCache {
+    pub const fn new(xs: I) -> Self {
+        Self {
             xs,
             cache: Vec::new(),
             done: false,
@@ -130,7 +131,7 @@ impl<I: Iterator> IteratorCache<I> {
     /// assert_eq!(xs.known_len(), Some(3));
     /// assert_eq!(xs.get(2), Some(&3));
     /// ```
-    pub fn known_len(&self) -> Option<usize> {
+    pub const fn known_len(&self) -> Option<usize> {
         if self.done {
             Some(self.cache.len())
         } else {

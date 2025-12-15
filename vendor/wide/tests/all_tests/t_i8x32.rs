@@ -6,10 +6,7 @@ fn size_align() {
   assert_eq!(core::mem::align_of::<i8x32>(), 32);
 }
 
-#[test]
-fn basic_traits() {
-  crate::test_basic_traits::<i8x32, _, 32>();
-}
+crate::generate_basic_traits_test!(i8x32, i8);
 
 #[test]
 fn impl_add_for_i8x32() {
@@ -208,7 +205,7 @@ fn impl_i8x32_cmp_eq() {
     0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0,
     0, 0, -1, 0, 0, 0, -1, 0, 0,
   ]);
-  let actual = a.cmp_eq(b);
+  let actual = a.simd_eq(b);
   assert_eq!(expected, actual);
 }
 
@@ -223,7 +220,7 @@ fn impl_i8x32_cmp_gt() {
     0, 0, -1, -1, 0, 0, -1, -1, 0, 0, -1, -1, 0, 0, -1, -1, 0, 0, -1, -1, 0, 0,
     -1, -1, 0, 0, -1, -1, 0, 0, -1, -1,
   ]);
-  let actual = a.cmp_gt(b);
+  let actual = a.simd_gt(b);
   assert_eq!(expected, actual);
 }
 
@@ -238,14 +235,14 @@ fn impl_i8x32_cmp_lt() {
     -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0,
     0, -1, 0, 0, 0, -1, 0, 0, 0,
   ]);
-  let actual = a.cmp_lt(b);
+  let actual = a.simd_lt(b);
   assert_eq!(expected, actual);
 
   let expected = i8x32::from([
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0,
   ]);
-  let actual = a.cmp_lt(a);
+  let actual = a.simd_lt(a);
   assert_eq!(expected, actual);
 }
 
@@ -588,7 +585,7 @@ fn test_i8x32_move_mask() {
     -1, -1, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0,
   ]);
   let expected = 0b01010101011111110101010111011101;
-  let actual = a.move_mask();
+  let actual = a.to_bitmask();
   assert_eq!(expected, actual);
 }
 

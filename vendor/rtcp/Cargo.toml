@@ -12,7 +12,7 @@
 [package]
 edition = "2021"
 name = "rtcp"
-version = "0.13.0"
+version = "0.14.0"
 authors = [
     "Rain Liu <yliu@webrtc.rs>",
     "Michael Uti <utimichael9@gmail.com>",
@@ -41,7 +41,7 @@ version = "1"
 version = "1"
 
 [dependencies.util]
-version = "0.11.0"
+version = "0.12.0"
 features = ["marshal"]
 default-features = false
 package = "webrtc-util"

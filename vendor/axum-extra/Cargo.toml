@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.78"
 name = "axum-extra"
-version = "0.10.3"
+version = "0.12.2"
 build = false
 autolib = false
 autobins = false
@@ -39,28 +39,6 @@ repository = "https://github.com/tokio-rs/axum"
 [package.metadata.docs.rs]
 all-features = true
 
-[package.metadata.cargo-public-api-crates]
-allowed = [
-    "axum",
-    "axum_core",
-    "axum_macros",
-    "bytes",
-    "cookie",
-    "futures_core",
-    "futures_util",
-    "headers",
-    "headers_core",
-    "http",
-    "http_body",
-    "pin_project_lite",
-    "prost",
-    "serde_core",
-    "tokio",
-    "tokio_util",
-    "tower_layer",
-    "tower_service",
-]
-
 [features]
 __private_docs = [
     "axum/json",
@@ -72,8 +50,8 @@ async-read-body = [
     "tokio-util?/io",
     "dep:tokio",
 ]
-async-stream = []
 attachment = ["dep:tracing"]
+cached = ["dep:axum"]
 cookie = ["dep:cookie"]
 cookie-key-expansion = [
     "cookie",
@@ -89,6 +67,7 @@ cookie-signed = [
 ]
 default = ["tracing"]
 erased-json = [
+    "dep:serde_core",
     "dep:serde_json",
     "dep:typed-json",
 ]
@@ -104,15 +83,20 @@ file-stream = [
     "tokio?/io-util",
 ]
 form = [
+    "dep:axum",
     "dep:form_urlencoded",
+    "dep:serde_core",
     "dep:serde_html_form",
     "dep:serde_path_to_error",
 ]
+handler = ["dep:axum"]
 json-deserializer = [
+    "dep:serde_core",
     "dep:serde_json",
     "dep:serde_path_to_error",
 ]
 json-lines = [
+    "dep:serde_core",
     "dep:serde_json",
     "dep:tokio-util",
     "dep:tokio-stream",
@@ -120,15 +104,25 @@ json-lines = [
     "tokio-stream?/io-util",
     "dep:tokio",
 ]
+middleware = ["dep:axum"]
 multipart = [
     "dep:multer",
     "dep:fastrand",
 ]
+optional-path = [
+    "dep:axum",
+    "dep:serde_core",
+]
 protobuf = ["dep:prost"]
 query = [
     "dep:form_urlencoded",
+    "dep:serde_core",
     "dep:serde_html_form",
     "dep:serde_path_to_error",
+]
+routing = [
+    "axum/original-uri",
+    "dep:rustversion",
 ]
 scheme = []
 tracing = [
@@ -140,21 +134,23 @@ typed-header = ["dep:headers"]
 typed-routing = [
     "dep:axum-macros",
     "dep:percent-encoding",
+    "dep:serde_core",
     "dep:serde_html_form",
     "dep:form_urlencoded",
 ]
+with-rejection = ["dep:axum"]
 
 [lib]
 name = "axum_extra"
 path = "src/lib.rs"
 
 [dependencies.axum]
-version = "0.8.6"
-features = ["original-uri"]
+version = "0.8.7"
+optional = true
 default-features = false
 
 [dependencies.axum-core]
-version = "0.5.5"
+version = "0.5.2"
 
 [dependencies.axum-macros]
 version = "0.5.0"
@@ -176,6 +172,9 @@ optional = true
 [dependencies.form_urlencoded]
 version = "1.1.0"
 optional = true
+
+[dependencies.futures-core]
+version = "0.3"
 
 [dependencies.futures-util]
 version = "0.3"
@@ -210,11 +209,12 @@ optional = true
 version = "0.2"
 
 [dependencies.prost]
-version = "0.13"
+version = "0.14"
 optional = true
 
 [dependencies.rustversion]
 version = "1.0.9"
+optional = true
 
 [dependencies.serde]
 version = "1.0.221"
@@ -222,6 +222,7 @@ optional = true
 
 [dependencies.serde_core]
 version = "1.0.221"
+optional = true
 
 [dependencies.serde_html_form]
 version = "0.2.0"

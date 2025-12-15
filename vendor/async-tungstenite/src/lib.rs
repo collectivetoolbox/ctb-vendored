@@ -61,6 +61,7 @@ pub mod stream;
 use std::{
     io::{Read, Write},
     pin::Pin,
+    sync::{Arc, Mutex, MutexGuard},
     task::{ready, Context, Poll},
 };
 
@@ -94,7 +95,6 @@ pub mod tokio;
 
 pub mod bytes;
 pub use bytes::ByteReader;
-#[cfg(feature = "futures-03-sink")]
 pub use bytes::ByteWriter;
 
 use tungstenite::protocol::CloseFrame;
@@ -283,7 +283,6 @@ impl<S> WebSocketStream<S> {
 
     fn with_context<F, R>(&mut self, ctx: Option<(ContextWaker, &mut Context<'_>)>, f: F) -> R
     where
-        S: Unpin,
         F: FnOnce(&mut WebSocket<AllowStd<S>>) -> R,
         AllowStd<S>: Read + Write,
     {
@@ -323,17 +322,48 @@ impl<S> WebSocketStream<S> {
     {
         self.send(Message::Close(msg)).await
     }
+
+    /// Splits the websocket stream into separate
+    /// [sender](WebSocketSender) and [receiver](WebSocketReceiver) parts.
+    pub fn split(self) -> (WebSocketSender<S>, WebSocketReceiver<S>) {
+        let shared = Arc::new(Shared(Mutex::new(self)));
+        let sender = WebSocketSender {
+            shared: shared.clone(),
+        };
+
+        let receiver = WebSocketReceiver { shared };
+        (sender, receiver)
+    }
+
+    /// Attempts to reunite the [sender](WebSocketSender) and [receiver](WebSocketReceiver)
+    /// parts back into a single stream. If both parts originate from the same
+    /// [`split`](WebSocketStream::split) call, returns `Ok` with the original stream.
+    /// Otherwise, returns `Err` containing the provided parts.
+    pub fn reunite(
+        sender: WebSocketSender<S>,
+        receiver: WebSocketReceiver<S>,
+    ) -> Result<Self, (WebSocketSender<S>, WebSocketReceiver<S>)> {
+        if sender.is_pair_of(&receiver) {
+            drop(receiver);
+            let stream = Arc::try_unwrap(sender.shared)
+                .ok()
+                .expect("reunite the stream")
+                .into_inner();
+
+            Ok(stream)
+        } else {
+            Err((sender, receiver))
+        }
+    }
 }
 
-impl<T> Stream for WebSocketStream<T>
+impl<S> WebSocketStream<S>
 where
-    T: AsyncRead + AsyncWrite + Unpin,
+    S: AsyncRead + AsyncWrite + Unpin,
 {
-    type Item = Result<Message, WsError>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Message, WsError>>> {
         #[cfg(feature = "verbose-logging")]
-        trace!("{}:{} Stream.poll_next", file!(), line!());
+        trace!("{}:{} WebSocketStream.poll_next", file!(), line!());
 
         // The connection has been closed or a critical error has occurred.
         // We have already returned the error to the user, the `Stream` is unusable,
@@ -345,7 +375,7 @@ where
         match ready!(self.with_context(Some((ContextWaker::Read, cx)), |s| {
             #[cfg(feature = "verbose-logging")]
             trace!(
-                "{}:{} Stream.with_context poll_next -> read()",
+                "{}:{} WebSocketStream.with_context poll_next -> read()",
                 file!(),
                 line!()
             );
@@ -362,40 +392,22 @@ where
             }
         }
     }
-}
 
-impl<T> FusedStream for WebSocketStream<T>
-where
-    T: AsyncRead + AsyncWrite + Unpin,
-{
-    fn is_terminated(&self) -> bool {
-        self.ended
-    }
-}
-
-#[cfg(feature = "futures-03-sink")]
-impl<T> futures_util::Sink<Message> for WebSocketStream<T>
-where
-    T: AsyncRead + AsyncWrite + Unpin,
-{
-    type Error = WsError;
-
-    fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), WsError>> {
         if self.ready {
-            Poll::Ready(Ok(()))
-        } else {
-            // Currently blocked so try to flush the blockage away
-            (*self)
-                .with_context(Some((ContextWaker::Write, cx)), |s| cvt(s.flush()))
-                .map(|r| {
-                    self.ready = true;
-                    r
-                })
+            return Poll::Ready(Ok(()));
         }
+
+        // Currently blocked so try to flush the blockage away
+        self.with_context(Some((ContextWaker::Write, cx)), |s| cvt(s.flush()))
+            .map(|r| {
+                self.ready = true;
+                r
+            })
     }
 
-    fn start_send(mut self: Pin<&mut Self>, item: Message) -> Result<(), Self::Error> {
-        match (*self).with_context(None, |s| s.write(item)) {
+    fn start_send(&mut self, item: Message) -> Result<(), WsError> {
+        match self.with_context(None, |s| s.write(item)) {
             Ok(()) => {
                 self.ready = true;
                 Ok(())
@@ -414,9 +426,8 @@ where
         }
     }
 
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        (*self)
-            .with_context(Some((ContextWaker::Write, cx)), |s| cvt(s.flush()))
+    fn poll_flush(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), WsError>> {
+        self.with_context(Some((ContextWaker::Write, cx)), |s| cvt(s.flush()))
             .map(|r| {
                 self.ready = true;
                 match r {
@@ -427,13 +438,14 @@ where
             })
     }
 
-    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    #[cfg(feature = "futures-03-sink")]
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), WsError>> {
         self.ready = true;
         let res = if self.closing {
             // After queueing it, we call `flush` to drive the close handshake to completion.
-            (*self).with_context(Some((ContextWaker::Write, cx)), |s| s.flush())
+            self.with_context(Some((ContextWaker::Write, cx)), |s| s.flush())
         } else {
-            (*self).with_context(Some((ContextWaker::Write, cx)), |s| s.close(None))
+            self.with_context(Some((ContextWaker::Write, cx)), |s| s.close(None))
         };
 
         match res {
@@ -452,81 +464,278 @@ where
     }
 }
 
+impl<S> Stream for WebSocketStream<S>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    type Item = Result<Message, WsError>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.get_mut().poll_next(cx)
+    }
+}
+
+impl<S> FusedStream for WebSocketStream<S>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    fn is_terminated(&self) -> bool {
+        self.ended
+    }
+}
+
+#[cfg(feature = "futures-03-sink")]
+impl<S> futures_util::Sink<Message> for WebSocketStream<S>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    type Error = WsError;
+
+    fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.get_mut().poll_ready(cx)
+    }
+
+    fn start_send(self: Pin<&mut Self>, item: Message) -> Result<(), Self::Error> {
+        self.get_mut().start_send(item)
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.get_mut().poll_flush(cx)
+    }
+
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.get_mut().poll_close(cx)
+    }
+}
+
+#[cfg(not(feature = "futures-03-sink"))]
+impl<S> bytes::private::SealedSender for WebSocketStream<S>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<Result<usize, WsError>> {
+        let me = self.get_mut();
+        ready!(me.poll_ready(cx))?;
+        let len = buf.len();
+        me.start_send(Message::binary(buf.to_owned()))?;
+        Poll::Ready(Ok(len))
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), WsError>> {
+        self.get_mut().poll_flush(cx)
+    }
+
+    fn poll_close(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        msg: &mut Option<Message>,
+    ) -> Poll<Result<(), WsError>> {
+        let me = self.get_mut();
+        send_helper(me, msg, cx)
+    }
+}
+
 impl<S> WebSocketStream<S> {
     /// Simple send method to replace `futures_sink::Sink` (till v0.3).
     pub async fn send(&mut self, msg: Message) -> Result<(), WsError>
     where
         S: AsyncRead + AsyncWrite + Unpin,
     {
-        Send::new(self, msg).await
+        Send {
+            ws: self,
+            msg: Some(msg),
+        }
+        .await
     }
 }
 
-struct Send<'a, S> {
-    ws: &'a mut WebSocketStream<S>,
+struct Send<W> {
+    ws: W,
     msg: Option<Message>,
 }
 
-impl<'a, S> Send<'a, S>
+/// Performs an asynchronous message send to the websocket.
+fn send_helper<S>(
+    ws: &mut WebSocketStream<S>,
+    msg: &mut Option<Message>,
+    cx: &mut Context<'_>,
+) -> Poll<Result<(), WsError>>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    fn new(ws: &'a mut WebSocketStream<S>, msg: Message) -> Self {
-        Self { ws, msg: Some(msg) }
+    if msg.is_some() {
+        ready!(ws.poll_ready(cx))?;
+        let msg = msg.take().expect("unreachable");
+        ws.start_send(msg)?;
     }
+
+    ws.poll_flush(cx)
 }
 
-impl<S> std::future::Future for Send<'_, S>
+impl<S> std::future::Future for Send<&mut WebSocketStream<S>>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
     type Output = Result<(), WsError>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if self.msg.is_some() {
-            if !self.ws.ready {
-                // Currently blocked so try to flush the blockage away
-                let polled = self
-                    .ws
-                    .with_context(Some((ContextWaker::Write, cx)), |s| cvt(s.flush()))
-                    .map(|r| {
-                        self.ws.ready = true;
-                        r
-                    });
-                ready!(polled)?
-            }
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let me = self.get_mut();
+        send_helper(me.ws, &mut me.msg, cx)
+    }
+}
 
-            let msg = self.msg.take().expect("unreachable");
-            match self.ws.with_context(None, |s| s.write(msg)) {
-                Ok(_) => Ok(()),
-                Err(WsError::Io(err)) if err.kind() == std::io::ErrorKind::WouldBlock => {
-                    // the message was accepted and queued so not an error
-                    //
-                    // set to false here for cancellation safety of *this* Future
-                    self.ws.ready = false;
-                    Ok(())
-                }
-                Err(e) => {
-                    debug!("websocket start_send error: {}", e);
-                    Err(e)
-                }
-            }?;
+impl<S> std::future::Future for Send<&Shared<S>>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    type Output = Result<(), WsError>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let me = self.get_mut();
+        let mut ws = me.ws.lock();
+        send_helper(&mut ws, &mut me.msg, cx)
+    }
+}
+
+/// The sender part of a [websocket](WebSocketStream) stream.
+#[derive(Debug)]
+pub struct WebSocketSender<S> {
+    shared: Arc<Shared<S>>,
+}
+
+impl<S> WebSocketSender<S> {
+    /// Send a message via [websocket](WebSocketStream).
+    pub async fn send(&mut self, msg: Message) -> Result<(), WsError>
+    where
+        S: AsyncRead + AsyncWrite + Unpin,
+    {
+        Send {
+            ws: &*self.shared,
+            msg: Some(msg),
         }
+        .await
+    }
 
-        let polled = self
-            .ws
-            .with_context(Some((ContextWaker::Write, cx)), |s| cvt(s.flush()))
-            .map(|r| {
-                self.ws.ready = true;
-                match r {
-                    // WebSocket connection has just been closed. Flushing completed, not an error.
-                    Err(WsError::ConnectionClosed) => Ok(()),
-                    other => other,
-                }
-            });
-        ready!(polled)?;
+    /// Close the underlying [websocket](WebSocketStream).
+    pub async fn close(&mut self, msg: Option<CloseFrame>) -> Result<(), WsError>
+    where
+        S: AsyncRead + AsyncWrite + Unpin,
+    {
+        self.send(Message::Close(msg)).await
+    }
 
-        Poll::Ready(Ok(()))
+    /// Checks if this [sender](WebSocketSender) and some [receiver](WebSocketReceiver)
+    /// were split from the same [websocket](WebSocketStream) stream.
+    pub fn is_pair_of(&self, other: &WebSocketReceiver<S>) -> bool {
+        Arc::ptr_eq(&self.shared, &other.shared)
+    }
+}
+
+#[cfg(feature = "futures-03-sink")]
+impl<T> futures_util::Sink<Message> for WebSocketSender<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin,
+{
+    type Error = WsError;
+
+    fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.shared.lock().poll_ready(cx)
+    }
+
+    fn start_send(self: Pin<&mut Self>, item: Message) -> Result<(), Self::Error> {
+        self.shared.lock().start_send(item)
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.shared.lock().poll_flush(cx)
+    }
+
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.shared.lock().poll_close(cx)
+    }
+}
+
+#[cfg(not(feature = "futures-03-sink"))]
+impl<S> bytes::private::SealedSender for WebSocketSender<S>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<Result<usize, WsError>> {
+        let me = self.get_mut();
+        let mut ws = me.shared.lock();
+        ready!(ws.poll_ready(cx))?;
+        let len = buf.len();
+        ws.start_send(Message::binary(buf.to_owned()))?;
+        Poll::Ready(Ok(len))
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), WsError>> {
+        self.shared.lock().poll_flush(cx)
+    }
+
+    fn poll_close(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        msg: &mut Option<Message>,
+    ) -> Poll<Result<(), WsError>> {
+        let me = self.get_mut();
+        let mut ws = me.shared.lock();
+        send_helper(&mut ws, msg, cx)
+    }
+}
+
+/// The receiver part of a [websocket](WebSocketStream) stream.
+#[derive(Debug)]
+pub struct WebSocketReceiver<S> {
+    shared: Arc<Shared<S>>,
+}
+
+impl<S> WebSocketReceiver<S> {
+    /// Checks if this [receiver](WebSocketReceiver) and some [sender](WebSocketSender)
+    /// were split from the same [websocket](WebSocketStream) stream.
+    pub fn is_pair_of(&self, other: &WebSocketSender<S>) -> bool {
+        Arc::ptr_eq(&self.shared, &other.shared)
+    }
+}
+
+impl<S> Stream for WebSocketReceiver<S>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    type Item = Result<Message, WsError>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.shared.lock().poll_next(cx)
+    }
+}
+
+impl<S> FusedStream for WebSocketReceiver<S>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    fn is_terminated(&self) -> bool {
+        self.shared.lock().ended
+    }
+}
+
+#[derive(Debug)]
+struct Shared<S>(Mutex<WebSocketStream<S>>);
+
+impl<S> Shared<S> {
+    fn lock(&self) -> MutexGuard<'_, WebSocketStream<S>> {
+        self.0.lock().expect("lock shared stream")
+    }
+
+    fn into_inner(self) -> WebSocketStream<S> {
+        self.0.into_inner().expect("get shared stream")
     }
 }
 

@@ -17,10 +17,13 @@ int_uint_consts!(u64, 4, u64x4, 256);
 unsafe impl Zeroable for u64x4 {}
 unsafe impl Pod for u64x4 {}
 
+impl AlignTo for u64x4 {
+  type Elem = u64;
+}
+
 impl Add for u64x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn add(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx2")] {
@@ -38,7 +41,6 @@ impl Add for u64x4 {
 impl Sub for u64x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn sub(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx2")] {
@@ -56,7 +58,6 @@ impl Sub for u64x4 {
 impl Mul for u64x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn mul(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx2")] {
@@ -78,7 +79,6 @@ impl Mul for u64x4 {
 impl Add<u64> for u64x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn add(self, rhs: u64) -> Self::Output {
     self.add(Self::splat(rhs))
   }
@@ -87,7 +87,6 @@ impl Add<u64> for u64x4 {
 impl Sub<u64> for u64x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn sub(self, rhs: u64) -> Self::Output {
     self.sub(Self::splat(rhs))
   }
@@ -96,7 +95,6 @@ impl Sub<u64> for u64x4 {
 impl Mul<u64> for u64x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn mul(self, rhs: u64) -> Self::Output {
     self.mul(Self::splat(rhs))
   }
@@ -105,7 +103,6 @@ impl Mul<u64> for u64x4 {
 impl Add<u64x4> for u64 {
   type Output = u64x4;
   #[inline]
-  #[must_use]
   fn add(self, rhs: u64x4) -> Self::Output {
     u64x4::splat(self).add(rhs)
   }
@@ -114,7 +111,6 @@ impl Add<u64x4> for u64 {
 impl Sub<u64x4> for u64 {
   type Output = u64x4;
   #[inline]
-  #[must_use]
   fn sub(self, rhs: u64x4) -> Self::Output {
     u64x4::splat(self).sub(rhs)
   }
@@ -123,7 +119,6 @@ impl Sub<u64x4> for u64 {
 impl Mul<u64x4> for u64 {
   type Output = u64x4;
   #[inline]
-  #[must_use]
   fn mul(self, rhs: u64x4) -> Self::Output {
     u64x4::splat(self).mul(rhs)
   }
@@ -132,7 +127,6 @@ impl Mul<u64x4> for u64 {
 impl BitAnd for u64x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn bitand(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx2")] {
@@ -150,7 +144,6 @@ impl BitAnd for u64x4 {
 impl BitOr for u64x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn bitor(self, rhs: Self) -> Self::Output {
     pick! {
     if #[cfg(target_feature="avx2")] {
@@ -168,7 +161,6 @@ impl BitOr for u64x4 {
 impl BitXor for u64x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn bitxor(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx2")] {
@@ -183,13 +175,37 @@ impl BitXor for u64x4 {
   }
 }
 
+/// Shifts lanes by the corresponding lane.
+///
+/// Bitwise shift-left; yields `self << mask(rhs)`, where mask removes any
+/// high-order bits of `rhs` that would cause the shift to exceed the bitwidth
+/// of the type. (same as `wrapping_shl`)
+impl Shl for u64x4 {
+  type Output = Self;
+
+  #[inline]
+  fn shl(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(target_feature="avx2")] {
+        // mask the shift count to 63 to have same behavior on all platforms
+        let shift_by = rhs & Self::splat(63);
+        Self { avx2: shl_each_u64_m256i(self.avx2, shift_by.avx2) }
+      } else {
+        Self {
+          a : self.a.shl(rhs.a),
+          b : self.b.shl(rhs.b),
+        }
+      }
+    }
+  }
+}
+
 macro_rules! impl_shl_t_for_u64x4 {
   ($($shift_type:ty),+ $(,)?) => {
     $(impl Shl<$shift_type> for u64x4 {
       type Output = Self;
       /// Shifts all lanes by the value given.
       #[inline]
-      #[must_use]
       fn shl(self, rhs: $shift_type) -> Self::Output {
         pick! {
           if #[cfg(target_feature="avx2")] {
@@ -208,13 +224,37 @@ macro_rules! impl_shl_t_for_u64x4 {
 }
 impl_shl_t_for_u64x4!(i8, u8, i16, u16, i32, u32, i64, u64, i128, u128);
 
+/// Shifts lanes by the corresponding lane.
+///
+/// Bitwise shift-right; yields `self >> mask(rhs)`, where mask removes any
+/// high-order bits of `rhs` that would cause the shift to exceed the bitwidth
+/// of the type. (same as `wrapping_shr`)
+impl Shr for u64x4 {
+  type Output = Self;
+
+  #[inline]
+  fn shr(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(target_feature="avx2")] {
+        // mask the shift count to 63 to have same behavior on all platforms
+        let shift_by = rhs & Self::splat(63);
+        Self { avx2: shr_each_u64_m256i(self.avx2, shift_by.avx2) }
+      } else {
+        Self {
+          a : self.a.shr(rhs.a),
+          b : self.b.shr(rhs.b),
+        }
+      }
+    }
+  }
+}
+
 macro_rules! impl_shr_t_for_u64x4 {
   ($($shift_type:ty),+ $(,)?) => {
     $(impl Shr<$shift_type> for u64x4 {
       type Output = Self;
       /// Shifts all lanes by the value given.
       #[inline]
-      #[must_use]
       fn shr(self, rhs: $shift_type) -> Self::Output {
         pick! {
           if #[cfg(target_feature="avx2")] {
@@ -236,9 +276,25 @@ impl_shr_t_for_u64x4!(i8, u8, i16, u16, i32, u32, i64, u64, i128, u128);
 impl CmpEq for u64x4 {
   type Output = Self;
   #[inline]
-  #[must_use]
-  fn cmp_eq(self, rhs: Self) -> Self::Output {
-    Self::cmp_eq(self, rhs)
+  fn simd_eq(self, rhs: Self) -> Self::Output {
+    Self::simd_eq(self, rhs)
+  }
+}
+
+impl CmpGt for u64x4 {
+  type Output = Self;
+  #[inline]
+  fn simd_gt(self, rhs: Self) -> Self::Output {
+    Self::simd_gt(self, rhs)
+  }
+}
+
+impl CmpLt for u64x4 {
+  type Output = Self;
+  #[inline]
+  fn simd_lt(self, rhs: Self) -> Self::Output {
+    // no lt, so just call gt with swapped args
+    Self::simd_gt(rhs, self)
   }
 }
 
@@ -250,21 +306,21 @@ impl u64x4 {
   }
   #[inline]
   #[must_use]
-  pub fn cmp_eq(self, rhs: Self) -> Self {
+  pub fn simd_eq(self, rhs: Self) -> Self {
     pick! {
       if #[cfg(target_feature="avx2")] {
         Self { avx2: cmp_eq_mask_i64_m256i(self.avx2, rhs.avx2) }
       } else {
         Self {
-          a : self.a.cmp_eq(rhs.a),
-          b : self.b.cmp_eq(rhs.b),
+          a : self.a.simd_eq(rhs.a),
+          b : self.b.simd_eq(rhs.b),
         }
       }
     }
   }
   #[inline]
   #[must_use]
-  pub fn cmp_gt(self, rhs: Self) -> Self {
+  pub fn simd_gt(self, rhs: Self) -> Self {
     pick! {
       if #[cfg(target_feature="avx2")] {
         // no unsigned gt than so inverting the high bit will get the correct result
@@ -272,8 +328,8 @@ impl u64x4 {
         Self { avx2: cmp_gt_mask_i64_m256i((self ^ highbit).avx2, (rhs ^ highbit).avx2) }
       } else {
         Self {
-          a : self.a.cmp_gt(rhs.a),
-          b : self.b.cmp_gt(rhs.b),
+          a : self.a.simd_gt(rhs.a),
+          b : self.b.simd_gt(rhs.b),
         }
       }
     }
@@ -281,9 +337,9 @@ impl u64x4 {
 
   #[inline]
   #[must_use]
-  pub fn cmp_lt(self, rhs: Self) -> Self {
+  pub fn simd_lt(self, rhs: Self) -> Self {
     // lt is just gt the other way around
-    rhs.cmp_gt(self)
+    rhs.simd_gt(self)
   }
 
   #[inline]
@@ -300,6 +356,12 @@ impl u64x4 {
       }
     }
   }
+  
+  #[inline]
+  #[must_use]
+  pub fn to_bitmask(self) -> u32 {
+    i64x4::to_bitmask(cast(self))
+  }
 
   #[inline]
   pub fn to_array(self) -> [u64; 4] {
@@ -307,13 +369,47 @@ impl u64x4 {
   }
 
   #[inline]
-  pub fn as_array_ref(&self) -> &[u64; 4] {
+  pub fn as_array(&self) -> &[u64; 4] {
     cast_ref(self)
   }
 
   #[inline]
-  pub fn as_array_mut(&mut self) -> &mut [u64; 4] {
+  pub fn as_mut_array(&mut self) -> &mut [u64; 4] {
     cast_mut(self)
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn min(self, rhs: Self) -> Self {
+    self.simd_lt(rhs).blend(self, rhs)
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn max(self, rhs: Self) -> Self {
+    self.simd_gt(rhs).blend(self, rhs)
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn mul_keep_high(self, rhs: Self) -> Self {
+    pick! {
+      if #[cfg(target_feature="avx2")] {
+        let arr1: [u64; 4] = cast(self);
+        let arr2: [u64; 4] = cast(rhs);
+        cast([
+          (arr1[0] as u128 * arr2[0] as u128 >> 64) as u64,
+          (arr1[1] as u128 * arr2[1] as u128 >> 64) as u64,
+          (arr1[2] as u128 * arr2[2] as u128 >> 64) as u64,
+          (arr1[3] as u128 * arr2[3] as u128 >> 64) as u64,
+        ])
+      } else {
+        Self {
+          a: self.a.mul_keep_high(rhs.a),
+          b: self.b.mul_keep_high(rhs.b),
+        }
+      }
+    }
   }
 }
 

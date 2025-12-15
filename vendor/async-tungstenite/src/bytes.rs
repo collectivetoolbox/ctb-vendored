@@ -1,7 +1,8 @@
-//! Provides abstractions to use `AsyncRead` and `AsyncWrite` with a `WebSocketStream`.
+//! Provides abstractions to use `AsyncRead` and `AsyncWrite` with
+//! a [`WebSocketStream`](crate::WebSocketStream) or a [`WebSocketSender`](crate::WebSocketSender).
 
 use std::{
-    io,
+    fmt, io,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -10,99 +11,184 @@ use futures_core::stream::Stream;
 
 use crate::{tungstenite::Bytes, Message, WsError};
 
-/// Treat a `WebSocketStream` as an `AsyncWrite` implementation.
+/// Treat a websocket [sender](Sender) as an `AsyncWrite` implementation.
 ///
 /// Every write sends a binary message. If you want to group writes together, consider wrapping
 /// this with a `BufWriter`.
-#[cfg(feature = "futures-03-sink")]
-#[derive(Debug)]
-pub struct ByteWriter<S>(S);
+pub struct ByteWriter<S> {
+    sender: S,
+    state: State,
+}
 
-#[cfg(feature = "futures-03-sink")]
 impl<S> ByteWriter<S> {
-    /// Create a new `ByteWriter` from a `Sink` that accepts a WebSocket `Message`
+    /// Create a new `ByteWriter` from a [sender](Sender) that accepts a websocket [`Message`].
     #[inline(always)]
-    pub fn new(s: S) -> Self {
-        Self(s)
+    pub fn new(sender: S) -> Self
+    where
+        S: Sender,
+    {
+        Self {
+            sender,
+            state: State::Open,
+        }
     }
 
-    /// Get the underlying `Sink` back.
+    /// Get the underlying [sender](Sender) back.
     #[inline(always)]
     pub fn into_inner(self) -> S {
-        self.0
+        self.sender
     }
 }
 
-#[cfg(feature = "futures-03-sink")]
-fn poll_write_helper<S>(
-    mut s: Pin<&mut ByteWriter<S>>,
-    cx: &mut Context<'_>,
-    buf: &[u8],
-) -> Poll<io::Result<usize>>
+impl<S> fmt::Debug for ByteWriter<S>
 where
-    S: futures_util::Sink<Message, Error = WsError> + Unpin,
+    S: fmt::Debug,
 {
-    match Pin::new(&mut s.0).poll_ready(cx).map_err(convert_err) {
-        Poll::Ready(Ok(())) => {}
-        Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-        Poll::Pending => return Poll::Pending,
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ByteWriter")
+            .field("sender", &self.sender)
+            .field("state", &"..")
+            .finish()
     }
-    let len = buf.len();
-    let msg = Message::binary(buf.to_owned());
-    Poll::Ready(
-        Pin::new(&mut s.0)
-            .start_send(msg)
-            .map_err(convert_err)
-            .map(|()| len),
-    )
+}
+
+enum State {
+    Open,
+    Closing(Option<Message>),
+}
+
+impl State {
+    fn close(&mut self) -> &mut Option<Message> {
+        match self {
+            State::Open => {
+                *self = State::Closing(Some(Message::Close(None)));
+                if let State::Closing(msg) = self {
+                    msg
+                } else {
+                    unreachable!()
+                }
+            }
+            State::Closing(msg) => msg,
+        }
+    }
+}
+
+/// Sends bytes as a websocket [`Message`].
+///
+/// It's implemented for [`WebSocketStream`](crate::WebSocketStream)
+/// and [`WebSocketSender`](crate::WebSocketSender).
+/// It's also implemeted for every `Sink` type that accepts
+/// a websocket [`Message`] and returns [`WsError`] type as
+/// an error when `futures-03-sink` feature is enabled.
+pub trait Sender: private::SealedSender {}
+
+pub(crate) mod private {
+    use super::*;
+
+    pub trait SealedSender {
+        fn poll_write(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &[u8],
+        ) -> Poll<Result<usize, WsError>>;
+
+        fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), WsError>>;
+
+        fn poll_close(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            msg: &mut Option<Message>,
+        ) -> Poll<Result<(), WsError>>;
+    }
+
+    impl<S> Sender for S where S: SealedSender {}
 }
 
 #[cfg(feature = "futures-03-sink")]
-impl<S> futures_io::AsyncWrite for ByteWriter<S>
+impl<S> private::SealedSender for S
 where
     S: futures_util::Sink<Message, Error = WsError> + Unpin,
 {
     fn poll_write(
-        self: Pin<&mut Self>,
+        mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
-        poll_write_helper(self, cx, buf)
+    ) -> Poll<Result<usize, WsError>> {
+        use std::task::ready;
+
+        ready!(self.as_mut().poll_ready(cx))?;
+        let len = buf.len();
+        self.start_send(Message::binary(buf.to_owned()))?;
+        Poll::Ready(Ok(len))
     }
 
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.0).poll_flush(cx).map_err(convert_err)
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), WsError>> {
+        <S as futures_util::Sink<_>>::poll_flush(self, cx)
     }
 
-    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.0).poll_close(cx).map_err(convert_err)
+    fn poll_close(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        _: &mut Option<Message>,
+    ) -> Poll<Result<(), WsError>> {
+        <S as futures_util::Sink<_>>::poll_close(self, cx)
     }
 }
 
-#[cfg(feature = "futures-03-sink")]
+impl<S> futures_io::AsyncWrite for ByteWriter<S>
+where
+    S: Sender + Unpin,
+{
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        <S as private::SealedSender>::poll_write(Pin::new(&mut self.sender), cx, buf)
+            .map_err(convert_err)
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        <S as private::SealedSender>::poll_flush(Pin::new(&mut self.sender), cx)
+            .map_err(convert_err)
+    }
+
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        let me = self.get_mut();
+        let msg = me.state.close();
+        <S as private::SealedSender>::poll_close(Pin::new(&mut me.sender), cx, msg)
+            .map_err(convert_err)
+    }
+}
+
 #[cfg(feature = "tokio-runtime")]
 impl<S> tokio::io::AsyncWrite for ByteWriter<S>
 where
-    S: futures_util::Sink<Message, Error = WsError> + Unpin,
+    S: Sender + Unpin,
 {
     fn poll_write(
-        self: Pin<&mut Self>,
+        mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        poll_write_helper(self, cx, buf)
+        <S as private::SealedSender>::poll_write(Pin::new(&mut self.sender), cx, buf)
+            .map_err(convert_err)
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.0).poll_flush(cx).map_err(convert_err)
+        <S as private::SealedSender>::poll_flush(Pin::new(&mut self.sender), cx)
+            .map_err(convert_err)
     }
 
-    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.0).poll_close(cx).map_err(convert_err)
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        let me = self.get_mut();
+        let msg = me.state.close();
+        <S as private::SealedSender>::poll_close(Pin::new(&mut me.sender), cx, msg)
+            .map_err(convert_err)
     }
 }
 
-/// Treat a `WebSocketStream` as an `AsyncRead` implementation.
+/// Treat a websocket [stream](Stream) as an `AsyncRead` implementation.
 ///
 /// This also works with any other `Stream` of `Message`, such as a `SplitStream`.
 ///
@@ -115,7 +201,7 @@ pub struct ByteReader<S> {
 }
 
 impl<S> ByteReader<S> {
-    /// Create a new `ByteReader` from a `Stream` that returns a WebSocket `Message`
+    /// Create a new `ByteReader` from a [stream](Stream) that returns a WebSocket [`Message`].
     #[inline(always)]
     pub fn new(stream: S) -> Self {
         Self {

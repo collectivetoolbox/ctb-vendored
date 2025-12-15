@@ -1,3 +1,5 @@
+use std::str;
+
 use crate::config::Config;
 use crate::render::text_renderer::{PlainDecorator, TaggedString};
 use crate::render::TaggedLineElement;
@@ -1078,6 +1080,45 @@ fn test_img_alt() {
 }
 
 #[test]
+fn test_img_noalt() {
+    test_html(br"<p>Hello x<img src='foo.jpg'>y</p>", "Hello xy\n", 80);
+    test_html(
+        br"<p>Hello x<img src='foo.jpg' alt=''>y</p>",
+        "Hello xy\n",
+        80,
+    );
+    test_html_conf(
+        br"<p>Hello x<img src='foo.jpg' alt=''>y</p>",
+        "Hello x[foo.jpg]y\n",
+        80,
+        |conf| conf.empty_img_mode(config::ImageRenderMode::Filename),
+    );
+    test_html_conf(
+        br"<p>Hello x<img src='http://www.example.com/path/foo.jpg' alt=''>y</p>",
+        "Hello x[foo.jpg]y\n",
+        80,
+        |conf| conf.empty_img_mode(config::ImageRenderMode::Filename),
+    );
+    test_html_conf(
+        br"<p>Hello x<img src='foo.jpg'>y</p>",
+        "Hello x[]y\n",
+        80,
+        |conf| conf.empty_img_mode(config::ImageRenderMode::ShowAlways),
+    );
+    test_html_conf(
+        br"<p>Hello x<img src='foo.jpg'>y</p>",
+        "Hello x[XYZ]y\n",
+        80,
+        |conf| conf.empty_img_mode(config::ImageRenderMode::Replace("XYZ")),
+    );
+}
+
+#[test]
+fn test_img_nosrc() {
+    test_html(br"<p>Hello x<img alt='myalt'>y</p>", "Hello xy\n", 80);
+}
+
+#[test]
 fn test_svg() {
     test_html(
         br"<p>Hello <svg><title>world</title></svg></p>",
@@ -1089,6 +1130,7 @@ fn test_svg() {
         "Hello\n",
         80,
     );
+    test_html(br"<p>Hello<svg></svg></p>", "Hello\n", 80);
 }
 
 #[test]
@@ -1099,7 +1141,6 @@ fn test_noscript() {
         "Hello\n\n**There**\n",
         80,
     );
-    test_html(br"<p>Hello<svg></svg></p>", "Hello\n", 80);
 }
 
 #[test]
@@ -1272,6 +1313,50 @@ world</pre>"##,
 world
 "#,
         21,
+    );
+}
+
+#[test]
+fn test_multi_pre() {
+    test_html(
+        br##"<head><style><!--
+pre
+	{
+	margin:0cm;
+	margin-bottom:.0001pt;
+	}
+--></style></head>
+<body>
+    <pre>&nbsp;</pre>
+    <pre>Senior Security Engineer</pre>
+    <pre>&nbsp;</pre>
+    <pre>Singapore Washington DC</pre>
+    <pre>&nbsp;</pre>
+    <pre>email: x.y@z.com</pre>
+    <pre>&nbsp;</pre>
+    <pre>mobile:33 999999</pre>
+    <pre>phone: 33 999999</pre>
+</body>
+"##,
+        "\u{a0}
+
+Senior Security Engineer
+
+\u{a0}
+
+Singapore Washington DC
+
+\u{a0}
+
+email: x.y@z.com
+
+\u{a0}
+
+mobile:33 999999
+
+phone: 33 999999
+",
+        80,
     );
 }
 
@@ -2561,6 +2646,24 @@ W  │Hmm oh │  │fou
 }
 
 #[test]
+fn test_rowspan_underflow() {
+    test_html(
+        br#"<table>
+  <tr>
+    <td></td>
+    <td rowspan="2"></td>
+  </tr>
+  <tr>
+    <td></td>
+  </tr>
+</table>
+        "#,
+        "\n",
+        20,
+    );
+}
+
+#[test]
 fn test_issue_187() {
     let html = br#"<div><table><tbody><tr><td><div><table><tbody><tr><td><div><pre>na na na na na na na na na na na na na na na</p></div></td></tr>/<tbody></table></div></td></tr>/<tbody></table></div>"#;
     let _ = crate::config::plain().string_from_read(&html[..], 17);
@@ -2616,6 +2719,15 @@ fn frag_list() {
             })],
         ]
     );
+}
+
+#[test]
+fn test_serialise_full() {
+    let dom = config::plain().parse_html(&b"<p>Hello</p>"[..]).unwrap();
+    let mut result = Vec::new();
+    dom.serialize(&mut result).unwrap();
+    let s = str::from_utf8(&result).unwrap();
+    assert_eq!(s, "<html><head></head><body><p>Hello</p></body></html>");
 }
 
 #[cfg(feature = "css")]
@@ -3337,6 +3449,17 @@ Foo and Bar
 40,
         );
     }
+}
+
+#[test]
+fn test_issue_252() {
+    test_html(
+        b"<table><td rowspan=8><tr><tr>",
+        r"
+
+",
+        10,
+    );
 }
 
 #[cfg(feature = "css_ext")]

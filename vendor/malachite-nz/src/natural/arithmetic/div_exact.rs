@@ -52,7 +52,7 @@ use crate::natural::arithmetic::sub_mul::limbs_sub_mul_limb_same_length_in_place
 use crate::natural::comparison::cmp::limbs_cmp_same_length;
 use crate::platform::{
     BINV_NEWTON_THRESHOLD, DC_BDIV_Q_THRESHOLD, DC_BDIV_QR_THRESHOLD, DoubleLimb, Limb,
-    MU_BDIV_Q_THRESHOLD,
+    MU_BDIV_Q_THRESHOLD, MU_BDIV_QR_THRESHOLD,
 };
 use alloc::vec::Vec;
 use core::cmp::{Ordering::*, max, min};
@@ -907,16 +907,16 @@ fn limbs_modular_div_mod_barrett_unbalanced(
         let tn = limbs_mul_mod_base_pow_n_minus_1_next_size(d_len);
         let (scratch_lo, scratch_hi) = scratch.split_at_mut(tn);
         limbs_mul_mod_base_pow_n_minus_1(scratch_lo, tn, ds, qs, scratch_hi);
-        if let Some(wrapped_len) = (d_len + q_len_s).checked_sub(tn) {
-            if wrapped_len != 0 {
-                let (scratch_lo, scratch_hi) = scratch.split_at_mut(tn);
-                if limbs_sub_same_length_to_out(
-                    scratch_hi,
-                    &scratch_lo[..wrapped_len],
-                    &rs[..wrapped_len],
-                ) {
-                    assert!(!limbs_sub_limb_in_place(&mut scratch[wrapped_len..], 1));
-                }
+        if let Some(wrapped_len) = (d_len + q_len_s).checked_sub(tn)
+            && wrapped_len != 0
+        {
+            let (scratch_lo, scratch_hi) = scratch.split_at_mut(tn);
+            if limbs_sub_same_length_to_out(
+                scratch_hi,
+                &scratch_lo[..wrapped_len],
+                &rs[..wrapped_len],
+            ) {
+                assert!(!limbs_sub_limb_in_place(&mut scratch[wrapped_len..], 1));
             }
         }
     }
@@ -972,16 +972,16 @@ fn limbs_modular_div_mod_barrett_balanced(
         let mul_size = limbs_mul_mod_base_pow_n_minus_1_next_size(d_len);
         let (scratch_lo, scratch_hi) = scratch.split_at_mut(mul_size);
         limbs_mul_mod_base_pow_n_minus_1(scratch_lo, mul_size, ds, qs_lo, scratch_hi);
-        if let Some(wrapped_len) = (d_len + i_len).checked_sub(mul_size) {
-            if wrapped_len != 0 {
-                let (scratch_lo, scratch_hi) = scratch.split_at_mut(mul_size);
-                if limbs_sub_same_length_to_out(
-                    scratch_hi,
-                    &scratch_lo[..wrapped_len],
-                    &ns[..wrapped_len],
-                ) {
-                    assert!(!limbs_sub_limb_in_place(&mut scratch[wrapped_len..], 1));
-                }
+        if let Some(wrapped_len) = (d_len + i_len).checked_sub(mul_size)
+            && wrapped_len != 0
+        {
+            let (scratch_lo, scratch_hi) = scratch.split_at_mut(mul_size);
+            if limbs_sub_same_length_to_out(
+                scratch_hi,
+                &scratch_lo[..wrapped_len],
+                &ns[..wrapped_len],
+            ) {
+                assert!(!limbs_sub_limb_in_place(&mut scratch[wrapped_len..], 1));
             }
         }
     }
@@ -998,16 +998,16 @@ fn limbs_modular_div_mod_barrett_balanced(
         let mul_size = limbs_mul_mod_base_pow_n_minus_1_next_size(d_len);
         let (scratch_lo, scratch_hi) = scratch.split_at_mut(mul_size);
         limbs_mul_mod_base_pow_n_minus_1(scratch_lo, mul_size, ds, qs_hi, scratch_hi);
-        if let Some(wrapped_len) = (d_len + q_len_s).checked_sub(mul_size) {
-            if wrapped_len != 0 {
-                let (scratch_lo, scratch_hi) = scratch.split_at_mut(mul_size);
-                if limbs_sub_same_length_to_out(
-                    scratch_hi,
-                    &scratch_lo[..wrapped_len],
-                    &rs[..wrapped_len],
-                ) {
-                    assert!(!limbs_sub_limb_in_place(&mut scratch[wrapped_len..], 1));
-                }
+        if let Some(wrapped_len) = (d_len + q_len_s).checked_sub(mul_size)
+            && wrapped_len != 0
+        {
+            let (scratch_lo, scratch_hi) = scratch.split_at_mut(mul_size);
+            if limbs_sub_same_length_to_out(
+                scratch_hi,
+                &scratch_lo[..wrapped_len],
+                &rs[..wrapped_len],
+            ) {
+                assert!(!limbs_sub_limb_in_place(&mut scratch[wrapped_len..], 1));
             }
         }
     }
@@ -1442,16 +1442,16 @@ fn limbs_modular_div_barrett_greater(
         let mul_size = limbs_mul_mod_base_pow_n_minus_1_next_size(d_len);
         let (scratch_lo, scratch_hi) = scratch.split_at_mut(mul_size);
         limbs_mul_mod_base_pow_n_minus_1(scratch_lo, mul_size, ds, qs_lo, scratch_hi);
-        if let Some(wrapped_len) = (d_len + i_len).checked_sub(mul_size) {
-            if wrapped_len != 0 {
-                let (scratch_lo, scratch_hi) = scratch.split_at_mut(mul_size);
-                if limbs_sub_same_length_to_out(
-                    scratch_hi,
-                    &scratch_lo[..wrapped_len],
-                    &rs[..wrapped_len],
-                ) {
-                    assert!(!limbs_sub_limb_in_place(&mut scratch[wrapped_len..], 1));
-                }
+        if let Some(wrapped_len) = (d_len + i_len).checked_sub(mul_size)
+            && wrapped_len != 0
+        {
+            let (scratch_lo, scratch_hi) = scratch.split_at_mut(mul_size);
+            if limbs_sub_same_length_to_out(
+                scratch_hi,
+                &scratch_lo[..wrapped_len],
+                &rs[..wrapped_len],
+            ) {
+                assert!(!limbs_sub_limb_in_place(&mut scratch[wrapped_len..], 1));
             }
         }
     }
@@ -1588,6 +1588,80 @@ pub_test! {limbs_modular_div(qs: &mut [Limb], ns: &mut [Limb], ds: &[Limb], scra
         limbs_modular_div_barrett(qs, ns, ds, scratch);
     }
 }}
+
+// This is equivalent to `mpn_bdiv_qr` from `mpn/generic/bdiv_qr.c` GMP 6.3.0.
+pub(crate) fn limbs_modular_div_mod(
+    qp: &mut [Limb], // Quotient output
+    rp: &mut [Limb], // Remainder output
+    np: &[Limb],     // Dividend
+    dp: &[Limb],     // Divisor
+    tp: &mut [Limb], // Scratch workspace
+) -> bool {
+    let nn = np.len();
+    let dn = dp.len();
+    assert!(nn > dn, "Dividend must be larger than divisor");
+
+    let rh: bool;
+
+    if dn < DC_BDIV_QR_THRESHOLD || (nn - dn) < DC_BDIV_QR_THRESHOLD {
+        // **Small divisor case: Use simple binary division**
+        //
+        // Copy dividend to scratch space for in-place computation
+        tp[..nn].copy_from_slice(np);
+
+        // Compute modular inverse: di = -D[0]^(-1) mod B
+        let mut di = limbs_modular_invert_limb(dp[0]);
+        di = di.wrapping_neg(); // Negate the inverse
+
+        // Perform simple binary division with precomputed inverse
+        rh = limbs_modular_div_mod_schoolbook(qp, &mut tp[..nn], dp, di);
+
+        // Extract remainder from high limbs of temp buffer
+        rp.copy_from_slice(&tp[nn - dn..nn]);
+    } else if dn < MU_BDIV_QR_THRESHOLD {
+        // **Medium divisor case: Use divide-and-conquer binary division**
+        //
+        // Copy dividend to scratch space
+        tp[..nn].copy_from_slice(np);
+
+        // Compute modular inverse
+        let mut di = limbs_modular_invert_limb(dp[0]);
+        di = di.wrapping_neg();
+
+        // Perform divide-and-conquer binary division
+        rh = limbs_modular_div_mod_divide_and_conquer(qp, &mut tp[..nn], dp, di);
+
+        // Extract remainder
+        rp.copy_from_slice(&tp[nn - dn..nn]);
+    } else {
+        // **Large divisor case: Use μ-division algorithm**
+        rh = limbs_modular_div_mod_barrett(qp, rp, np, dp, tp);
+    }
+    rh
+}
+
+// This is equivalent to `mpn_bdiv_qr_itch` from `mpn/generic/bdiv_qr.c`, GMP 6.3.0.
+pub(crate) fn limbs_modular_div_mod_scratch_len(nn: usize, dn: usize) -> usize {
+    if dn < MU_BDIV_QR_THRESHOLD {
+        return nn;
+    }
+    limbs_modular_div_mod_barrett_scratch_len(nn, dn)
+}
+
+// This is equivalent to `mpn_bdiv_qr_wrap` from `mpn/generic/remove.c`, GMP 6.3.0.
+pub(crate) fn limbs_modular_div_mod_wrap(
+    qp: &mut [Limb], // Quotient output
+    rp: &mut [Limb], // Remainder output
+    np: &[Limb],     // Dividend
+    dp: &[Limb],     // Divisor
+) {
+    // Calculate required scratch space
+    let scratch_size = limbs_modular_div_mod_scratch_len(np.len(), dp.len());
+    let mut scratch = vec![0; scratch_size];
+
+    // Perform the division
+    limbs_modular_div_mod(qp, rp, np, dp, &mut scratch);
+}
 
 // # Worst-case complexity
 // Constant time and additional memory.
@@ -1888,13 +1962,13 @@ pub_test! {limbs_div_exact_to_out_ref_ref(qs: &mut [Limb], ns: &[Limb], ds: &[Li
 }}
 
 impl Natural {
-    fn div_exact_limb_ref(&self, other: Limb) -> Natural {
+    fn div_exact_limb_ref(&self, other: Limb) -> Self {
         match (self, other) {
             (_, 0) => panic!("division by zero"),
             (x, 1) => x.clone(),
-            (Natural(Small(small)), other) => Natural(Small(small / other)),
-            (Natural(Large(limbs)), other) => {
-                Natural::from_owned_limbs_asc(limbs_div_exact_limb(limbs, other))
+            (Self(Small(small)), other) => Self(Small(small / other)),
+            (Self(Large(limbs)), other) => {
+                Self::from_owned_limbs_asc(limbs_div_exact_limb(limbs, other))
             }
         }
     }
@@ -1903,8 +1977,8 @@ impl Natural {
         match (&mut *self, other) {
             (_, 0) => panic!("division by zero"),
             (_, 1) => {}
-            (Natural(Small(small)), other) => *small /= other,
-            (Natural(Large(limbs)), other) => {
+            (Self(Small(small)), other) => *small /= other,
+            (Self(Large(limbs)), other) => {
                 limbs_div_exact_limb_in_place(limbs, other);
                 self.trim();
             }
@@ -1912,8 +1986,8 @@ impl Natural {
     }
 }
 
-impl DivExact<Natural> for Natural {
-    type Output = Natural;
+impl DivExact<Self> for Natural {
+    type Output = Self;
 
     /// Divides a [`Natural`] by another [`Natural`], taking both by value. The first [`Natural`]
     /// must be exactly divisible by the second. If it isn't, this function may panic or return a
@@ -1959,14 +2033,14 @@ impl DivExact<Natural> for Natural {
     /// );
     /// ```
     #[inline]
-    fn div_exact(mut self, other: Natural) -> Natural {
+    fn div_exact(mut self, other: Self) -> Self {
         self.div_exact_assign(other);
         self
     }
 }
 
-impl<'a> DivExact<&'a Natural> for Natural {
-    type Output = Natural;
+impl<'a> DivExact<&'a Self> for Natural {
+    type Output = Self;
 
     /// Divides a [`Natural`] by another [`Natural`], taking the first by value and the second by
     /// reference. The first [`Natural`] must be exactly divisible by the second. If it isn't, this
@@ -2012,7 +2086,7 @@ impl<'a> DivExact<&'a Natural> for Natural {
     /// );
     /// ```
     #[inline]
-    fn div_exact(mut self, other: &'a Natural) -> Natural {
+    fn div_exact(mut self, other: &'a Self) -> Self {
         self.div_exact_assign(other);
         self
     }
@@ -2158,7 +2232,7 @@ impl DivExact<&Natural> for &Natural {
     }
 }
 
-impl DivExactAssign<Natural> for Natural {
+impl DivExactAssign<Self> for Natural {
     /// Divides a [`Natural`] by another [`Natural`] in place, taking the [`Natural`] on the
     /// right-hand side by value. The first [`Natural`] must be exactly divisible by the second. If
     /// it isn't, this function may panic or return a meaningless result.
@@ -2198,17 +2272,17 @@ impl DivExactAssign<Natural> for Natural {
     /// x.div_exact_assign(Natural::from_str("987654321000").unwrap());
     /// assert_eq!(x, 123456789000u64);
     /// ```
-    fn div_exact_assign(&mut self, mut other: Natural) {
+    fn div_exact_assign(&mut self, mut other: Self) {
         if *self == other {
-            *self = Natural::ONE;
+            *self = Self::ONE;
             return;
         }
         match (&mut *self, &mut other) {
-            (_, &mut Natural::ZERO) => panic!("division by zero"),
-            (_, &mut Natural::ONE) | (&mut Natural::ZERO, _) => {}
-            (n, &mut Natural(Small(d))) => n.div_exact_assign_limb(d),
-            (Natural(Small(_)), Natural(Large(_))) => panic!("division not exact"),
-            (Natural(Large(ns)), Natural(Large(ds))) => {
+            (_, &mut Self::ZERO) => panic!("division by zero"),
+            (_, &mut Self::ONE) | (&mut Self::ZERO, _) => {}
+            (n, &mut Self(Small(d))) => n.div_exact_assign_limb(d),
+            (Self(Small(_)), Self(Large(_))) => panic!("division not exact"),
+            (Self(Large(ns)), Self(Large(ds))) => {
                 let ns_len = ns.len();
                 let ds_len = ds.len();
                 if ns_len < ds_len {
@@ -2224,7 +2298,7 @@ impl DivExactAssign<Natural> for Natural {
     }
 }
 
-impl<'a> DivExactAssign<&'a Natural> for Natural {
+impl<'a> DivExactAssign<&'a Self> for Natural {
     /// Divides a [`Natural`] by another [`Natural`] in place, taking the [`Natural`] on the
     /// right-hand side by reference. The first [`Natural`] must be exactly divisible by the second.
     /// If it isn't, this function may panic or return a meaningless result.
@@ -2264,17 +2338,17 @@ impl<'a> DivExactAssign<&'a Natural> for Natural {
     /// x.div_exact_assign(&Natural::from_str("987654321000").unwrap());
     /// assert_eq!(x, 123456789000u64);
     /// ```
-    fn div_exact_assign(&mut self, other: &'a Natural) {
+    fn div_exact_assign(&mut self, other: &'a Self) {
         if self == other {
-            *self = Natural::ONE;
+            *self = Self::ONE;
             return;
         }
         match (&mut *self, other) {
-            (_, &Natural::ZERO) => panic!("division by zero"),
-            (_, &Natural::ONE) | (&mut Natural::ZERO, _) => {}
-            (_, Natural(Small(d))) => self.div_exact_assign_limb(*d),
-            (Natural(Small(_)), Natural(Large(_))) => panic!("division not exact"),
-            (Natural(Large(ns)), Natural(Large(ds))) => {
+            (_, &Self::ZERO) => panic!("division by zero"),
+            (_, &Self::ONE) | (&mut Self::ZERO, _) => {}
+            (_, Self(Small(d))) => self.div_exact_assign_limb(*d),
+            (Self(Small(_)), Self(Large(_))) => panic!("division not exact"),
+            (Self(Large(ns)), Self(Large(ds))) => {
                 let ns_len = ns.len();
                 let ds_len = ds.len();
                 if ns_len < ds_len {

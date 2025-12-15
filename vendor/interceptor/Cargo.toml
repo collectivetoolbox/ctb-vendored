@@ -12,7 +12,7 @@
 [package]
 edition = "2021"
 name = "interceptor"
-version = "0.14.0"
+version = "0.15.0"
 authors = ["Rain Liu <yliu@webrtc.rs>"]
 build = false
 autolib = false
@@ -37,6 +37,9 @@ version = "0.1"
 [dependencies.bytes]
 version = "1"
 
+[dependencies.futures]
+version = "0.3"
+
 [dependencies.log]
 version = "0.4"
 
@@ -44,16 +47,16 @@ version = "0.4"
 version = "1.6"
 
 [dependencies.rand]
-version = "0.8"
+version = "0.9"
 
 [dependencies.rtcp]
-version = "0.13.0"
+version = "0.14.0"
 
 [dependencies.rtp]
-version = "0.13.0"
+version = "0.14.0"
 
 [dependencies.srtp]
-version = "0.15.0"
+version = "0.16.0"
 package = "webrtc-srtp"
 
 [dependencies.thiserror]
@@ -67,7 +70,7 @@ features = [
 ]
 
 [dependencies.util]
-version = "0.11.0"
+version = "0.12.0"
 features = [
     "marshal",
     "sync",
@@ -80,6 +83,3 @@ version = "0.1"
 
 [dev-dependencies.chrono]
 version = "0.4.28"
-
-[dev-dependencies.tokio-test]
-version = "0.4"

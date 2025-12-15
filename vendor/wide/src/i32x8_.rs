@@ -17,10 +17,13 @@ int_uint_consts!(i32, 8, i32x8, 256);
 unsafe impl Zeroable for i32x8 {}
 unsafe impl Pod for i32x8 {}
 
+impl AlignTo for i32x8 {
+  type Elem = i32;
+}
+
 impl Add for i32x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn add(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx2")] {
@@ -38,7 +41,6 @@ impl Add for i32x8 {
 impl Sub for i32x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn sub(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx2")] {
@@ -56,7 +58,6 @@ impl Sub for i32x8 {
 impl Mul for i32x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn mul(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx2")] {
@@ -74,7 +75,6 @@ impl Mul for i32x8 {
 impl Add<i32> for i32x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn add(self, rhs: i32) -> Self::Output {
     self.add(Self::splat(rhs))
   }
@@ -83,7 +83,6 @@ impl Add<i32> for i32x8 {
 impl Sub<i32> for i32x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn sub(self, rhs: i32) -> Self::Output {
     self.sub(Self::splat(rhs))
   }
@@ -92,7 +91,6 @@ impl Sub<i32> for i32x8 {
 impl Mul<i32> for i32x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn mul(self, rhs: i32) -> Self::Output {
     self.mul(Self::splat(rhs))
   }
@@ -101,7 +99,6 @@ impl Mul<i32> for i32x8 {
 impl Add<i32x8> for i32 {
   type Output = i32x8;
   #[inline]
-  #[must_use]
   fn add(self, rhs: i32x8) -> Self::Output {
     i32x8::splat(self) + rhs
   }
@@ -110,7 +107,6 @@ impl Add<i32x8> for i32 {
 impl Sub<i32x8> for i32 {
   type Output = i32x8;
   #[inline]
-  #[must_use]
   fn sub(self, rhs: i32x8) -> Self::Output {
     i32x8::splat(self) - rhs
   }
@@ -119,7 +115,6 @@ impl Sub<i32x8> for i32 {
 impl Mul<i32x8> for i32 {
   type Output = i32x8;
   #[inline]
-  #[must_use]
   fn mul(self, rhs: i32x8) -> Self::Output {
     i32x8::splat(self) * rhs
   }
@@ -128,7 +123,6 @@ impl Mul<i32x8> for i32 {
 impl BitAnd for i32x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn bitand(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx2")] {
@@ -146,7 +140,6 @@ impl BitAnd for i32x8 {
 impl BitOr for i32x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn bitor(self, rhs: Self) -> Self::Output {
     pick! {
     if #[cfg(target_feature="avx2")] {
@@ -163,7 +156,6 @@ impl BitOr for i32x8 {
 impl BitXor for i32x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
   fn bitxor(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx2")] {
@@ -184,7 +176,6 @@ macro_rules! impl_shl_t_for_i32x8 {
       type Output = Self;
       /// Shifts all lanes by the value given.
       #[inline]
-      #[must_use]
       fn shl(self, rhs: $shift_type) -> Self::Output {
         pick! {
           if #[cfg(target_feature="avx2")] {
@@ -209,7 +200,6 @@ macro_rules! impl_shr_t_for_i32x8 {
       type Output = Self;
       /// Shifts all lanes by the value given.
       #[inline]
-      #[must_use]
       fn shr(self, rhs: $shift_type) -> Self::Output {
         pick! {
           if #[cfg(target_feature="avx2")] {
@@ -238,7 +228,6 @@ impl Shr<i32x8> for i32x8 {
   type Output = Self;
 
   #[inline]
-  #[must_use]
   fn shr(self, rhs: i32x8) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx2")] {
@@ -264,7 +253,6 @@ impl Shl<i32x8> for i32x8 {
   type Output = Self;
 
   #[inline]
-  #[must_use]
   fn shl(self, rhs: i32x8) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx2")] {
@@ -285,15 +273,14 @@ impl Shl<i32x8> for i32x8 {
 impl CmpEq for i32x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
-  fn cmp_eq(self, rhs: Self) -> Self::Output {
+  fn simd_eq(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx2")] {
         Self { avx2: cmp_eq_mask_i32_m256i(self.avx2, rhs.avx2) }
       } else {
         Self {
-          a : self.a.cmp_eq(rhs.a),
-          b : self.b.cmp_eq(rhs.b),
+          a : self.a.simd_eq(rhs.a),
+          b : self.b.simd_eq(rhs.b),
         }
       }
     }
@@ -303,15 +290,14 @@ impl CmpEq for i32x8 {
 impl CmpGt for i32x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
-  fn cmp_gt(self, rhs: Self) -> Self::Output {
+  fn simd_gt(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx2")] {
         Self { avx2: cmp_gt_mask_i32_m256i(self.avx2, rhs.avx2) }
       } else {
         Self {
-          a : self.a.cmp_gt(rhs.a),
-          b : self.b.cmp_gt(rhs.b),
+          a : self.a.simd_gt(rhs.a),
+          b : self.b.simd_gt(rhs.b),
         }
       }
     }
@@ -321,15 +307,14 @@ impl CmpGt for i32x8 {
 impl CmpLt for i32x8 {
   type Output = Self;
   #[inline]
-  #[must_use]
-  fn cmp_lt(self, rhs: Self) -> Self::Output {
+  fn simd_lt(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx2")] {
-        Self { avx2: !cmp_gt_mask_i32_m256i(self.avx2, rhs.avx2)  ^ cmp_eq_mask_i32_m256i(self.avx2,rhs.avx2) }
+        Self { avx2: cmp_gt_mask_i32_m256i(rhs.avx2, self.avx2) }
       } else {
         Self {
-          a : self.a.cmp_lt(rhs.a),
-          b : self.b.cmp_lt(rhs.b),
+          a : self.a.simd_lt(rhs.a),
+          b : self.b.simd_lt(rhs.b),
         }
       }
     }
@@ -338,7 +323,6 @@ impl CmpLt for i32x8 {
 
 impl From<i16x8> for i32x8 {
   #[inline]
-  #[must_use]
   fn from(value: i16x8) -> Self {
     i32x8::from_i16x8(value)
   }
@@ -365,14 +349,14 @@ impl i32x8 {
         }
       } else {
         i32x8::new([
-          i32::from(v.as_array_ref()[0]),
-          i32::from(v.as_array_ref()[1]),
-          i32::from(v.as_array_ref()[2]),
-          i32::from(v.as_array_ref()[3]),
-          i32::from(v.as_array_ref()[4]),
-          i32::from(v.as_array_ref()[5]),
-          i32::from(v.as_array_ref()[6]),
-          i32::from(v.as_array_ref()[7]),
+          i32::from(v.as_array()[0]),
+          i32::from(v.as_array()[1]),
+          i32::from(v.as_array()[2]),
+          i32::from(v.as_array()[3]),
+          i32::from(v.as_array()[4]),
+          i32::from(v.as_array()[5]),
+          i32::from(v.as_array()[6]),
+          i32::from(v.as_array()[7]),
         ])
       }
     }
@@ -392,14 +376,14 @@ impl i32x8 {
         }
       } else {
         i32x8::new([
-          i32::from(v.as_array_ref()[0]),
-          i32::from(v.as_array_ref()[1]),
-          i32::from(v.as_array_ref()[2]),
-          i32::from(v.as_array_ref()[3]),
-          i32::from(v.as_array_ref()[4]),
-          i32::from(v.as_array_ref()[5]),
-          i32::from(v.as_array_ref()[6]),
-          i32::from(v.as_array_ref()[7]),
+          i32::from(v.as_array()[0]),
+          i32::from(v.as_array()[1]),
+          i32::from(v.as_array()[2]),
+          i32::from(v.as_array()[3]),
+          i32::from(v.as_array()[4]),
+          i32::from(v.as_array()[5]),
+          i32::from(v.as_array()[6]),
+          i32::from(v.as_array()[7]),
         ])
       }
     }
@@ -519,13 +503,13 @@ impl i32x8 {
 
   #[inline]
   #[must_use]
-  pub fn move_mask(self) -> i32 {
+  pub fn to_bitmask(self) -> u32 {
     pick! {
       if #[cfg(target_feature="avx2")] {
         // use f32 move_mask since it is the same size as i32
-        move_mask_m256(cast(self.avx2))
+        move_mask_m256(cast(self.avx2)) as u32
       } else {
-        self.a.move_mask() | (self.b.move_mask() << 4)
+        self.a.to_bitmask() | (self.b.to_bitmask() << 4)
       }
     }
   }
@@ -607,14 +591,14 @@ impl i32x8 {
         #[inline(always)]
         fn transpose_column(data: &[i32x8; 8], index: usize) -> i32x8 {
           i32x8::new([
-            data[0].as_array_ref()[index],
-            data[1].as_array_ref()[index],
-            data[2].as_array_ref()[index],
-            data[3].as_array_ref()[index],
-            data[4].as_array_ref()[index],
-            data[5].as_array_ref()[index],
-            data[6].as_array_ref()[index],
-            data[7].as_array_ref()[index],
+            data[0].as_array()[index],
+            data[1].as_array()[index],
+            data[2].as_array()[index],
+            data[3].as_array()[index],
+            data[4].as_array()[index],
+            data[5].as_array()[index],
+            data[6].as_array()[index],
+            data[7].as_array()[index],
           ])
         }
 
@@ -638,12 +622,12 @@ impl i32x8 {
   }
 
   #[inline]
-  pub fn as_array_ref(&self) -> &[i32; 8] {
+  pub fn as_array(&self) -> &[i32; 8] {
     cast_ref(self)
   }
 
   #[inline]
-  pub fn as_array_mut(&mut self) -> &mut [i32; 8] {
+  pub fn as_mut_array(&mut self) -> &mut [i32; 8] {
     cast_mut(self)
   }
 }

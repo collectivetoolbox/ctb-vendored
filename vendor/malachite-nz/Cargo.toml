@@ -11,9 +11,9 @@
 
 [package]
 edition = "2024"
-rust-version = "1.86.0"
+rust-version = "1.90.0"
 name = "malachite-nz"
-version = "0.7.0"
+version = "0.8.0"
 authors = ["Mikhail Hogrefe <mikhailhogrefe@gmail.com>"]
 build = "build.rs"
 autolib = false
@@ -100,7 +100,7 @@ version = "0.2.8"
 default-features = false
 
 [dependencies.malachite-base]
-version = "0.7.0"
+version = "0.8.0"
 default-features = false
 
 [dependencies.num]
@@ -135,7 +135,7 @@ version = "1.0.105"
 optional = true
 
 [dependencies.wide]
-version = "0.7.33"
+version = "0.8.0"
 
 [dev-dependencies]
 

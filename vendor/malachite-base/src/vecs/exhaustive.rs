@@ -428,9 +428,9 @@ where
 
     fn next(&mut self) -> Option<Vec<I::Item>> {
         match self {
-            LexFixedLengthVecsFromSingle::Zero(xs) => xs.next(),
-            LexFixedLengthVecsFromSingle::One(xs) => xs.next().map(|x| vec![x]),
-            LexFixedLengthVecsFromSingle::GreaterThanOne(xs) => xs.next(),
+            Self::Zero(xs) => xs.next(),
+            Self::One(xs) => xs.next().map(|x| vec![x]),
+            Self::GreaterThanOne(xs) => xs.next(),
         }
     }
 }
@@ -898,9 +898,9 @@ where
 
     fn next(&mut self) -> Option<Vec<I::Item>> {
         match self {
-            ExhaustiveFixedLengthVecs1Input::Zero(xs) => xs.next(),
-            ExhaustiveFixedLengthVecs1Input::One(xs) => xs.next().map(|x| vec![x]),
-            ExhaustiveFixedLengthVecs1Input::GreaterThanOne(xs) => xs.next(),
+            Self::Zero(xs) => xs.next(),
+            Self::One(xs) => xs.next().map(|x| vec![x]),
+            Self::GreaterThanOne(xs) => xs.next(),
         }
     }
 }
@@ -1768,22 +1768,20 @@ where
     done: bool,
     xs: IteratorCache<I>,
     indices: Vec<usize>,
-    phantom_i: PhantomData<*const I::Item>,
-    phantom_c: PhantomData<*const C>,
+    phantom: PhantomData<(I::Item, C)>,
 }
 
 impl<I: Iterator, C: FromIterator<I::Item>> LexFixedLengthOrderedUniqueCollections<I, C>
 where
     I::Item: Clone,
 {
-    pub fn new(k: u64, xs: I) -> LexFixedLengthOrderedUniqueCollections<I, C> {
-        LexFixedLengthOrderedUniqueCollections {
+    pub fn new(k: u64, xs: I) -> Self {
+        Self {
             first: true,
             done: false,
             xs: IteratorCache::new(xs),
             indices: (0..usize::exact_from(k)).collect(),
-            phantom_i: PhantomData,
-            phantom_c: PhantomData,
+            phantom: PhantomData,
         }
     }
 }
@@ -1831,11 +1829,11 @@ where
         if self.first {
             self.first = false;
             self.xs.get(k);
-            if let Some(n) = self.xs.known_len() {
-                if n < k {
-                    self.done = true;
-                    return None;
-                }
+            if let Some(n) = self.xs.known_len()
+                && n < k
+            {
+                self.done = true;
+                return None;
             }
         } else {
             if k == 0 {
@@ -1937,8 +1935,8 @@ impl<I: Clone + Iterator, C: FromIterator<I::Item>> ShortlexOrderedUniqueCollect
 where
     I::Item: Clone,
 {
-    pub(crate) fn new(a: u64, b: u64, xs: I) -> ShortlexOrderedUniqueCollections<I, C> {
-        ShortlexOrderedUniqueCollections {
+    pub(crate) fn new(a: u64, b: u64, xs: I) -> Self {
+        Self {
             current_len: a,
             max_len: b,
             xs: xs.clone(),
@@ -1970,8 +1968,7 @@ where
                 done: false,
                 xs: IteratorCache::new(self.xs.clone()),
                 indices: (0..usize::exact_from(self.current_len)).collect(),
-                phantom_i: PhantomData,
-                phantom_c: PhantomData,
+                phantom: PhantomData,
             };
             if let Some(next) = self.current_xss.next() {
                 Some(next)
@@ -2227,24 +2224,22 @@ where
     max_len: usize,
     xs: IteratorCache<I>,
     indices: Vec<usize>,
-    phantom_i: PhantomData<*const I::Item>,
-    phantom_c: PhantomData<*const C>,
+    phantom: PhantomData<(I::Item, C)>,
 }
 
 impl<I: Iterator, C: FromIterator<I::Item>> LexOrderedUniqueCollections<I, C>
 where
     I::Item: Clone,
 {
-    pub(crate) fn new(a: u64, b: u64, xs: I) -> LexOrderedUniqueCollections<I, C> {
-        LexOrderedUniqueCollections {
+    pub(crate) fn new(a: u64, b: u64, xs: I) -> Self {
+        Self {
             done: a > b,
             first: true,
             min_len: usize::exact_from(a),
             max_len: usize::exact_from(b),
             xs: IteratorCache::new(xs),
             indices: (0..usize::exact_from(a)).collect(),
-            phantom_i: PhantomData,
-            phantom_c: PhantomData,
+            phantom: PhantomData,
         }
     }
 }
@@ -2263,11 +2258,11 @@ where
         if self.first {
             self.first = false;
             self.xs.get(k);
-            if let Some(n) = self.xs.known_len() {
-                if n < k {
-                    self.done = true;
-                    return None;
-                }
+            if let Some(n) = self.xs.known_len()
+                && n < k
+            {
+                self.done = true;
+                return None;
             }
         } else if k == 0 {
             if self.xs.get(0).is_none() {
@@ -2737,24 +2732,22 @@ impl<I: Iterator, C: FromIterator<I::Item>> ExhaustiveOrderedUniqueCollections<I
 where
     I::Item: Clone,
 {
-    pub(crate) fn new(a: u64, b: u64, xs: I) -> ExhaustiveOrderedUniqueCollections<I, C> {
+    pub(crate) fn new(a: u64, b: u64, xs: I) -> Self {
         match (a, b) {
-            (a, b) if a > b => ExhaustiveOrderedUniqueCollections::None,
-            (0, 0) => ExhaustiveOrderedUniqueCollections::Zero(false),
-            (0, 1) => ExhaustiveOrderedUniqueCollections::ZeroOne(true, xs),
-            (1, 1) => ExhaustiveOrderedUniqueCollections::One(xs),
-            (a, b) => ExhaustiveOrderedUniqueCollections::GreaterThanOne(
-                ExhaustiveOrderedUniqueCollectionsGreaterThanOne {
-                    done: false,
-                    first: true,
-                    min_bits: usize::saturating_from(a),
-                    max_bits: usize::saturating_from(b),
-                    xs: IteratorCache::new(xs),
-                    pattern: vec![true; usize::saturating_from(a)],
-                    bit_count: usize::saturating_from(a),
-                    phantom: PhantomData,
-                },
-            ),
+            (a, b) if a > b => Self::None,
+            (0, 0) => Self::Zero(false),
+            (0, 1) => Self::ZeroOne(true, xs),
+            (1, 1) => Self::One(xs),
+            (a, b) => Self::GreaterThanOne(ExhaustiveOrderedUniqueCollectionsGreaterThanOne {
+                done: false,
+                first: true,
+                min_bits: usize::saturating_from(a),
+                max_bits: usize::saturating_from(b),
+                xs: IteratorCache::new(xs),
+                pattern: vec![true; usize::saturating_from(a)],
+                bit_count: usize::saturating_from(a),
+                phantom: PhantomData,
+            }),
         }
     }
 }
@@ -2767,8 +2760,8 @@ where
 
     fn next(&mut self) -> Option<C> {
         match self {
-            ExhaustiveOrderedUniqueCollections::None => None,
-            ExhaustiveOrderedUniqueCollections::Zero(done) => {
+            Self::None => None,
+            Self::Zero(done) => {
                 if *done {
                     None
                 } else {
@@ -2776,7 +2769,7 @@ where
                     Some(empty().collect())
                 }
             }
-            ExhaustiveOrderedUniqueCollections::ZeroOne(first, xs) => {
+            Self::ZeroOne(first, xs) => {
                 if *first {
                     *first = false;
                     Some(empty().collect())
@@ -2784,8 +2777,8 @@ where
                     xs.next().map(|x| once(x).collect())
                 }
             }
-            ExhaustiveOrderedUniqueCollections::One(xs) => xs.next().map(|x| once(x).collect()),
-            ExhaustiveOrderedUniqueCollections::GreaterThanOne(xs) => xs.next(),
+            Self::One(xs) => xs.next().map(|x| once(x).collect()),
+            Self::GreaterThanOne(xs) => xs.next(),
         }
     }
 }
@@ -3098,7 +3091,7 @@ pub struct UniqueIndices {
 
 impl UniqueIndices {
     #[doc(hidden)]
-    pub fn get_n(&self) -> usize {
+    pub const fn get_n(&self) -> usize {
         self.used.len()
     }
 
@@ -3260,8 +3253,8 @@ impl<I: Clone + Iterator> ShortlexUniqueVecs<I>
 where
     I::Item: Clone,
 {
-    fn new(a: u64, b: u64, xs: I) -> ShortlexUniqueVecs<I> {
-        ShortlexUniqueVecs {
+    fn new(a: u64, b: u64, xs: I) -> Self {
+        Self {
             current_len: a,
             max_len: b,
             xs: xs.clone(),
@@ -3618,14 +3611,14 @@ where
             self.first = false;
             return self.phase_1_vec.clone();
         }
-        if let Some(prefix) = self.phase_1_vec.as_mut() {
-            if prefix.len() < self.max {
-                if let Some(x) = self.xs_for_prefix.next() {
-                    prefix.push(x);
-                    return Some(prefix.clone());
-                }
-                self.max = prefix.len();
+        if let Some(prefix) = self.phase_1_vec.as_mut()
+            && prefix.len() < self.max
+        {
+            if let Some(x) = self.xs_for_prefix.next() {
+                prefix.push(x);
+                return Some(prefix.clone());
             }
+            self.max = prefix.len();
         }
         if self.phase_1_vec.is_some() {
             for k in self.min..=self.max {
@@ -3989,17 +3982,15 @@ where
 #[doc(hidden)]
 #[derive(Clone, Debug)]
 pub struct ExhaustiveUniqueVecsGenerator<T: Clone, I: Iterator<Item = T>> {
-    phantom_t: PhantomData<T>,
-    phantom_i: PhantomData<I>,
+    phantom: PhantomData<(T, I)>,
 }
 
 impl<T: Clone, I: Iterator<Item = T>> ExhaustiveUniqueVecsGenerator<T, I> {
     #[doc(hidden)]
     #[inline]
-    pub const fn new() -> ExhaustiveUniqueVecsGenerator<T, I> {
-        ExhaustiveUniqueVecsGenerator {
-            phantom_i: PhantomData,
-            phantom_t: PhantomData,
+    pub const fn new() -> Self {
+        Self {
+            phantom: PhantomData,
         }
     }
 }
@@ -4044,7 +4035,7 @@ where
 
     fn next(&mut self) -> Option<Vec<I::Item>> {
         match self {
-            ExhaustiveUniqueVecsFixedLength::Zero(done) => {
+            Self::Zero(done) => {
                 if *done {
                     None
                 } else {
@@ -4052,9 +4043,9 @@ where
                     Some(Vec::new())
                 }
             }
-            ExhaustiveUniqueVecsFixedLength::One(xs) => xs.next().map(|x| vec![x]),
-            ExhaustiveUniqueVecsFixedLength::Two(ps) => ps.next(),
-            ExhaustiveUniqueVecsFixedLength::GreaterThanTwo(xss) => xss.next().map(|p| p.1),
+            Self::One(xs) => xs.next().map(|x| vec![x]),
+            Self::Two(ps) => ps.next(),
+            Self::GreaterThanTwo(xss) => xss.next().map(|p| p.1),
         }
     }
 }

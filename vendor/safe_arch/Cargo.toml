@@ -11,10 +11,18 @@
 
 [package]
 edition = "2018"
+rust-version = "1.89"
 name = "safe_arch"
-version = "0.7.4"
+version = "0.9.3"
 authors = ["Lokathor <zefria@gmail.com>"]
 build = false
+exclude = [
+    "/.cargo/",
+    "/.github/",
+    "/scripts/",
+    "/rustfmt.toml",
+    "/tmp.txt",
+]
 autolib = false
 autobins = false
 autoexamples = false
@@ -35,14 +43,14 @@ license = "Zlib OR Apache-2.0 OR MIT"
 repository = "https://github.com/Lokathor/safe_arch"
 
 [package.metadata.docs.rs]
-all-features = true
 rustdoc-args = [
     "-C",
     "target-cpu=native",
 ]
+all-features = true
 
-[profile.test]
-opt-level = 3
+[features]
+default = []
 
 [lib]
 name = "safe_arch"
@@ -56,5 +64,5 @@ path = "tests/integration/main.rs"
 version = "1.2"
 optional = true
 
-[features]
-default = []
+[profile.test]
+opt-level = 3

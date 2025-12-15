@@ -7,43 +7,35 @@
 // licenses.
 
 //! An implementation of the Triple Diffie-Hellman key exchange protocol
-use core::convert::TryFrom;
+
+use core::marker::PhantomData;
 use core::ops::Add;
 
 use derive_where::derive_where;
 use digest::core_api::BlockSizeUser;
-use digest::{Digest, Output, OutputSizeUser};
+use digest::{Digest, Mac, Output, OutputSizeUser};
 use generic_array::sequence::Concat;
-use generic_array::typenum::{
-    IsLess, IsLessOrEqual, Le, NonZero, Sum, Unsigned, U1, U2, U256, U32,
-};
+use generic_array::typenum::{IsLess, Le, NonZero, Sum, U256};
 use generic_array::{ArrayLength, GenericArray};
-use hkdf::{Hkdf, HkdfExtract};
-use hmac::{Hmac, Mac};
+use hmac::Hmac;
 use rand::{CryptoRng, RngCore};
+use subtle::{ConstantTimeEq, CtOption};
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::errors::utils::{check_slice_size, check_slice_size_atleast};
+use super::{
+    Deserialize, GenerateKe1Result, GenerateKe2Result, GenerateKe3Result, KeyExchange, Serialize,
+    SerializedContext, SerializedCredentialRequest, SerializedCredentialResponse,
+    SerializedIdentifiers,
+};
+use crate::ciphersuite::{CipherSuite, KeGroup};
 use crate::errors::{InternalError, ProtocolError};
 use crate::hash::{Hash, OutputSize, ProxyHash};
-use crate::key_exchange::group::KeGroup;
-use crate::key_exchange::traits::{
-    Deserialize, GenerateKe2Result, GenerateKe3Result, KeyExchange, Serialize,
-};
-use crate::keypair::{KeyPair, PrivateKey, PublicKey, SecretKey};
-use crate::serialization::{Input, UpdateExt};
-
-///////////////
-// Constants //
-// ========= //
-///////////////
-
-pub(crate) type NonceLen = U32;
-static STR_CONTEXT: &[u8] = b"OPAQUEv1-";
-static STR_CLIENT_MAC: &[u8] = b"ClientMAC";
-static STR_HANDSHAKE_SECRET: &[u8] = b"HandshakeSecret";
-static STR_SERVER_MAC: &[u8] = b"ServerMAC";
-static STR_SESSION_KEY: &[u8] = b"SessionKey";
-static STR_OPAQUE: &[u8] = b"OPAQUE-";
+use crate::key_exchange::group::Group;
+use crate::key_exchange::shared::{self, NonceLen};
+pub use crate::key_exchange::shared::{DiffieHellman, Ke1Message, Ke1State};
+use crate::keypair::{KeyPair, PrivateKey, PublicKey};
+use crate::opaque::Identifiers;
+use crate::serialization::SliceExt;
 
 ////////////////////////////
 // High-level API Structs //
@@ -51,33 +43,16 @@ static STR_OPAQUE: &[u8] = b"OPAQUE-";
 ////////////////////////////
 
 /// The Triple Diffie-Hellman key exchange implementation
-pub struct TripleDh;
-
-/// The client state produced after the first key exchange message
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Deserialize, serde::Serialize),
-    serde(bound = "")
-)]
-#[derive_where(Clone, ZeroizeOnDrop)]
-#[derive_where(Debug, Eq, Hash, Ord, PartialEq, PartialOrd; KG::Sk)]
-pub struct Ke1State<KG: KeGroup> {
-    client_e_sk: PrivateKey<KG>,
-    client_nonce: GenericArray<u8, NonceLen>,
-}
-
-/// The first key exchange message
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Deserialize, serde::Serialize),
-    serde(bound = "")
-)]
-#[derive_where(Clone, ZeroizeOnDrop)]
-#[derive_where(Debug, Eq, Hash, Ord, PartialEq, PartialOrd; KG::Pk)]
-pub struct Ke1Message<KG: KeGroup> {
-    pub(crate) client_nonce: GenericArray<u8, NonceLen>,
-    pub(crate) client_e_pk: PublicKey<KG>,
-}
+///
+/// # Remote Key
+///
+/// [`ServerLoginBuilder::data()`](crate::ServerLoginBuilder::data()) will
+/// return the client's ephemeral public key.
+///
+/// [`ServerLoginBuilder::build()`](crate::ServerLoginBuilder::build()) expects
+/// a shared secret computed through Diffie-Hellman from the servers private key
+/// and the given public key.
+pub struct TripleDh<G, H>(PhantomData<(G, H)>);
 
 /// The server state produced after the second key exchange message
 #[cfg_attr(
@@ -86,34 +61,57 @@ pub struct Ke1Message<KG: KeGroup> {
     serde(bound = "")
 )]
 #[derive_where(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, ZeroizeOnDrop)]
-pub struct Ke2State<D: Hash>
+pub struct Ke2State<H: OutputSizeUser> {
+    session_key: Output<H>,
+    expected_mac: Output<H>,
+}
+
+/// Builder for the second key exchange message
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Deserialize, serde::Serialize),
+    serde(bound(
+        deserialize = "H: serde::Deserialize<'de>,  PublicKey<G>: serde::Deserialize<'de>",
+        serialize = "H: serde::Serialize, PublicKey<G>: serde::Serialize",
+    ))
+)]
+#[derive_where(Clone)]
+#[derive_where(Debug, Eq, Hash, PartialEq; H, PublicKey<G>)]
+pub struct Ke2Builder<G: Group, H: Hash>
 where
-    D::Core: ProxyHash,
-    <D::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
-    Le<<D::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
+    H::Core: ProxyHash,
+    <H::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
+    Le<<H::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
 {
-    km3: Output<D>,
-    hashed_transcript: Output<D>,
-    session_key: Output<D>,
+    server_nonce: GenericArray<u8, NonceLen>,
+    transcript_hasher: H,
+    client_e_pk: PublicKey<G>,
+    server_e_pk: PublicKey<G>,
+    shared_secret_1: GenericArray<u8, G::PkLen>,
+    shared_secret_3: GenericArray<u8, G::PkLen>,
 }
 
 /// The second key exchange message
 #[cfg_attr(
     feature = "serde",
     derive(serde::Deserialize, serde::Serialize),
-    serde(bound = "")
+    serde(bound(
+        deserialize = "G::Pk: serde::Deserialize<'de>",
+        serialize = "G::Pk: serde::Serialize"
+    ))
 )]
 #[derive_where(Clone, ZeroizeOnDrop)]
-#[derive_where(Debug, Eq, Hash, Ord, PartialEq, PartialOrd; KG::Pk)]
-pub struct Ke2Message<D: Hash, KG: KeGroup>
+#[derive_where(Debug, Eq, Hash, Ord, PartialEq, PartialOrd; G::Pk)]
+pub struct Ke2Message<G: Group, H: Hash>
 where
-    D::Core: ProxyHash,
-    <D::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
-    Le<<D::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
+    H::Core: ProxyHash,
+    <H::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
+    Le<<H::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
 {
     server_nonce: GenericArray<u8, NonceLen>,
-    server_e_pk: PublicKey<KG>,
-    mac: Output<D>,
+    #[derive_where(skip(Zeroize))]
+    server_e_pk: PublicKey<G>,
+    mac: Output<H>,
 }
 
 /// The third key exchange message
@@ -123,13 +121,13 @@ where
     serde(bound = "")
 )]
 #[derive_where(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, ZeroizeOnDrop)]
-pub struct Ke3Message<D: Hash>
+pub struct Ke3Message<H: Hash>
 where
-    D::Core: ProxyHash,
-    <D::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
-    Le<<D::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
+    H::Core: ProxyHash,
+    <H::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
+    Le<<H::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
 {
-    mac: Output<D>,
+    mac: Output<H>,
 }
 
 ////////////////////////////////
@@ -137,502 +135,306 @@ where
 // ========================== //
 ////////////////////////////////
 
-impl<D: Hash, KG: KeGroup> KeyExchange<D, KG> for TripleDh
+impl<G: Group + 'static, H: Hash> KeyExchange for TripleDh<G, H>
 where
-    D::Core: ProxyHash,
-    <D::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
-    Le<<D::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
-    // Ke1State: KeSk + Nonce
-    KG::SkLen: Add<NonceLen>,
-    Sum<KG::SkLen, NonceLen>: ArrayLength<u8>,
-    // Ke1Message: Nonce + KePk
-    NonceLen: Add<KG::PkLen>,
-    Sum<NonceLen, KG::PkLen>: ArrayLength<u8>,
-    // Ke2State: (Hash + Hash) + Hash
-    OutputSize<D>: Add<OutputSize<D>>,
-    Sum<OutputSize<D>, OutputSize<D>>: ArrayLength<u8> + Add<OutputSize<D>>,
-    Sum<Sum<OutputSize<D>, OutputSize<D>>, OutputSize<D>>: ArrayLength<u8>,
-    // Ke2Message: (Nonce + KePk) + Hash
-    NonceLen: Add<KG::PkLen>,
-    Sum<NonceLen, KG::PkLen>: ArrayLength<u8> + Add<OutputSize<D>>,
-    Sum<Sum<NonceLen, KG::PkLen>, OutputSize<D>>: ArrayLength<u8>,
+    G::Sk: DiffieHellman<G>,
+    H::Core: ProxyHash,
+    <H::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
+    Le<<H::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
 {
-    type KE1State = Ke1State<KG>;
-    type KE2State = Ke2State<D>;
-    type KE1Message = Ke1Message<KG>;
-    type KE2Message = Ke2Message<D, KG>;
-    type KE3Message = Ke3Message<D>;
+    type Group = G;
+    type Hash = H;
 
-    fn generate_ke1<OprfCs: voprf::CipherSuite, R: RngCore + CryptoRng>(
+    type KE1State = Ke1State<G>;
+    type KE2State<CS: CipherSuite> = Ke2State<H>;
+    type KE1Message = Ke1Message<G>;
+    type KE2Builder<'a, CS: CipherSuite<KeyExchange = Self>> = Ke2Builder<G, H>;
+    type KE2BuilderData<'a, CS: 'static + CipherSuite> = &'a PublicKey<G>;
+    type KE2BuilderInput<CS: CipherSuite> = GenericArray<u8, G::PkLen>;
+    type KE2Message = Ke2Message<G, H>;
+    type KE3Message = Ke3Message<H>;
+
+    fn generate_ke1<R: RngCore + CryptoRng>(
         rng: &mut R,
-    ) -> Result<(Self::KE1State, Self::KE1Message), ProtocolError>
-    where
-        <OprfCs::Hash as OutputSizeUser>::OutputSize:
-            IsLess<U256> + IsLessOrEqual<<OprfCs::Hash as BlockSizeUser>::BlockSize>,
-    {
-        let client_e_kp = KeyPair::<KG>::generate_random::<OprfCs, _>(rng);
-        let client_nonce = generate_nonce::<R>(rng);
-
-        let ke1_message = Ke1Message {
-            client_nonce,
-            client_e_pk: client_e_kp.public().clone(),
-        };
-
-        Ok((
-            Ke1State {
-                client_e_sk: client_e_kp.private().clone(),
-                client_nonce,
-            },
-            ke1_message,
-        ))
+    ) -> Result<GenerateKe1Result<Self>, ProtocolError> {
+        shared::generate_ke1(rng)
     }
 
-    #[allow(clippy::type_complexity)]
-    fn generate_ke2<
-        'a,
-        'b,
-        'c,
-        'd,
-        OprfCs: voprf::CipherSuite,
-        R: RngCore + CryptoRng,
-        S: SecretKey<KG>,
-    >(
+    fn ke2_builder<'a, CS: CipherSuite<KeyExchange = Self>, R: RngCore + CryptoRng>(
         rng: &mut R,
-        serialized_credential_request: impl Iterator<Item = &'a [u8]>,
-        l2_bytes: impl Iterator<Item = &'b [u8]>,
+        credential_request: SerializedCredentialRequest<CS>,
         ke1_message: Self::KE1Message,
-        client_s_pk: PublicKey<KG>,
-        server_s_sk: S,
-        id_u: impl Iterator<Item = &'c [u8]>,
-        id_s: impl Iterator<Item = &'d [u8]>,
-        context: &[u8],
-    ) -> Result<GenerateKe2Result<Self, D, KG>, ProtocolError<S::Error>>
-    where
-        <OprfCs::Hash as OutputSizeUser>::OutputSize:
-            IsLess<U256> + IsLessOrEqual<<OprfCs::Hash as BlockSizeUser>::BlockSize>,
-    {
-        let server_e_kp = KeyPair::<KG>::generate_random::<OprfCs, _>(rng);
-        let server_nonce = generate_nonce::<R>(rng);
+        credential_response: SerializedCredentialResponse<CS>,
+        client_s_pk: PublicKey<G>,
+        identifiers: SerializedIdentifiers<'_, KeGroup<CS>>,
+        context: SerializedContext<'a>,
+    ) -> Result<Self::KE2Builder<'a, CS>, ProtocolError> {
+        let server_e = KeyPair::<G>::derive_random(rng);
+        let server_nonce = shared::generate_nonce::<R>(rng);
 
-        let mut transcript_hasher = D::new()
-            .chain(STR_CONTEXT)
-            .chain_iter(
-                Input::<U2>::from(context)
-                    .map_err(ProtocolError::into_custom)?
-                    .iter(),
-            )
-            .chain_iter(id_u.into_iter())
-            .chain_iter(serialized_credential_request)
-            .chain_iter(id_s.into_iter())
-            .chain_iter(l2_bytes)
-            .chain(server_nonce)
-            .chain(server_e_kp.public().serialize());
+        let ke1_message_iter = ke1_message.to_iter();
+        let server_e_pk = server_e.public().serialize();
 
-        let result = derive_3dh_keys::<D, KG, S>(
-            TripleDhComponents {
-                pk1: ke1_message.client_e_pk.clone(),
-                sk1: server_e_kp.private().clone(),
-                pk2: ke1_message.client_e_pk.clone(),
-                sk2: server_s_sk,
-                pk3: client_s_pk,
-                sk3: server_e_kp.private().clone(),
-            },
-            &transcript_hasher.clone().finalize(),
+        let transcript_hasher = shared::transcript(
+            &context,
+            &identifiers,
+            &credential_request,
+            &ke1_message_iter,
+            &credential_response,
+            server_nonce,
+            &server_e_pk,
+        );
+
+        let shared_secret_1 = server_e
+            .private()
+            .ke_diffie_hellman(&ke1_message.client_e_pk);
+        let shared_secret_3 = server_e.private().ke_diffie_hellman(&client_s_pk);
+
+        Ok(Ke2Builder {
+            server_nonce,
+            transcript_hasher,
+            client_e_pk: ke1_message.client_e_pk.clone(),
+            server_e_pk: server_e.public().clone(),
+            shared_secret_1,
+            shared_secret_3,
+        })
+    }
+
+    fn ke2_builder_data<'a, CS: 'static + CipherSuite<KeyExchange = Self>>(
+        builder: &'a Self::KE2Builder<'_, CS>,
+    ) -> Self::KE2BuilderData<'a, CS> {
+        &builder.client_e_pk
+    }
+
+    fn generate_ke2_input<CS: CipherSuite<KeyExchange = Self>, R: CryptoRng + RngCore>(
+        builder: &Self::KE2Builder<'_, CS>,
+        _: &mut R,
+        server_s_sk: &PrivateKey<G>,
+    ) -> Self::KE2BuilderInput<CS> {
+        server_s_sk.ke_diffie_hellman(&builder.client_e_pk)
+    }
+
+    fn build_ke2<CS: CipherSuite<KeyExchange = Self>>(
+        mut builder: Self::KE2Builder<'_, CS>,
+        shared_secret_2: Self::KE2BuilderInput<CS>,
+    ) -> Result<GenerateKe2Result<CS>, ProtocolError> {
+        let derived_keys = shared::derive_keys::<H>(
+            [
+                builder.shared_secret_1.as_slice(),
+                &shared_secret_2,
+                &builder.shared_secret_3,
+            ]
+            .into_iter(),
+            &builder.transcript_hasher.clone().finalize(),
         )?;
 
         let mut mac_hasher =
-            Hmac::<D>::new_from_slice(&result.1).map_err(|_| InternalError::HmacError)?;
-        mac_hasher.update(&transcript_hasher.clone().finalize());
+            Hmac::<H>::new_from_slice(&derived_keys.km2).map_err(|_| InternalError::HmacError)?;
+        Mac::update(
+            &mut mac_hasher,
+            &builder.transcript_hasher.clone().finalize(),
+        );
         let mac = mac_hasher.finalize().into_bytes();
 
-        Digest::update(&mut transcript_hasher, &mac);
+        builder.transcript_hasher.update(&mac);
+        let mut mac_hasher =
+            Hmac::<H>::new_from_slice(&derived_keys.km3).map_err(|_| InternalError::HmacError)?;
+        Mac::update(
+            &mut mac_hasher,
+            &builder.transcript_hasher.clone().finalize(),
+        );
+        let expected_mac = mac_hasher.finalize().into_bytes();
 
-        Ok((
-            Ke2State {
-                km3: result.2,
-                hashed_transcript: transcript_hasher.finalize(),
-                session_key: result.0,
+        Ok(GenerateKe2Result {
+            state: Ke2State {
+                session_key: derived_keys.session_key,
+                expected_mac,
             },
-            Ke2Message {
-                server_nonce,
-                server_e_pk: server_e_kp.public().clone(),
+            message: Ke2Message {
+                server_nonce: builder.server_nonce,
+                server_e_pk: builder.server_e_pk.clone(),
                 mac,
             },
             #[cfg(test)]
-            result.3,
+            handshake_secret: derived_keys.handshake_secret,
             #[cfg(test)]
-            result.1,
-        ))
+            km2: derived_keys.km2,
+        })
     }
 
-    #[allow(clippy::type_complexity)]
-    fn generate_ke3<'a, 'b, 'c, 'd>(
-        l2_component: impl Iterator<Item = &'a [u8]>,
-        ke2_message: Self::KE2Message,
+    fn generate_ke3<CS: CipherSuite<KeyExchange = Self>, R: CryptoRng + RngCore>(
+        _: &mut R,
+        credential_request: SerializedCredentialRequest<CS>,
+        ke1_message: Self::KE1Message,
+        credential_response: SerializedCredentialResponse<CS>,
         ke1_state: &Self::KE1State,
-        serialized_credential_request: impl Iterator<Item = &'b [u8]>,
-        server_s_pk: PublicKey<KG>,
-        client_s_sk: PrivateKey<KG>,
-        id_u: impl Iterator<Item = &'c [u8]>,
-        id_s: impl Iterator<Item = &'d [u8]>,
-        context: &[u8],
-    ) -> Result<GenerateKe3Result<Self, D, KG>, ProtocolError> {
-        let mut transcript_hasher = D::new()
-            .chain(STR_CONTEXT)
-            .chain_iter(Input::<U2>::from(context)?.iter())
-            .chain_iter(id_u)
-            .chain_iter(serialized_credential_request)
-            .chain_iter(id_s)
-            .chain_iter(l2_component)
-            .chain(ke2_message.to_bytes_without_mac());
+        ke2_message: Self::KE2Message,
+        server_s_pk: PublicKey<G>,
+        client_s_sk: PrivateKey<G>,
+        identifiers: SerializedIdentifiers<'_, KeGroup<CS>>,
+        context: SerializedContext<'_>,
+    ) -> Result<GenerateKe3Result<Self>, ProtocolError> {
+        let mut transcript_hasher = shared::transcript(
+            &context,
+            &identifiers,
+            &credential_request,
+            &ke1_message.to_iter(),
+            &credential_response,
+            ke2_message.server_nonce,
+            &ke2_message.server_e_pk.serialize(),
+        );
 
-        let result = derive_3dh_keys::<D, KG, PrivateKey<KG>>(
-            TripleDhComponents {
-                pk1: ke2_message.server_e_pk.clone(),
-                sk1: ke1_state.client_e_sk.clone(),
-                pk2: server_s_pk,
-                sk2: ke1_state.client_e_sk.clone(),
-                pk3: ke2_message.server_e_pk.clone(),
-                sk3: client_s_sk,
-            },
+        let shared_secret_1 = ke1_state
+            .client_e_sk
+            .ke_diffie_hellman(&ke2_message.server_e_pk);
+        let shared_secret_2 = ke1_state.client_e_sk.ke_diffie_hellman(&server_s_pk);
+        let shared_secret_3 = client_s_sk.ke_diffie_hellman(&ke2_message.server_e_pk);
+
+        let derived_keys = shared::derive_keys::<H>(
+            [
+                shared_secret_1.as_slice(),
+                &shared_secret_2,
+                &shared_secret_3,
+            ]
+            .into_iter(),
             &transcript_hasher.clone().finalize(),
         )?;
 
         let mut server_mac =
-            Hmac::<D>::new_from_slice(&result.1).map_err(|_| InternalError::HmacError)?;
-        server_mac.update(&transcript_hasher.clone().finalize());
+            Hmac::<H>::new_from_slice(&derived_keys.km2).map_err(|_| InternalError::HmacError)?;
+        Mac::update(&mut server_mac, &transcript_hasher.clone().finalize());
 
         server_mac
             .verify(&ke2_message.mac)
             .map_err(|_| ProtocolError::InvalidLoginError)?;
 
-        Digest::update(&mut transcript_hasher, &ke2_message.mac);
+        transcript_hasher.update(&ke2_message.mac);
 
         let mut client_mac =
-            Hmac::<D>::new_from_slice(&result.2).map_err(|_| InternalError::HmacError)?;
-        client_mac.update(&transcript_hasher.finalize());
+            Hmac::<H>::new_from_slice(&derived_keys.km3).map_err(|_| InternalError::HmacError)?;
+        Mac::update(&mut client_mac, &transcript_hasher.finalize());
 
-        Ok((
-            result.0,
-            Ke3Message {
+        Ok(GenerateKe3Result {
+            session_key: derived_keys.session_key,
+            message: Ke3Message {
                 mac: client_mac.finalize().into_bytes(),
             },
             #[cfg(test)]
-            result.3,
+            handshake_secret: derived_keys.handshake_secret,
             #[cfg(test)]
-            result.2,
-        ))
+            km3: derived_keys.km3,
+        })
     }
 
-    fn finish_ke(
+    fn finish_ke<CS: CipherSuite>(
+        ke2_state: &Self::KE2State<CS>,
         ke3_message: Self::KE3Message,
-        ke2_state: &Self::KE2State,
-    ) -> Result<Output<D>, ProtocolError> {
-        let mut client_mac =
-            Hmac::<D>::new_from_slice(&ke2_state.km3).map_err(|_| InternalError::HmacError)?;
-        client_mac.update(&ke2_state.hashed_transcript);
-
-        client_mac
-            .verify(&ke3_message.mac)
-            .map_err(|_| ProtocolError::InvalidLoginError)?;
-
-        Ok(ke2_state.session_key.clone())
+        _: Identifiers<'_>,
+        _: SerializedContext<'_>,
+    ) -> Result<Output<H>, ProtocolError> {
+        CtOption::new(
+            ke2_state.session_key.clone(),
+            ke2_state.expected_mac.ct_eq(&ke3_message.mac),
+        )
+        .into_option()
+        .ok_or(ProtocolError::InvalidLoginError)
     }
 }
-
-/////////////////////////
-// Convenience Structs //
-//==================== //
-/////////////////////////
-
-// The triple of public and private components used in the 3DH computation
-struct TripleDhComponents<KG: KeGroup, S: SecretKey<KG>> {
-    pk1: PublicKey<KG>,
-    sk1: PrivateKey<KG>,
-    pk2: PublicKey<KG>,
-    sk2: S,
-    pk3: PublicKey<KG>,
-    sk3: PrivateKey<KG>,
-}
-
-// Consists of a session key, followed by two mac keys: (session_key, km2, km3)
-#[cfg(not(test))]
-type TripleDhDerivationResult<D> = (Output<D>, Output<D>, Output<D>);
-#[cfg(test)]
-type TripleDhDerivationResult<D> = (Output<D>, Output<D>, Output<D>, Output<D>);
 
 ////////////////////////////////////////////////
-// Helper functions and Trait Implementations //
+// Trait Implementations //
 // ========================================== //
 ////////////////////////////////////////////////
 
-// Helper functions
-
-// Internal function which takes the public and private components of the client
-// and server keypairs, along with some auxiliary metadata, to produce the
-// session key and two MAC keys
-fn derive_3dh_keys<D: Hash, KG: KeGroup, S: SecretKey<KG>>(
-    dh: TripleDhComponents<KG, S>,
-    hashed_derivation_transcript: &[u8],
-) -> Result<TripleDhDerivationResult<D>, ProtocolError<S::Error>>
+impl<H: Hash> Deserialize for Ke2State<H>
 where
-    D::Core: ProxyHash,
-    <D::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
-    Le<<D::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
+    H::Core: ProxyHash,
+    <H::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
+    Le<<H::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
 {
-    let mut hkdf = HkdfExtract::<D>::new(None);
-
-    hkdf.input_ikm(
-        &dh.sk1
-            .diffie_hellman(dh.pk1)
-            .map_err(InternalError::into_custom)?,
-    );
-    hkdf.input_ikm(&dh.sk2.diffie_hellman(dh.pk2)?);
-    hkdf.input_ikm(
-        &dh.sk3
-            .diffie_hellman(dh.pk3)
-            .map_err(InternalError::into_custom)?,
-    );
-
-    let (_, extracted_ikm) = hkdf.finalize();
-    let handshake_secret = derive_secrets::<D>(
-        &extracted_ikm,
-        STR_HANDSHAKE_SECRET,
-        hashed_derivation_transcript,
-    )
-    .map_err(ProtocolError::into_custom)?;
-    let session_key = derive_secrets::<D>(
-        &extracted_ikm,
-        STR_SESSION_KEY,
-        hashed_derivation_transcript,
-    )
-    .map_err(ProtocolError::into_custom)?;
-
-    let km2 = hkdf_expand_label::<D>(&handshake_secret, STR_SERVER_MAC, b"")
-        .map_err(ProtocolError::into_custom)?;
-    let km3 = hkdf_expand_label::<D>(&handshake_secret, STR_CLIENT_MAC, b"")
-        .map_err(ProtocolError::into_custom)?;
-
-    Ok((
-        GenericArray::clone_from_slice(&session_key),
-        GenericArray::clone_from_slice(&km2),
-        GenericArray::clone_from_slice(&km3),
-        #[cfg(test)]
-        handshake_secret,
-    ))
-}
-
-fn hkdf_expand_label<D: Hash>(
-    secret: &[u8],
-    label: &[u8],
-    context: &[u8],
-) -> Result<Output<D>, ProtocolError>
-where
-    D::Core: ProxyHash,
-    <D::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
-    Le<<D::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
-{
-    let h = Hkdf::<D>::from_prk(secret).map_err(|_| InternalError::HkdfError)?;
-    hkdf_expand_label_extracted(&h, label, context)
-}
-
-fn hkdf_expand_label_extracted<D: Hash>(
-    hkdf: &Hkdf<D>,
-    label: &[u8],
-    context: &[u8],
-) -> Result<Output<D>, ProtocolError>
-where
-    D::Core: ProxyHash,
-    <D::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
-    Le<<D::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
-{
-    let mut okm = GenericArray::default();
-
-    let length_u16: u16 =
-        u16::try_from(OutputSize::<D>::USIZE).map_err(|_| ProtocolError::SerializationError)?;
-    let label = Input::<U1>::from_label(STR_OPAQUE, label)?;
-    let label = label.to_array_3();
-    let context = Input::<U1>::from(context)?;
-    let context = context.to_array_2();
-
-    let hkdf_label = [
-        &length_u16.to_be_bytes(),
-        label[0],
-        label[1],
-        label[2],
-        context[0],
-        context[1],
-    ];
-
-    hkdf.expand_multi_info(&hkdf_label, &mut okm)
-        .map_err(|_| InternalError::HkdfError)?;
-    Ok(okm)
-}
-
-fn derive_secrets<D: Hash>(
-    hkdf: &Hkdf<D>,
-    label: &[u8],
-    hashed_derivation_transcript: &[u8],
-) -> Result<Output<D>, ProtocolError>
-where
-    D::Core: ProxyHash,
-    <D::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
-    Le<<D::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
-{
-    hkdf_expand_label_extracted::<D>(hkdf, label, hashed_derivation_transcript)
-}
-
-// Generate a random nonce up to NonceLen::USIZE bytes.
-fn generate_nonce<R: RngCore + CryptoRng>(rng: &mut R) -> GenericArray<u8, NonceLen> {
-    let mut nonce_bytes = GenericArray::default();
-    rng.fill_bytes(&mut nonce_bytes);
-    nonce_bytes
-}
-
-// Serialization and deserialization implementations
-
-impl<KG: KeGroup> Deserialize for Ke1State<KG> {
-    fn deserialize(bytes: &[u8]) -> Result<Self, ProtocolError> {
-        let key_len = KG::SkLen::USIZE;
-
-        let nonce_len = NonceLen::USIZE;
-        let checked_bytes = check_slice_size_atleast(bytes, key_len + nonce_len, "ke1_state")?;
-
+    fn deserialize_take(input: &mut &[u8]) -> Result<Self, ProtocolError> {
         Ok(Self {
-            client_e_sk: PrivateKey::deserialize(&checked_bytes[..key_len])?,
-            client_nonce: GenericArray::clone_from_slice(
-                &checked_bytes[key_len..key_len + nonce_len],
-            ),
+            session_key: input.take_array("session key")?,
+            expected_mac: input.take_array("expected mac")?,
         })
     }
 }
 
-impl<KG: KeGroup> Serialize for Ke1State<KG>
+impl<H: Hash> Serialize for Ke2State<H>
 where
-    // Ke1State: KeSk + Nonce
-    KG::SkLen: Add<NonceLen>,
-    Sum<KG::SkLen, NonceLen>: ArrayLength<u8>,
+    H::Core: ProxyHash,
+    <H::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
+    Le<<H::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
+    // Ke2State: Hash + Hash
+    OutputSize<H>: Add<OutputSize<H>>,
+    Sum<OutputSize<H>, OutputSize<H>>: ArrayLength<u8>,
 {
-    type Len = Sum<KG::SkLen, NonceLen>;
+    type Len = Sum<OutputSize<H>, OutputSize<H>>;
 
     fn serialize(&self) -> GenericArray<u8, Self::Len> {
-        self.client_e_sk.serialize().concat(self.client_nonce)
+        self.session_key.clone().concat(self.expected_mac.clone())
     }
 }
 
-impl<KG: KeGroup> Deserialize for Ke1Message<KG> {
-    fn deserialize(ke1_message_bytes: &[u8]) -> Result<Self, ProtocolError> {
-        let nonce_len = NonceLen::USIZE;
-        let checked_nonce = check_slice_size(
-            ke1_message_bytes,
-            nonce_len + <KG as KeGroup>::PkLen::USIZE,
-            "ke1_message nonce",
-        )?;
+/// TODO: implement via derive after hash crates get `Zeroize` support in
+/// `digest` v11.
+impl<G: Group, H: Hash> Drop for Ke2Builder<G, H>
+where
+    H::Core: ProxyHash,
+    <H::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
+    Le<<H::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
+{
+    fn drop(&mut self) {
+        let Self {
+            server_nonce,
+            transcript_hasher,
+            client_e_pk: _,
+            server_e_pk: _,
+            shared_secret_1,
+            shared_secret_3,
+        } = self;
 
+        server_nonce.zeroize();
+        transcript_hasher.reset();
+        shared_secret_1.zeroize();
+        shared_secret_3.zeroize();
+    }
+}
+
+impl<G: Group, H: Hash> ZeroizeOnDrop for Ke2Builder<G, H>
+where
+    H::Core: ProxyHash,
+    <H::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
+    Le<<H::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
+{
+}
+
+impl<G: Group, H: Hash> Deserialize for Ke2Message<G, H>
+where
+    H::Core: ProxyHash,
+    <H::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
+    Le<<H::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
+{
+    fn deserialize_take(input: &mut &[u8]) -> Result<Self, ProtocolError> {
         Ok(Self {
-            client_nonce: GenericArray::clone_from_slice(&checked_nonce[..nonce_len]),
-            client_e_pk: PublicKey::deserialize(&checked_nonce[nonce_len..])?,
+            server_nonce: input.take_array("server nonce")?,
+            server_e_pk: PublicKey::deserialize_take(input)?,
+            mac: input.take_array("mac")?,
         })
     }
 }
 
-impl<KG: KeGroup> Serialize for Ke1Message<KG>
+impl<H: Hash, G: Group> Serialize for Ke2Message<G, H>
 where
-    // Ke1Message: Nonce + KePk
-    NonceLen: Add<KG::PkLen>,
-    Sum<NonceLen, KG::PkLen>: ArrayLength<u8>,
-{
-    type Len = Sum<NonceLen, KG::PkLen>;
-
-    fn serialize(&self) -> GenericArray<u8, Self::Len> {
-        self.client_nonce.concat(self.client_e_pk.serialize())
-    }
-}
-
-impl<D: Hash> Deserialize for Ke2State<D>
-where
-    D::Core: ProxyHash,
-    <D::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
-    Le<<D::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
-{
-    fn deserialize(input: &[u8]) -> Result<Self, ProtocolError> {
-        let hash_len = OutputSize::<D>::USIZE;
-        let checked_bytes = check_slice_size(input, 3 * hash_len, "ke2_state")?;
-
-        Ok(Self {
-            km3: GenericArray::clone_from_slice(&checked_bytes[..hash_len]),
-            hashed_transcript: GenericArray::clone_from_slice(
-                &checked_bytes[hash_len..2 * hash_len],
-            ),
-            session_key: GenericArray::clone_from_slice(&checked_bytes[2 * hash_len..3 * hash_len]),
-        })
-    }
-}
-
-impl<D: Hash> Serialize for Ke2State<D>
-where
-    D::Core: ProxyHash,
-    <D::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
-    Le<<D::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
-    // Ke2State: (Hash + Hash) + Hash
-    OutputSize<D>: Add<OutputSize<D>>,
-    Sum<OutputSize<D>, OutputSize<D>>: ArrayLength<u8> + Add<OutputSize<D>>,
-    Sum<Sum<OutputSize<D>, OutputSize<D>>, OutputSize<D>>: ArrayLength<u8>,
-{
-    type Len = Sum<Sum<OutputSize<D>, OutputSize<D>>, OutputSize<D>>;
-
-    fn serialize(&self) -> GenericArray<u8, Self::Len> {
-        self.km3
-            .clone()
-            .concat(self.hashed_transcript.clone())
-            .concat(self.session_key.clone())
-    }
-}
-
-impl<KG: KeGroup, D: Hash> Deserialize for Ke2Message<D, KG>
-where
-    D::Core: ProxyHash,
-    <D::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
-    Le<<D::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
-{
-    fn deserialize(input: &[u8]) -> Result<Self, ProtocolError> {
-        let key_len = <KG as KeGroup>::PkLen::USIZE;
-        let nonce_len = NonceLen::USIZE;
-        let checked_nonce = check_slice_size_atleast(input, nonce_len, "ke2_message nonce")?;
-
-        let unchecked_server_e_pk = check_slice_size_atleast(
-            &checked_nonce[nonce_len..],
-            key_len,
-            "ke2_message server_e_pk",
-        )?;
-        let checked_mac = check_slice_size(
-            &unchecked_server_e_pk[key_len..],
-            OutputSize::<D>::USIZE,
-            "ke1_message mac",
-        )?;
-
-        // Check the public key bytes
-        let server_e_pk = PublicKey::deserialize(&unchecked_server_e_pk[..key_len])?;
-
-        Ok(Self {
-            server_nonce: GenericArray::clone_from_slice(&checked_nonce[..nonce_len]),
-            server_e_pk,
-            mac: GenericArray::clone_from_slice(checked_mac),
-        })
-    }
-}
-
-impl<D: Hash, KG: KeGroup> Serialize for Ke2Message<D, KG>
-where
-    D::Core: ProxyHash,
-    <D::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
-    Le<<D::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
+    H::Core: ProxyHash,
+    <H::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
+    Le<<H::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
     // Ke2Message: (Nonce + KePk) + Hash
-    NonceLen: Add<KG::PkLen>,
-    Sum<NonceLen, KG::PkLen>: ArrayLength<u8> + Add<OutputSize<D>>,
-    Sum<Sum<NonceLen, KG::PkLen>, OutputSize<D>>: ArrayLength<u8>,
+    NonceLen: Add<G::PkLen>,
+    Sum<NonceLen, G::PkLen>: ArrayLength<u8> + Add<OutputSize<H>>,
+    Sum<Sum<NonceLen, G::PkLen>, OutputSize<H>>: ArrayLength<u8>,
 {
-    type Len = Sum<Sum<NonceLen, KG::PkLen>, OutputSize<D>>;
+    type Len = Sum<Sum<NonceLen, G::PkLen>, OutputSize<H>>;
 
     fn serialize(&self) -> GenericArray<u8, Self::Len> {
         self.server_nonce
@@ -641,41 +443,26 @@ where
     }
 }
 
-impl<D: Hash, KG: KeGroup> Ke2Message<D, KG>
+impl<H: Hash> Deserialize for Ke3Message<H>
 where
-    D::Core: ProxyHash,
-    <D::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
-    Le<<D::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
-    NonceLen: Add<KG::PkLen>,
-    Sum<NonceLen, KG::PkLen>: ArrayLength<u8>,
+    H::Core: ProxyHash,
+    <H::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
+    Le<<H::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
 {
-    fn to_bytes_without_mac(&self) -> GenericArray<u8, Sum<NonceLen, KG::PkLen>> {
-        self.server_nonce.concat(self.server_e_pk.serialize())
-    }
-}
-
-impl<D: Hash> Deserialize for Ke3Message<D>
-where
-    D::Core: ProxyHash,
-    <D::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
-    Le<<D::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
-{
-    fn deserialize(bytes: &[u8]) -> Result<Self, ProtocolError> {
-        let checked_bytes = check_slice_size(bytes, OutputSize::<D>::USIZE, "ke3_message")?;
-
+    fn deserialize_take(bytes: &mut &[u8]) -> Result<Self, ProtocolError> {
         Ok(Self {
-            mac: GenericArray::clone_from_slice(checked_bytes),
+            mac: bytes.take_array("mac")?,
         })
     }
 }
 
-impl<D: Hash> Serialize for Ke3Message<D>
+impl<H: Hash> Serialize for Ke3Message<H>
 where
-    D::Core: ProxyHash,
-    <D::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
-    Le<<D::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
+    H::Core: ProxyHash,
+    <H::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
+    Le<<H::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
 {
-    type Len = OutputSize<D>;
+    type Len = OutputSize<H>;
 
     fn serialize(&self) -> GenericArray<u8, Self::Len> {
         self.mac.clone()

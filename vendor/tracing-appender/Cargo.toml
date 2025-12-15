@@ -13,11 +13,17 @@
 edition = "2018"
 rust-version = "1.63.0"
 name = "tracing-appender"
-version = "0.2.3"
+version = "0.2.4"
 authors = [
     "Zeki Sherif <zekshi@amazon.com>",
     "Tokio Contributors <team@tokio.rs>",
 ]
+build = false
+autolib = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
 description = """
 Provides utilities for file appenders and making non-blocking writers.
 """
@@ -37,8 +43,13 @@ license = "MIT"
 repository = "https://github.com/tokio-rs/tracing"
 resolver = "2"
 
+[lib]
+name = "tracing_appender"
+path = "src/lib.rs"
+
 [[bench]]
 name = "bench"
+path = "benches/bench.rs"
 harness = false
 
 [dependencies.crossbeam-channel]
@@ -49,7 +60,7 @@ version = "0.12.1"
 optional = true
 
 [dependencies.thiserror]
-version = "1"
+version = "2"
 
 [dependencies.time]
 version = "0.3.2"

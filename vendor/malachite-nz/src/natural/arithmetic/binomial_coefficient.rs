@@ -315,7 +315,7 @@ pub_test! {limbs_binomial_coefficient_limb_limb_small_k_divide_and_conquer(
     out
 }}
 
-// Returns an approximation of the sqare root of x. It gives:
+// Returns an approximation of the square root of x. It gives:
 // ```
 //   limb_apprsqrt (x) ^ 2 <= x < (limb_apprsqrt (x)+1) ^ 2
 // ```
@@ -458,11 +458,10 @@ limbs_binomial_coefficient_limb_limb_goetgheluck(n: Limb, k: Limb) -> Vec<Limb> 
     assert_ne!(j, 0);
     factors[j] = Limb::wrapping_from(prod);
     j += 1;
-    let mut r = vec![0; j];
-    limbs_product(&mut r, &mut factors[..j]);
-    while *r.last().unwrap() == 0 {
-        r.pop();
-    }
+    let mut r = Vec::new();
+    let (size, new_r) = limbs_product(&mut r, &mut factors[..j]);
+    r = new_r.unwrap();
+    r.truncate(size);
     r
 }}
 
@@ -649,12 +648,12 @@ impl BinomialCoefficient for Natural {
     ///     "100891344545564193334812497256"
     /// );
     /// ```
-    fn binomial_coefficient(n: Natural, mut k: Natural) -> Natural {
+    fn binomial_coefficient(n: Self, mut k: Self) -> Self {
         if k > n {
-            return Natural::ZERO;
+            return Self::ZERO;
         }
         if k == 0u32 || n == k {
-            return Natural::ONE;
+            return Self::ONE;
         }
         if double_cmp(&k, &n) == Greater {
             k = &n - &k;
@@ -663,7 +662,7 @@ impl BinomialCoefficient for Natural {
     }
 }
 
-impl<'a> BinomialCoefficient<&'a Natural> for Natural {
+impl<'a> BinomialCoefficient<&'a Self> for Natural {
     /// Computes the binomial coefficient of two [`Natural`]s, taking both by reference.
     ///
     /// $$
@@ -708,12 +707,12 @@ impl<'a> BinomialCoefficient<&'a Natural> for Natural {
     ///     "100891344545564193334812497256"
     /// );
     /// ```
-    fn binomial_coefficient(n: &'a Natural, k: &'a Natural) -> Natural {
+    fn binomial_coefficient(n: &'a Self, k: &'a Self) -> Self {
         if k > n {
-            return Natural::ZERO;
+            return Self::ZERO;
         }
         if *k == 0u32 || n == k {
-            return Natural::ONE;
+            return Self::ONE;
         }
         let k = if double_cmp(k, n) == Greater {
             Limb::try_from(&(n - k))

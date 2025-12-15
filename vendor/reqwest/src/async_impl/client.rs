@@ -9,7 +9,6 @@ use std::time::Duration;
 use std::{collections::HashMap, convert::TryInto, net::SocketAddr};
 use std::{fmt, str};
 
-use super::decoder::Accepts;
 use super::request::{Request, RequestBuilder};
 use super::response::Response;
 use super::Body;
@@ -17,7 +16,7 @@ use super::Body;
 use crate::async_impl::h3_client::connect::{H3ClientConfig, H3Connector};
 #[cfg(feature = "http3")]
 use crate::async_impl::h3_client::H3Client;
-use crate::config::{RequestConfig, RequestTimeout};
+use crate::config::{RequestConfig, TotalTimeout};
 #[cfg(unix)]
 use crate::connect::uds::UnixSocketProvider;
 use crate::connect::{
@@ -26,6 +25,8 @@ use crate::connect::{
 };
 #[cfg(feature = "cookies")]
 use crate::cookie;
+#[cfg(feature = "cookies")]
+use crate::cookie::service::CookieService;
 #[cfg(feature = "hickory-dns")]
 use crate::dns::hickory::HickoryDnsResolver;
 use crate::dns::{gai::GaiResolver, DnsResolverWithOverrides, DynResolver, Resolve};
@@ -43,9 +44,7 @@ use crate::Certificate;
 use crate::Identity;
 use crate::{IntoUrl, Method, Proxy, Url};
 
-use http::header::{
-    Entry, HeaderMap, HeaderValue, ACCEPT, ACCEPT_ENCODING, PROXY_AUTHORIZATION, RANGE, USER_AGENT,
-};
+use http::header::{Entry, HeaderMap, HeaderValue, ACCEPT, PROXY_AUTHORIZATION, USER_AGENT};
 use http::uri::Scheme;
 use http::Uri;
 use hyper_util::client::legacy::connect::HttpConnector;
@@ -59,6 +58,13 @@ use quinn::VarInt;
 use tokio::time::Sleep;
 use tower::util::BoxCloneSyncServiceLayer;
 use tower::{Layer, Service};
+#[cfg(any(
+    feature = "gzip",
+    feature = "brotli",
+    feature = "zstd",
+    feature = "deflate"
+))]
+use tower_http::decompression::Decompression;
 use tower_http::follow_redirect::FollowRedirect;
 
 /// An asynchronous `Client` to make Requests with.
@@ -67,11 +73,18 @@ use tower_http::follow_redirect::FollowRedirect;
 /// are set to what is usually the most commonly desired value. To configure a
 /// `Client`, use `Client::builder()`.
 ///
-/// The `Client` holds a connection pool internally, so it is advised that
+/// The `Client` holds a connection pool internally to improve performance
+/// by reusing connections and avoiding setup overhead, so it is advised that
 /// you create one and **reuse** it.
 ///
 /// You do **not** have to wrap the `Client` in an [`Rc`] or [`Arc`] to **reuse** it,
 /// because it already uses an [`Arc`] internally.
+///
+/// # Connection Pooling
+///
+/// The connection pool can be configured using [`ClientBuilder`] methods
+/// with the `pool_` prefix, such as [`ClientBuilder::pool_idle_timeout`]
+/// and [`ClientBuilder::pool_max_idle_per_host`].
 ///
 /// [`Rc`]: std::rc::Rc
 #[derive(Clone)]
@@ -94,10 +107,35 @@ enum HttpVersionPref {
     All,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct Accepts {
+    #[cfg(feature = "gzip")]
+    gzip: bool,
+    #[cfg(feature = "brotli")]
+    brotli: bool,
+    #[cfg(feature = "zstd")]
+    zstd: bool,
+    #[cfg(feature = "deflate")]
+    deflate: bool,
+}
+
+impl Default for Accepts {
+    fn default() -> Accepts {
+        Accepts {
+            #[cfg(feature = "gzip")]
+            gzip: true,
+            #[cfg(feature = "brotli")]
+            brotli: true,
+            #[cfg(feature = "zstd")]
+            zstd: true,
+            #[cfg(feature = "deflate")]
+            deflate: true,
+        }
+    }
+}
+
 #[derive(Clone)]
 struct HyperService {
-    #[cfg(feature = "cookies")]
-    cookie_store: Option<Arc<dyn cookie::CookieStore>>,
     hyper: HyperClient,
 }
 
@@ -110,42 +148,10 @@ impl Service<hyper::Request<crate::async_impl::body::Body>> for HyperService {
         self.hyper.poll_ready(cx).map_err(crate::error::request)
     }
 
-    #[cfg(not(feature = "cookies"))]
     fn call(&mut self, req: hyper::Request<crate::async_impl::body::Body>) -> Self::Future {
         let clone = self.hyper.clone();
         let mut inner = std::mem::replace(&mut self.hyper, clone);
         Box::pin(async move { inner.call(req).await.map_err(crate::error::request) })
-    }
-
-    #[cfg(feature = "cookies")]
-    fn call(&mut self, mut req: hyper::Request<crate::async_impl::body::Body>) -> Self::Future {
-        let clone = self.hyper.clone();
-        let mut inner = std::mem::replace(&mut self.hyper, clone);
-        let url = Url::parse(req.uri().to_string().as_str()).expect("invalid URL");
-
-        if let Some(cookie_store) = self.cookie_store.as_ref() {
-            if req.headers().get(crate::header::COOKIE).is_none() {
-                let headers = req.headers_mut();
-                crate::util::add_cookie_header(headers, &**cookie_store, &url);
-            }
-        }
-
-        let cookie_store = self.cookie_store.clone();
-        Box::pin(async move {
-            let res = inner.call(req).await.map_err(crate::error::request);
-
-            if let Some(ref cookie_store) = cookie_store {
-                if let Ok(res) = &res {
-                    let mut cookies =
-                        cookie::extract_response_cookie_headers(res.headers()).peekable();
-                    if cookies.peek().is_some() {
-                        cookie_store.set_cookies(&mut cookies, &url);
-                    }
-                }
-            }
-
-            res
-        })
     }
 }
 
@@ -993,8 +999,6 @@ impl ClientBuilder {
 
         let hyper_client = builder.build(connector_builder.build(config.connector_layers));
         let hyper_service = HyperService {
-            #[cfg(feature = "cookies")]
-            cookie_store: config.cookie_store.clone(),
             hyper: hyper_client,
         };
 
@@ -1007,9 +1011,26 @@ impl ClientBuilder {
 
         let retry_policy = config.retry_policy.into_policy();
 
-        let retries = tower::retry::Retry::new(retry_policy.clone(), hyper_service);
+        let svc = tower::retry::Retry::new(retry_policy.clone(), hyper_service);
 
-        let hyper = FollowRedirect::with_policy(retries, redirect_policy.clone());
+        #[cfg(feature = "cookies")]
+        let svc = CookieService::new(svc, config.cookie_store.clone());
+        let hyper = FollowRedirect::with_policy(svc, redirect_policy.clone());
+        #[cfg(any(
+            feature = "gzip",
+            feature = "brotli",
+            feature = "zstd",
+            feature = "deflate"
+        ))]
+        let hyper = Decompression::new(hyper);
+        #[cfg(feature = "gzip")]
+        let hyper = hyper.gzip(config.accepts.gzip);
+        #[cfg(feature = "brotli")]
+        let hyper = hyper.br(config.accepts.brotli);
+        #[cfg(feature = "zstd")]
+        let hyper = hyper.zstd(config.accepts.zstd);
+        #[cfg(feature = "deflate")]
+        let hyper = hyper.deflate(config.accepts.deflate);
 
         Ok(Client {
             inner: Arc::new(ClientRef {
@@ -1021,23 +1042,34 @@ impl ClientBuilder {
                 #[cfg(feature = "http3")]
                 h3_client: match h3_connector {
                     Some(h3_connector) => {
-                        #[cfg(not(feature = "cookies"))]
                         let h3_service = H3Client::new(h3_connector, config.pool_idle_timeout);
+                        let svc = tower::retry::Retry::new(retry_policy, h3_service);
                         #[cfg(feature = "cookies")]
-                        let h3_service = H3Client::new(
-                            h3_connector,
-                            config.pool_idle_timeout,
-                            config.cookie_store,
-                        );
-                        let retries = tower::retry::Retry::new(retry_policy, h3_service);
-                        Some(FollowRedirect::with_policy(retries, redirect_policy))
+                        let svc = CookieService::new(svc, config.cookie_store);
+                        let svc = FollowRedirect::with_policy(svc, redirect_policy);
+                        #[cfg(any(
+                            feature = "gzip",
+                            feature = "brotli",
+                            feature = "zstd",
+                            feature = "deflate"
+                        ))]
+                        let svc = Decompression::new(svc);
+                        #[cfg(feature = "gzip")]
+                        let svc = svc.gzip(config.accepts.gzip);
+                        #[cfg(feature = "brotli")]
+                        let svc = svc.br(config.accepts.brotli);
+                        #[cfg(feature = "zstd")]
+                        let svc = svc.zstd(config.accepts.zstd);
+                        #[cfg(feature = "deflate")]
+                        let svc = svc.deflate(config.accepts.deflate);
+                        Some(svc)
                     }
                     None => None,
                 },
                 headers: config.headers,
                 referer: config.referer,
                 read_timeout: config.read_timeout,
-                request_timeout: RequestConfig::new(config.timeout),
+                total_timeout: RequestConfig::new(config.timeout),
                 hyper,
                 proxies,
                 proxies_maybe_http_auth,
@@ -1443,6 +1475,8 @@ impl ClientBuilder {
     }
 
     /// Sets the maximum idle connection per host allowed in the pool.
+    ///
+    /// Default is `usize::MAX` (no limit).
     pub fn pool_max_idle_per_host(mut self, max: usize) -> ClientBuilder {
         self.config.pool_max_idle_per_host = max;
         self
@@ -2521,14 +2555,6 @@ impl Client {
             }
         }
 
-        let accept_encoding = self.inner.accepts.as_str();
-
-        if let Some(accept_encoding) = accept_encoding {
-            if !headers.contains_key(ACCEPT_ENCODING) && !headers.contains_key(RANGE) {
-                headers.insert(ACCEPT_ENCODING, HeaderValue::from_static(accept_encoding));
-            }
-        }
-
         let uri = match try_uri(&url) {
             Ok(uri) => uri,
             _ => return Pending::new_err(error::url_invalid_uri(url)),
@@ -2562,7 +2588,7 @@ impl Client {
 
         let total_timeout = self
             .inner
-            .request_timeout
+            .total_timeout
             .fetch(&extensions)
             .copied()
             .map(tokio::time::sleep)
@@ -2812,8 +2838,34 @@ impl Config {
     }
 }
 
-type LayeredService<T> =
-    FollowRedirect<tower::retry::Retry<crate::retry::Policy, T>, TowerRedirectPolicy>;
+#[cfg(not(feature = "cookies"))]
+type MaybeCookieService<T> = T;
+
+#[cfg(feature = "cookies")]
+type MaybeCookieService<T> = CookieService<T>;
+
+#[cfg(not(any(
+    feature = "gzip",
+    feature = "brotli",
+    feature = "zstd",
+    feature = "deflate"
+)))]
+type MaybeDecompression<T> = T;
+
+#[cfg(any(
+    feature = "gzip",
+    feature = "brotli",
+    feature = "zstd",
+    feature = "deflate"
+))]
+type MaybeDecompression<T> = Decompression<T>;
+
+type LayeredService<T> = MaybeDecompression<
+    FollowRedirect<
+        MaybeCookieService<tower::retry::Retry<crate::retry::Policy, T>>,
+        TowerRedirectPolicy,
+    >,
+>;
 type LayeredFuture<T> = <LayeredService<T> as Service<http::Request<Body>>>::Future;
 
 struct ClientRef {
@@ -2825,7 +2877,7 @@ struct ClientRef {
     #[cfg(feature = "http3")]
     h3_client: Option<LayeredService<H3Client>>,
     referer: bool,
-    request_timeout: RequestConfig<RequestTimeout>,
+    total_timeout: RequestConfig<TotalTimeout>,
     read_timeout: Option<Duration>,
     proxies: Arc<Vec<ProxyMatcher>>,
     proxies_maybe_http_auth: bool,
@@ -2862,7 +2914,7 @@ impl ClientRef {
 
         f.field("default_headers", &self.headers);
 
-        self.request_timeout.fmt_as_field(f);
+        self.total_timeout.fmt_as_field(f);
 
         if let Some(ref d) = self.read_timeout {
             f.field("read_timeout", d);
@@ -2978,19 +3030,10 @@ impl Future for PendingRequest {
                 Err(e) => {
                     return Poll::Ready(Err(crate::error::request(e).with_url(self.url.clone())));
                 }
-                Ok(res) => res,
+                Ok(res) => res.map(super::body::boxed),
             },
         };
 
-        #[cfg(feature = "cookies")]
-        {
-            if let Some(ref cookie_store) = self.client.cookie_store {
-                let mut cookies = cookie::extract_response_cookie_headers(res.headers()).peekable();
-                if cookies.peek().is_some() {
-                    cookie_store.set_cookies(&mut cookies, &self.url);
-                }
-            }
-        }
         if let Some(url) = &res
             .extensions()
             .get::<tower_http::follow_redirect::RequestUri>()
@@ -3004,7 +3047,6 @@ impl Future for PendingRequest {
         let res = Response::new(
             res,
             self.url.clone(),
-            self.client.accepts,
             self.total_timeout.take(),
             self.read_timeout,
         );
