@@ -1,10 +1,10 @@
 //! Escape sequences.
 
 use crate::Read;
-use core::ops::{Add, Shl};
+use core::fmt;
 
-/// Escape literal, such as `\n`.
-pub enum Lit {
+/// Escape sequence, such as `\n` or `\u00d6`.
+pub enum Escape {
     /// `\"`
     QuotationMark,
     /// `\\`
@@ -21,12 +21,14 @@ pub enum Lit {
     Tab,
     /// `\r`
     CarriageReturn,
+    /// `\uHHHH`, where `HHHH` is a hexadecimal number
+    Unicode(u16),
 }
 
-impl Lit {
+impl Escape {
     /// Try to interpret an ASCII character as first character of an escape sequence.
-    pub fn try_from(c: u8) -> Option<Self> {
-        use Lit::*;
+    pub fn try_from(c: u8) -> Option<Escape> {
+        use Escape::*;
         Some(match c {
             b'"' => QuotationMark,
             b'\\' => ReverseSolidus,
@@ -36,26 +38,52 @@ impl Lit {
             b'n' => LineFeed,
             b'r' => CarriageReturn,
             b't' => Tab,
+            b'u' => Unicode(0),
             _ => return None,
         })
     }
 
-    fn as_u8(&self) -> u8 {
-        use Lit::*;
+    fn as_char(&self) -> Result<char, u16> {
+        use Escape::*;
+        Ok(match self {
+            QuotationMark => '"',
+            ReverseSolidus => '\\',
+            Solidus => '/',
+            Backspace => 'b',
+            FormFeed => 'f',
+            LineFeed => 'n',
+            CarriageReturn => 'r',
+            Tab => 't',
+            Unicode(u) => return Err(*u),
+        })
+    }
+
+    /// Return escape sequence as UTF-16.
+    pub fn as_u16(&self) -> u16 {
+        use Escape::*;
         match self {
-            QuotationMark => 0x22,
-            ReverseSolidus => 0x5C,
-            Solidus => 0x2F,
-            Backspace => 0x08,
-            FormFeed => 0x0C,
-            LineFeed => 0x0A,
-            CarriageReturn => 0x0D,
-            Tab => 0x09,
+            QuotationMark => 0x0022,
+            ReverseSolidus => 0x005C,
+            Solidus => 0x002F,
+            Backspace => 0x0008,
+            FormFeed => 0x000C,
+            LineFeed => 0x000A,
+            CarriageReturn => 0x000D,
+            Tab => 0x0009,
+            Unicode(u) => *u,
         }
     }
 }
 
-/// Parse a hexadecimal digit.
+impl fmt::Display for Escape {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.as_char() {
+            Ok(c) => write!(f, "\\{}", c),
+            Err(u) => write!(f, "\\u{:04x}", u),
+        }
+    }
+}
+
 pub(crate) fn decode_hex(val: u8) -> Option<u8> {
     match val {
         b'0'..=b'9' => Some(val - b'0'),
@@ -69,9 +97,9 @@ pub(crate) fn decode_hex(val: u8) -> Option<u8> {
 #[derive(Debug, PartialEq, Eq)]
 pub enum Error {
     /// `\x` or `\U`
-    InvalidKind(u8),
+    UnknownKind,
     /// `\u000X`
-    InvalidHex(u8),
+    InvalidHex,
     /// `\uDC37`
     InvalidChar(u32),
     /// `\uD801`
@@ -84,11 +112,11 @@ impl core::fmt::Display for Error {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         use Error::*;
         match self {
-            InvalidKind(b) => write!(f, "invalid escape character {}", char::from(*b)),
-            InvalidHex(b) => write!(f, "invalid hexadecimal character {}", char::from(*b)),
+            UnknownKind => "unknown escape sequence type".fmt(f),
+            InvalidHex => "invalid hexadecimal sequence".fmt(f),
             InvalidChar(c) => write!(f, "invalid character with index {}", c),
             ExpectedLowSurrogate => "expected low surrogate".fmt(f),
-            Eof => "unexpected end of file".fmt(f),
+            Eof => "unterminated escape sequence".fmt(f),
         }
     }
 }
@@ -97,43 +125,39 @@ impl core::fmt::Display for Error {
 ///
 /// This does not require any allocation.
 pub trait Lex: Read {
-    /// Given a high surrogate, parse a low surrogate and combine them.
-    fn low_surrogate(&mut self, high: u16) -> Result<u32, Error> {
-        if !self.strip_prefix(b"\\u") {
-            Err(Error::ExpectedLowSurrogate)
-        } else if let low @ (0xDC00..=0xDFFF) = self.hex::<u16>()? {
-            Ok(((high - 0xD800) as u32 * 0x400 + (low - 0xDC00) as u32) + 0x10000)
+    /// Convert a read escape sequence to a char, potentially reading more.
+    fn escape_char(&mut self, escape: Escape) -> Result<char, Error> {
+        let escape = match escape {
+            Escape::Unicode(high @ (0xD800..=0xDBFF)) => {
+                if self.read() != Some(b'\\') {
+                    return Err(Error::ExpectedLowSurrogate);
+                }
+                if let Escape::Unicode(low @ (0xDC00..=0xDFFF)) = self.escape()? {
+                    ((high - 0xD800) as u32 * 0x400 + (low - 0xDC00) as u32) + 0x10000
+                } else {
+                    return Err(Error::ExpectedLowSurrogate);
+                }
+            }
+            e => e.as_u16() as u32,
+        };
+        char::from_u32(escape).ok_or(Error::InvalidChar(escape))
+    }
+
+    /// Read an escape sequence such as `\n` or `\u0009` (without leading `\`).
+    fn escape(&mut self) -> Result<Escape, Error> {
+        let typ = self.read().ok_or(Error::Eof)?;
+        let escape = Escape::try_from(typ).ok_or(Error::UnknownKind)?;
+        if matches!(escape, Escape::Unicode(_)) {
+            let mut hex = 0;
+            for _ in 0..4 {
+                let h = self.read().ok_or(Error::Eof)?;
+                let h = decode_hex(h).ok_or(Error::InvalidHex)?;
+                hex = (hex << 4) + (h as u16);
+            }
+            Ok(Escape::Unicode(hex))
         } else {
-            Err(Error::ExpectedLowSurrogate)
+            Ok(escape)
         }
-    }
-
-    /// Convert an escape sequence, such as `\n` or `\u0009` (without leading `\`),
-    /// to a char, potentially reading more.
-    fn escape(&mut self, c: u8) -> Result<char, Error> {
-        if c == b'u' {
-            let u = match self.hex()? {
-                high @ (0xD800..=0xDBFF) => self.low_surrogate(high)?,
-                u => u.into(),
-            };
-            return char::from_u32(u).ok_or(Error::InvalidChar(u));
-        }
-        Lit::try_from(c)
-            .ok_or(Error::InvalidKind(c))
-            .map(|lit| char::from(lit.as_u8()))
-    }
-
-    /// Parse a hexadecimal number into an unsigned integer type `T`.
-    ///
-    /// This can be used to parse hexadecimal numbers into `u8` and `u16`, for example.
-    fn hex<T: From<u8> + Shl<Output = T> + Add<Output = T>>(&mut self) -> Result<T, Error> {
-        let mut hex: T = 0.into();
-        for _ in 0..core::mem::size_of::<T>() * 2 {
-            let h = self.take_next().ok_or(Error::Eof)?;
-            let h = decode_hex(h).ok_or(Error::InvalidHex(h))?;
-            hex = (hex << 4.into()) + h.into();
-        }
-        Ok(hex)
     }
 }
 
