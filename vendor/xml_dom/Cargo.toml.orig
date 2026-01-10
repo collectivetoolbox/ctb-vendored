@@ -1,0 +1,32 @@
+[package]
+name = "xml_dom"
+version = "0.2.8"
+authors = ["Simon Johnston <johnstonskj@gmail.com>"]
+edition = "2021"
+description = "A Rust crate providing a reasonably faithful implementation of the W3C DOM Core"
+documentation = "https://docs.rs/xml_dom/"
+repository = "https://github.com/johnstonskj/rust-xml_dom.git"
+license = "MIT"
+readme = "README.md"
+publish = true
+
+[package.metadata.docs.rs]
+# This sets the default target to `x86_64-unknown-linux-gnu`
+# and only builds that target for documentation.
+targets = ["x86_64-unknown-linux-gnu"]
+
+[badges.travis-ci]
+branch = "master"
+repository = "johnstonskj/rust-xml_dom"
+
+[features]
+default = ["quick_parser"]
+quick_parser = ["quick-xml"]
+
+[dependencies]
+log = "0.4"
+regex = "1.10"
+tracing = "0.1.40"
+
+# Feature specific dependencies
+quick-xml = { optional = true, version = "0.36" }

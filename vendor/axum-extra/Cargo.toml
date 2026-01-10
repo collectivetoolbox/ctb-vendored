@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.78"
 name = "axum-extra"
-version = "0.12.2"
+version = "0.12.3"
 build = false
 autolib = false
 autobins = false
@@ -132,6 +132,7 @@ tracing = [
 ]
 typed-header = ["dep:headers"]
 typed-routing = [
+    "routing",
     "dep:axum-macros",
     "dep:percent-encoding",
     "dep:serde_core",
@@ -145,7 +146,7 @@ name = "axum_extra"
 path = "src/lib.rs"
 
 [dependencies.axum]
-version = "0.8.7"
+version = "0.8.8"
 optional = true
 default-features = false
 
@@ -287,6 +288,9 @@ features = ["derive"]
 
 [dev-dependencies.serde_json]
 version = "1.0.71"
+
+[dev-dependencies.tempfile]
+version = "3.23.0"
 
 [dev-dependencies.tokio]
 version = "1.14"
