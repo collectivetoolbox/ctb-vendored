@@ -11,7 +11,7 @@ use crate::rounding_modes::RoundingMode;
 use core::cmp::Ordering;
 
 /// Takes the absolute value of a number. Assumes that the number has a representable absolute
-/// number.
+/// value.
 pub trait Abs {
     type Output;
 
@@ -19,7 +19,7 @@ pub trait Abs {
 }
 
 /// Replaces a number with its absolute value. Assumes that the number has a representable absolute
-/// number.
+/// value.
 pub trait AbsAssign {
     fn abs_assign(&mut self);
 }
@@ -994,7 +994,7 @@ pub trait NextPowerOf2Assign {
 /// Takes the absolute value of a number.
 ///
 /// Returns a tuple of the result along with a boolean indicating whether an arithmetic overflow
-/// occured. If an overflow occurred, then the wrapped number is returned.
+/// occurred. If an overflow occurred, then the wrapped number is returned.
 pub trait OverflowingAbs {
     type Output;
 
@@ -1219,6 +1219,18 @@ pub trait Reciprocal {
 /// Replaces a number with its reciprocal (multiplicative inverse).
 pub trait ReciprocalAssign {
     fn reciprocal_assign(&mut self);
+}
+
+/// Takes the reciprocal of the square root of a number.
+pub trait ReciprocalSqrt {
+    type Output;
+
+    fn reciprocal_sqrt(self) -> Self::Output;
+}
+
+/// Replaces a number with the reciprocal of its square root.
+pub trait ReciprocalSqrtAssign {
+    fn reciprocal_sqrt_assign(&mut self);
 }
 
 /// Finds the floor of the $n$th root of a number.

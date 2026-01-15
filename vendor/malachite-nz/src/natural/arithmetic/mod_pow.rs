@@ -14,7 +14,6 @@
 // 3 of the License, or (at your option) any later version. See <https://www.gnu.org/licenses/>.
 
 use crate::natural::InnerNatural::Small;
-use crate::natural::Natural;
 use crate::natural::arithmetic::add::{
     limbs_add_same_length_to_out, limbs_add_to_out_aliased,
     limbs_slice_add_same_length_in_place_left,
@@ -46,6 +45,7 @@ use crate::natural::arithmetic::sub::{
 use crate::natural::comparison::cmp::limbs_cmp_same_length;
 use crate::natural::logic::bit_access::limbs_get_bit;
 use crate::natural::logic::significant_bits::limbs_significant_bits;
+use crate::natural::{Natural, bit_to_limb_count_floor, limb_to_bit_count};
 use crate::platform::{Limb, MUL_TOOM22_THRESHOLD, SQR_BASECASE_THRESHOLD, SQR_TOOM2_THRESHOLD};
 use alloc::vec::Vec;
 use core::cmp::{Ordering::*, max, min};
@@ -71,7 +71,7 @@ pub(crate) fn get_bits(xs: &[Limb], mut end: u64, len: u64) -> usize {
         xs[0].mod_power_of_2(end)
     } else {
         end -= len;
-        let i = usize::exact_from(end >> Limb::LOG_WIDTH);
+        let i = bit_to_limb_count_floor(end);
         end &= Limb::WIDTH_MASK;
         let mut bits = xs[i] >> end;
         let coend = Limb::WIDTH - end;
@@ -494,18 +494,26 @@ pub_test! {limbs_mod_pow(out: &mut [Limb], xs: &[Limb], es: &[Limb], ms: &[Limb]
             } else {
                 assert_eq!(es_len, 1);
                 let t = if ms_twos == 0 {
-                    ms_zero_len << Limb::LOG_WIDTH
+                    limb_to_bit_count(ms_zero_len)
                 } else {
-                    ((ms_zero_len - 1) << Limb::LOG_WIDTH) + usize::exact_from(ms_twos)
+                    limb_to_bit_count(ms_zero_len - 1) + ms_twos
                 };
                 // Count number of low zero bits in `xs`, up to 3.
                 let bits =
                     (Limb::exact_from(0x1213) >> (xs[0].mod_power_of_2(3) << 1)).mod_power_of_2(2);
                 // Note that es[0] * bits might overflow, but that just results in a missed
                 // optimization.
-                if let Ok(t) = Limb::try_from(t) && es[0].wrapping_mul(bits) >= t  {
-                        slice_set_zero(scratch_lo);
-                        do_pow_low = false;
+                #[cfg(feature = "32_bit_limbs")]
+                if let Ok(t) = Limb::try_from(t)
+                    && es[0].wrapping_mul(bits) >= t
+                {
+                    slice_set_zero(scratch_lo);
+                    do_pow_low = false;
+                }
+                #[cfg(not(feature = "32_bit_limbs"))]
+                if es[0].wrapping_mul(bits) >= t {
+                    slice_set_zero(scratch_lo);
+                    do_pow_low = false;
                 }
             }
         }
@@ -532,7 +540,8 @@ pub_test! {limbs_mod_pow(out: &mut [Limb], xs: &[Limb], es: &[Limb], ms: &[Limb]
         limbs_mul_to_out(
             scratch_0_1,
             &scratch_2[..ms_zero_len],
-            &ms[..ms_nonzero_len], &mut mul_scratch
+            &ms[..ms_nonzero_len],
+            &mut mul_scratch,
         );
         limbs_add_to_out_aliased(out, ms_nonzero_len, &scratch_0_1[..ms_len]);
     }
@@ -752,7 +761,7 @@ impl ModPow<Natural, Natural> for &Natural {
             _ => {
                 let ms = m.promote_in_place();
                 let mut out = vec![0; ms.len()];
-                limbs_mod_pow(&mut out, &self.to_limbs_asc(), exp.promote_in_place(), ms);
+                limbs_mod_pow(&mut out, self.as_limbs_asc(), exp.promote_in_place(), ms);
                 Natural::from_owned_limbs_asc(out)
             }
         }
@@ -808,9 +817,9 @@ impl ModPow<Natural, &Natural> for &Natural {
                 Natural::from(x.mod_pow(u64::wrapping_from(*e), *m))
             }
             _ => {
-                let ms = m.to_limbs_asc();
+                let ms = m.as_limbs_asc();
                 let mut out = vec![0; ms.len()];
-                limbs_mod_pow(&mut out, &self.to_limbs_asc(), exp.promote_in_place(), &ms);
+                limbs_mod_pow(&mut out, self.as_limbs_asc(), exp.promote_in_place(), ms);
                 Natural::from_owned_limbs_asc(out)
             }
         }
@@ -868,7 +877,7 @@ impl ModPow<&Natural, Natural> for &Natural {
             _ => {
                 let ms = m.promote_in_place();
                 let mut out = vec![0; ms.len()];
-                limbs_mod_pow(&mut out, &self.to_limbs_asc(), &exp.to_limbs_asc(), ms);
+                limbs_mod_pow(&mut out, self.as_limbs_asc(), exp.as_limbs_asc(), ms);
                 Natural::from_owned_limbs_asc(out)
             }
         }
@@ -923,9 +932,9 @@ impl ModPow<&Natural, &Natural> for &Natural {
                 Natural::from(x.mod_pow(u64::wrapping_from(*e), *m))
             }
             _ => {
-                let ms = m.to_limbs_asc();
+                let ms = m.as_limbs_asc();
                 let mut out = vec![0; ms.len()];
-                limbs_mod_pow(&mut out, &self.to_limbs_asc(), &exp.to_limbs_asc(), &ms);
+                limbs_mod_pow(&mut out, self.as_limbs_asc(), exp.as_limbs_asc(), ms);
                 Natural::from_owned_limbs_asc(out)
             }
         }
@@ -1030,13 +1039,13 @@ impl<'a> ModPowAssign<Self, &'a Self> for Natural {
                 x.mod_pow_assign(u64::wrapping_from(*e), *m);
             }
             _ => {
-                let ms = m.to_limbs_asc();
+                let ms = m.as_limbs_asc();
                 let mut out = vec![0; ms.len()];
                 limbs_mod_pow(
                     &mut out,
                     self.promote_in_place(),
                     exp.promote_in_place(),
-                    &ms,
+                    ms,
                 );
                 *self = Self::from_owned_limbs_asc(out);
             }
@@ -1088,7 +1097,7 @@ impl<'a> ModPowAssign<&'a Self, Self> for Natural {
             _ => {
                 let ms = m.promote_in_place();
                 let mut out = vec![0; ms.len()];
-                limbs_mod_pow(&mut out, self.promote_in_place(), &exp.to_limbs_asc(), ms);
+                limbs_mod_pow(&mut out, self.promote_in_place(), exp.as_limbs_asc(), ms);
                 *self = Self::from_owned_limbs_asc(out);
             }
         }
@@ -1137,9 +1146,9 @@ impl<'a, 'b> ModPowAssign<&'a Self, &'b Self> for Natural {
                 x.mod_pow_assign(u64::wrapping_from(*e), *m);
             }
             _ => {
-                let ms = m.to_limbs_asc();
+                let ms = m.as_limbs_asc();
                 let mut out = vec![0; ms.len()];
-                limbs_mod_pow(&mut out, self.promote_in_place(), &exp.to_limbs_asc(), &ms);
+                limbs_mod_pow(&mut out, self.promote_in_place(), exp.as_limbs_asc(), ms);
                 *self = Self::from_owned_limbs_asc(out);
             }
         }

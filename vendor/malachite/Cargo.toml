@@ -13,7 +13,7 @@
 edition = "2024"
 rust-version = "1.90.0"
 name = "malachite"
-version = "0.8.0"
+version = "0.9.0"
 authors = ["Mikhail Hogrefe <mikhailhogrefe@gmail.com>"]
 build = false
 autolib = false
@@ -87,21 +87,21 @@ version = "0.1.4"
 optional = true
 
 [dependencies.malachite-base]
-version = "0.8.0"
+version = "0.9.0"
 default-features = false
 
 [dependencies.malachite-float]
-version = "0.8.0"
+version = "0.9.0"
 optional = true
 default-features = false
 
 [dependencies.malachite-nz]
-version = "0.8.0"
+version = "0.9.0"
 optional = true
 default-features = false
 
 [dependencies.malachite-q]
-version = "0.8.0"
+version = "0.9.0"
 optional = true
 default-features = false
 

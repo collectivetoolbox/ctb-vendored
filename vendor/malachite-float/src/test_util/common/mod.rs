@@ -8,19 +8,17 @@
 
 use crate::InnerFloat::{Finite, Infinity, NaN, Zero};
 use crate::{ComparableFloatRef, Float, significand_bits};
-use malachite_base::num::basic::floats::PrimitiveFloat;
 use malachite_base::num::basic::integers::PrimitiveInt;
 use malachite_base::num::basic::traits::{
     Infinity as InfinityTrait, NaN as NaNTrait, NegativeInfinity, NegativeZero, Zero as ZeroTrait,
 };
-use malachite_base::num::conversion::traits::{
-    ExactFrom, FromStringBase, RoundingFrom, SciMantissaAndExponent,
-};
-use malachite_base::num::logic::traits::SignificantBits;
+use malachite_base::num::conversion::traits::{ExactFrom, FromStringBase};
+use malachite_base::num::logic::traits::{BitAccess, SignificantBits};
 use malachite_base::rounding_modes::RoundingMode::{self, *};
 use malachite_nz::natural::Natural;
 use malachite_nz::platform::Limb;
 use rug::float::{Round, Special};
+use std::cmp::Ordering;
 
 // Can't have From impl due to orphan rule. We could define an impl in malachite-base where
 // RoundingMode is defined, but pulling in rug::float just for that purpose seems overkill.
@@ -149,65 +147,6 @@ pub fn to_hex_string(x: &Float) -> String {
     format!("{:#x}", ComparableFloatRef(x))
 }
 
-#[allow(clippy::type_repetition_in_bounds)]
-pub fn emulate_primitive_float_fn<T: PrimitiveFloat, F: Fn(Float, u64) -> Float>(f: F, x: T) -> T
-where
-    Float: From<T> + PartialOrd<T>,
-    for<'a> T: ExactFrom<&'a Float> + RoundingFrom<&'a Float>,
-{
-    let x = Float::from(x);
-    let mut result = f(x.clone(), T::MANTISSA_WIDTH + 1);
-    if !result.is_normal() {
-        return T::exact_from(&result);
-    }
-    let e = i64::from(<&Float as SciMantissaAndExponent<Float, i32, _>>::sci_exponent(&result));
-    if e < T::MIN_NORMAL_EXPONENT {
-        if e < T::MIN_EXPONENT {
-            return T::rounding_from(&result, Nearest).0;
-        }
-        result = f(x, T::max_precision_for_sci_exponent(e));
-    }
-    if result > T::MAX_FINITE {
-        T::INFINITY
-    } else if result < -T::MAX_FINITE {
-        T::NEGATIVE_INFINITY
-    } else {
-        T::exact_from(&result)
-    }
-}
-
-#[allow(clippy::type_repetition_in_bounds)]
-pub fn emulate_primitive_float_fn_2<T: PrimitiveFloat, F: Fn(Float, Float, u64) -> Float>(
-    f: F,
-    x: T,
-    y: T,
-) -> T
-where
-    Float: From<T> + PartialOrd<T>,
-    for<'a> T: ExactFrom<&'a Float> + RoundingFrom<&'a Float>,
-{
-    let x = Float::from(x);
-    let y = Float::from(y);
-    let mut result = f(x.clone(), y.clone(), T::MANTISSA_WIDTH + 1);
-    if !result.is_normal() {
-        return T::exact_from(&result);
-    }
-    let e = i64::from(<&Float as SciMantissaAndExponent<Float, i32, _>>::sci_exponent(&result));
-    if e < T::MIN_NORMAL_EXPONENT {
-        if e < T::MIN_EXPONENT {
-            return T::rounding_from(&result, Nearest).0;
-        }
-        result = f(x, y, T::max_precision_for_sci_exponent(e));
-    }
-    if result > T::MAX_FINITE {
-        T::INFINITY
-    } else if result < -T::MAX_FINITE {
-        T::NEGATIVE_INFINITY
-    } else {
-        T::exact_from(&result)
-    }
-}
-
 pub const ORDERED_FLOAT_STRINGS: [&str; 21] = [
     "-Infinity",
     "-3.1415926535897931",
@@ -295,3 +234,23 @@ pub const ORDERED_F64S: [f64; 17] = [
     std::f64::consts::PI,
     f64::INFINITY,
 ];
+
+// Tests that rounding with Floor and gradually increasing precision preserves all previous bits.
+pub fn test_constant<F: Fn(u64, RoundingMode) -> (Float, Ordering)>(f: F, limit: u64) {
+    let mut bit_index = Limb::WIDTH - 1;
+    let mut significand = Natural::ZERO;
+    for prec in 1..limit {
+        let x = f(prec, Floor).0;
+        let x_sig = x.significand_ref().unwrap();
+        if *x_sig != significand {
+            significand.set_bit(bit_index);
+            assert_eq!(*x_sig, significand);
+        }
+        if bit_index == 0 {
+            significand <<= Limb::WIDTH;
+            bit_index = Limb::WIDTH - 1;
+        } else {
+            bit_index -= 1;
+        }
+    }
+}

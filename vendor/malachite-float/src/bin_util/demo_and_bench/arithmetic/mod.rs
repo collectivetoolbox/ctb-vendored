@@ -17,11 +17,13 @@ pub(crate) fn register(runner: &mut Runner) {
     neg::register(runner);
     power_of_2::register(runner);
     reciprocal::register(runner);
+    reciprocal_sqrt::register(runner);
     shl::register(runner);
     shl_round::register(runner);
     shr::register(runner);
     shr_round::register(runner);
     sign::register(runner);
+    sqrt::register(runner);
     square::register(runner);
     sub::register(runner);
 }
@@ -34,10 +36,12 @@ mod mul;
 mod neg;
 mod power_of_2;
 mod reciprocal;
+mod reciprocal_sqrt;
 mod shl;
 mod shl_round;
 mod shr;
 mod shr_round;
 mod sign;
+mod sqrt;
 mod square;
 mod sub;

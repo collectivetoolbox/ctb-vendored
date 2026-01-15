@@ -17,13 +17,14 @@ use malachite_base::num::logic::traits::SignificantBits;
 use malachite_base::rounding_modes::RoundingMode::{self, *};
 use malachite_base::rounding_modes::exhaustive::exhaustive_rounding_modes;
 use malachite_base::test_util::generators::primitive_float_pair_gen;
+use malachite_float::emulate_float_float_to_float_fn;
 use malachite_float::test_util::arithmetic::add::{
     add_prec_round_naive, add_rational_prec_round_naive, rug_add, rug_add_prec, rug_add_prec_round,
     rug_add_rational, rug_add_rational_prec, rug_add_rational_prec_round, rug_add_rational_round,
     rug_add_round,
 };
 use malachite_float::test_util::common::{
-    emulate_primitive_float_fn_2, parse_hex_string, rug_round_try_from_rounding_mode, to_hex_string,
+    parse_hex_string, rug_round_try_from_rounding_mode, to_hex_string,
 };
 use malachite_float::test_util::generators::{
     float_float_rounding_mode_triple_gen_var_1, float_float_rounding_mode_triple_gen_var_4,
@@ -10018,7 +10019,7 @@ where
 {
     primitive_float_pair_gen::<T>().test_properties(|(x, y)| {
         let sum_1 = x + y;
-        let sum_2 = emulate_primitive_float_fn_2(|x, y, prec| x.add_prec(y, prec).0, x, y);
+        let sum_2 = emulate_float_float_to_float_fn(Float::add_prec, x, y);
         assert_eq!(NiceFloat(sum_1), NiceFloat(sum_2));
     });
 }

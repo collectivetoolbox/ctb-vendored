@@ -30,6 +30,10 @@ pub mod power_of_2;
 /// [`ReciprocalAssign`](malachite_base::num::arithmetic::traits::ReciprocalAssign), traits for
 /// computing the reciprocal of a number.
 pub mod reciprocal;
+/// [`ReciprocalSqrt`](malachite_base::num::arithmetic::traits::ReciprocalSqrt) and
+/// [`ReciprocalSqrtAssign`](malachite_base::num::arithmetic::traits::ReciprocalSqrtAssign), traits
+/// for computing the reciprocal of the square root of [`Float`](super::Float)s.
+pub mod reciprocal_sqrt;
 /// Left-shifting a [`Float`](super::Float) (multiplying it by a power of 2).
 ///
 /// # shl
@@ -497,6 +501,10 @@ pub mod shr_round;
 /// An implementation of [`Sign`](malachite_base::num::arithmetic::traits::Sign), a trait for
 /// determining the sign of a number.
 pub mod sign;
+/// [`Sqrt`](malachite_base::num::arithmetic::traits::Sqrt) and
+/// [`SqrtAssign`](malachite_base::num::arithmetic::traits::SqrtAssign), traits for computing the
+/// square root of [`Float`](super::Float)s.
+pub mod sqrt;
 /// Squaring of [`Float`](super::Float)s.
 pub mod square;
 /// Subtraction of [`Float`](super::Float)s, of [`Float`](super::Float)s by
