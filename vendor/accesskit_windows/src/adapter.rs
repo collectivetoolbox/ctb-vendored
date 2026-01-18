@@ -4,10 +4,10 @@
 // the LICENSE-MIT file), at your option.
 
 use accesskit::{
-    ActionHandler, ActivationHandler, Live, Node as NodeProvider, NodeId as LocalNodeId, Role,
-    Tree as TreeData, TreeId, TreeUpdate,
+    ActionHandler, ActivationHandler, Live, Node as NodeProvider, NodeId, Role, Tree as TreeData,
+    TreeUpdate,
 };
-use accesskit_consumer::{FilterResult, Node, NodeId, Tree, TreeChangeHandler};
+use accesskit_consumer::{FilterResult, Node, Tree, TreeChangeHandler};
 use hashbrown::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter};
 use std::sync::{atomic::Ordering, Arc};
@@ -214,14 +214,6 @@ impl TreeChangeHandler for AdapterChangeHandler<'_> {
             return;
         }
         let wrapper = NodeWrapper(node);
-        if node.is_dialog() {
-            let platform_node = PlatformNode::new(self.context, node.id());
-            let element: IRawElementProviderSimple = platform_node.into();
-            self.queue.push(QueuedEvent::Simple {
-                element,
-                event_id: UIA_Window_WindowOpenedEventId,
-            });
-        }
         if wrapper.name().is_some() && node.live() != Live::Off {
             let platform_node = PlatformNode::new(self.context, node.id());
             let element: IRawElementProviderSimple = platform_node.into();
@@ -242,14 +234,6 @@ impl TreeChangeHandler for AdapterChangeHandler<'_> {
         let old_node_was_filtered_out = filter(old_node) != FilterResult::Include;
         if filter(new_node) != FilterResult::Include {
             if !old_node_was_filtered_out {
-                if old_node.is_dialog() {
-                    let platform_node = PlatformNode::new(self.context, old_node.id());
-                    let element: IRawElementProviderSimple = platform_node.into();
-                    self.queue.push(QueuedEvent::Simple {
-                        element,
-                        event_id: UIA_Window_WindowClosedEventId,
-                    });
-                }
                 let old_wrapper = NodeWrapper(old_node);
                 if old_wrapper.is_selection_item_pattern_supported() && old_wrapper.is_selected() {
                     self.handle_selection_state_change(old_node, false);
@@ -279,14 +263,6 @@ impl TreeChangeHandler for AdapterChangeHandler<'_> {
                 event_id: UIA_LiveRegionChangedEventId,
             });
         }
-        if old_node_was_filtered_out && new_node.is_dialog() {
-            let platform_node = PlatformNode::new(self.context, new_node.id());
-            let element: IRawElementProviderSimple = platform_node.into();
-            self.queue.push(QueuedEvent::Simple {
-                element,
-                event_id: UIA_Window_WindowOpenedEventId,
-            });
-        }
         if new_wrapper.is_selection_item_pattern_supported()
             && (new_wrapper.is_selected() != old_wrapper.is_selected()
                 || (old_node_was_filtered_out && new_wrapper.is_selected()))
@@ -306,14 +282,6 @@ impl TreeChangeHandler for AdapterChangeHandler<'_> {
         if filter(node) != FilterResult::Include {
             return;
         }
-        if node.is_dialog() {
-            let platform_node = PlatformNode::new(self.context, node.id());
-            let element: IRawElementProviderSimple = platform_node.into();
-            self.queue.push(QueuedEvent::Simple {
-                element,
-                event_id: UIA_Window_WindowClosedEventId,
-            });
-        }
         let wrapper = NodeWrapper(node);
         if wrapper.is_selection_item_pattern_supported() {
             self.handle_selection_state_change(node, false);
@@ -323,7 +291,7 @@ impl TreeChangeHandler for AdapterChangeHandler<'_> {
     // TODO: handle other events (#20)
 }
 
-const PLACEHOLDER_ROOT_ID: LocalNodeId = LocalNodeId(0);
+const PLACEHOLDER_ROOT_ID: NodeId = NodeId(0);
 
 enum State {
     Inactive {
@@ -518,7 +486,6 @@ impl Adapter {
                     let placeholder_update = TreeUpdate {
                         nodes: vec![(PLACEHOLDER_ROOT_ID, NodeProvider::new(Role::Window))],
                         tree: Some(TreeData::new(PLACEHOLDER_ROOT_ID)),
-                        tree_id: TreeId::ROOT,
                         focus: PLACEHOLDER_ROOT_ID,
                     };
                     let placeholder_tree = Tree::new(placeholder_update, *is_window_focused);

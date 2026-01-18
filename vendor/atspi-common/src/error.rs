@@ -33,9 +33,6 @@ pub enum AtspiError {
 	/// No member on event.
 	MissingMember,
 
-	/// No path on event.
-	MissingPath,
-
 	/// When matching on an unknown role
 	UnknownRole(u32),
 
@@ -47,9 +44,6 @@ pub enum AtspiError {
 
 	/// Other errors.
 	Owned(String),
-
-	/// Null-reference error. This is used when an `ObjectRef` is expected to be non-null, but it is null.
-	NullRef(&'static str),
 
 	/// A `zbus` or `zbus::Fdo` error. variant.
 	Zbus(String),
@@ -102,7 +96,6 @@ impl std::fmt::Display for AtspiError {
 			Self::UnknownInterface => f.write_str("Unknown interface."),
 			Self::MissingInterface => f.write_str("Missing interface."),
 			Self::MissingMember => f.write_str("Missing member."),
-			Self::MissingPath => f.write_str("Missing path."),
 			Self::UnknownRole(e) => {
 				f.write_str("atspi: Unknown role: ")?;
 				e.fmt(f)
@@ -112,10 +105,6 @@ impl std::fmt::Display for AtspiError {
 			Self::Owned(e) => {
 				f.write_str("atspi: other error: ")?;
 				e.fmt(f)
-			}
-			Self::NullRef(e) => {
-				f.write_str("atspi: null reference: ")?;
-				f.write_str(e)
 			}
 			Self::Zbus(e) => {
 				f.write_str("ZBus Error: ")?;

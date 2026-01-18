@@ -2,8 +2,7 @@
 mod fill;
 
 use accesskit::{
-    Action, ActionRequest, ActivationHandler, Live, Node, NodeId, Rect, Role, Tree, TreeId,
-    TreeUpdate,
+    Action, ActionRequest, ActivationHandler, Live, Node, NodeId, Rect, Role, Tree, TreeUpdate,
 };
 use accesskit_winit::{Adapter, Event as AccessKitEvent, WindowEvent as AccessKitWindowEvent};
 use std::{
@@ -97,7 +96,6 @@ impl UiState {
                 (BUTTON_2_ID, button_2),
             ],
             tree: Some(tree),
-            tree_id: TreeId::ROOT,
             focus: self.focus,
         };
         if let Some(announcement) = &self.announcement {
@@ -113,7 +111,6 @@ impl UiState {
         adapter.update_if_active(|| TreeUpdate {
             nodes: vec![],
             tree: None,
-            tree_id: TreeId::ROOT,
             focus,
         });
     }
@@ -131,7 +128,6 @@ impl UiState {
             TreeUpdate {
                 nodes: vec![(ANNOUNCEMENT_ID, announcement), (WINDOW_ID, root)],
                 tree: None,
-                tree_id: TreeId::ROOT,
                 focus: self.focus,
             }
         });
@@ -215,9 +211,6 @@ impl ApplicationHandler<AccessKitEvent> for Application {
                 fill::cleanup_window(&window.window);
                 self.window = None;
             }
-            WindowEvent::Resized(_) => {
-                window.window.request_redraw();
-            }
             WindowEvent::RedrawRequested => {
                 fill::fill_window(&window.window);
             }
@@ -238,13 +231,11 @@ impl ApplicationHandler<AccessKitEvent> for Application {
                         BUTTON_1_ID
                     };
                     state.set_focus(adapter, new_focus);
-                    window.window.request_redraw();
                 }
                 Key::Named(winit::keyboard::NamedKey::Space) => {
                     let mut state = state.lock().unwrap();
                     let id = state.focus;
                     state.press_button(adapter, id);
-                    window.window.request_redraw();
                 }
                 _ => (),
             },
@@ -262,24 +253,19 @@ impl ApplicationHandler<AccessKitEvent> for Application {
 
         match user_event.window_event {
             AccessKitWindowEvent::InitialTreeRequested => unreachable!(),
-            AccessKitWindowEvent::ActionRequested(ActionRequest {
-                action,
-                target_node,
-                ..
-            }) => {
-                if target_node == BUTTON_1_ID || target_node == BUTTON_2_ID {
+            AccessKitWindowEvent::ActionRequested(ActionRequest { action, target, .. }) => {
+                if target == BUTTON_1_ID || target == BUTTON_2_ID {
                     let mut state = state.lock().unwrap();
                     match action {
                         Action::Focus => {
-                            state.set_focus(adapter, target_node);
+                            state.set_focus(adapter, target);
                         }
                         Action::Click => {
-                            state.press_button(adapter, target_node);
+                            state.press_button(adapter, target);
                         }
                         _ => (),
                     }
                 }
-                window.window.request_redraw();
             }
             AccessKitWindowEvent::AccessibilityDeactivated => (),
         }
@@ -288,13 +274,12 @@ impl ApplicationHandler<AccessKitEvent> for Application {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         self.create_window(event_loop)
             .expect("failed to create initial window");
-        if let Some(window) = self.window.as_ref() {
-            window.window.request_redraw();
-        }
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if self.window.is_none() {
+        if let Some(window) = self.window.as_ref() {
+            window.window.request_redraw();
+        } else {
             event_loop.exit();
         }
     }

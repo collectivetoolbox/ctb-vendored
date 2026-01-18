@@ -4,7 +4,8 @@
 // the LICENSE-MIT file), at your option.
 
 use crate::atspi::OwnedObjectAddress;
-use accesskit_atspi_common::{NodeId, PlatformNode};
+use accesskit::NodeId;
+use accesskit_atspi_common::PlatformNode;
 use serde::{Serialize, Serializer};
 use zbus::{
     names::UniqueName,
@@ -30,9 +31,7 @@ impl ObjectId {
             Self::Root => ObjectPath::from_str_unchecked(ROOT_PATH),
             Self::Node { adapter, node } => ObjectPath::from_string_unchecked(format!(
                 "{}{}/{}",
-                ACCESSIBLE_PATH_PREFIX,
-                adapter,
-                u128::from(*node)
+                ACCESSIBLE_PATH_PREFIX, adapter, node.0
             )),
         }
         .into()
@@ -46,7 +45,7 @@ impl Serialize for ObjectId {
     {
         match self {
             Self::Root => serializer.serialize_str("root"),
-            Self::Node { node, .. } => serializer.serialize_str(&u128::from(*node).to_string()),
+            Self::Node { node, .. } => serializer.serialize_str(&node.0.to_string()),
         }
     }
 }
@@ -59,7 +58,7 @@ impl From<ObjectId> for Structure<'_> {
     fn from(id: ObjectId) -> Self {
         Self::from((match id {
             ObjectId::Root => "root".into(),
-            ObjectId::Node { node, .. } => u128::from(node).to_string(),
+            ObjectId::Node { node, .. } => node.0.to_string(),
         },))
     }
 }

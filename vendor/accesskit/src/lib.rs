@@ -12,24 +12,22 @@
 
 extern crate alloc;
 
-#[cfg(feature = "schemars")]
-use alloc::borrow::Cow;
 use alloc::{boxed::Box, string::String, vec::Vec};
 use core::fmt;
 #[cfg(feature = "pyo3")]
 use pyo3::pyclass;
 #[cfg(feature = "schemars")]
-use schemars::{json_schema, JsonSchema, Schema, SchemaGenerator};
+use schemars::{
+    gen::SchemaGenerator,
+    schema::{InstanceType, ObjectValidation, Schema, SchemaObject},
+    JsonSchema, Map as SchemaMap,
+};
 #[cfg(feature = "serde")]
 use serde::{
     de::{Deserializer, IgnoredAny, MapAccess, Visitor},
     ser::{SerializeMap, Serializer},
     Deserialize, Serialize,
 };
-#[cfg(feature = "schemars")]
-use serde_json::{Map as SchemaMap, Value as SchemaValue};
-
-pub use uuid::Uuid;
 
 mod geometry;
 pub use geometry::{Affine, Point, Rect, Size, Vec2};
@@ -131,8 +129,11 @@ pub enum Role {
     ContentInfo,
     Definition,
     DescriptionList,
+    DescriptionListDetail,
+    DescriptionListTerm,
     Details,
     Dialog,
+    Directory,
     DisclosureTriangle,
     Document,
     EmbeddedObject,
@@ -141,11 +142,12 @@ pub enum Role {
     FigureCaption,
     Figure,
     Footer,
+    FooterAsNonLandmark,
     Form,
     Grid,
-    GridCell,
     Group,
     Header,
+    HeaderAsNonLandmark,
     Heading,
     Iframe,
     IframePresentational,
@@ -167,6 +169,8 @@ pub enum Role {
     Navigation,
     Note,
     PluginObject,
+    Portal,
+    Pre,
     ProgressIndicator,
     RadioGroup,
     Region,
@@ -177,8 +181,6 @@ pub enum Role {
     ScrollView,
     Search,
     Section,
-    SectionFooter,
-    SectionHeader,
     Slider,
     SpinButton,
     Splitter,
@@ -617,7 +619,7 @@ pub enum VerticalOffset {
     pyclass(module = "accesskit", rename_all = "SCREAMING_SNAKE_CASE", eq)
 )]
 #[repr(u8)]
-pub enum TextDecorationStyle {
+pub enum TextDecoration {
     Solid,
     Dotted,
     Dashed,
@@ -628,11 +630,6 @@ pub enum TextDecorationStyle {
 pub type NodeIdContent = u64;
 
 /// The stable identity of a [`Node`], unique within the node's tree.
-///
-/// Each tree (root or subtree) has its own independent ID space. The same
-/// `NodeId` value can exist in different trees without conflict. When working
-/// with multiple trees, the combination of `NodeId` and [`TreeId`] uniquely
-/// identifies a node.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars", derive(JsonSchema))]
@@ -657,21 +654,6 @@ impl fmt::Debug for NodeId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "#{}", self.0)
     }
-}
-
-/// The stable identity of a [`Tree`].
-///
-/// Use [`TreeId::ROOT`] for the main/root tree. For subtrees, use a random
-/// UUID (version 4) to avoid collisions between independently created trees.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "schemars", derive(JsonSchema))]
-#[repr(transparent)]
-pub struct TreeId(pub Uuid);
-
-impl TreeId {
-    /// A reserved tree ID for the root tree. This uses a nil UUID.
-    pub const ROOT: Self = Self(Uuid::nil());
 }
 
 /// Defines a custom action for a UI element.
@@ -734,6 +716,7 @@ enum Flag {
     TouchTransparent,
     ReadOnly,
     Disabled,
+    Bold,
     Italic,
     ClipsChildren,
     IsLineBreakingObject,
@@ -750,30 +733,6 @@ impl Flag {
     }
 }
 
-/// A color represented in 8-bit sRGB plus alpha.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "schemars", derive(JsonSchema))]
-#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
-#[repr(C)]
-pub struct Color {
-    pub red: u8,
-    pub green: u8,
-    pub blue: u8,
-    pub alpha: u8,
-}
-
-/// The style and color for a type of text decoration.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "schemars", derive(JsonSchema))]
-#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
-#[repr(C)]
-pub struct TextDecoration {
-    pub style: TextDecorationStyle,
-    pub color: Color,
-}
-
 // The following is based on the technique described here:
 // https://viruta.org/reducing-memory-consumption-in-librsvg-2.html
 
@@ -784,9 +743,8 @@ enum PropertyValue {
     NodeId(NodeId),
     String(Box<str>),
     F64(f64),
-    F32(f32),
     Usize(usize),
-    Color(Color),
+    Color(u32),
     TextDecoration(TextDecoration),
     LengthSlice(Box<[u8]>),
     CoordSlice(Box<[f32]>),
@@ -807,7 +765,6 @@ enum PropertyValue {
     Rect(Rect),
     TextSelection(Box<TextSelection>),
     CustomActionVec(Vec<CustomAction>),
-    TreeId(TreeId),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -854,8 +811,6 @@ enum PropertyId {
     Url,
     RowIndexText,
     ColumnIndexText,
-    BrailleLabel,
-    BrailleRoleDescription,
 
     // f64
     ScrollX,
@@ -869,8 +824,6 @@ enum PropertyId {
     MaxNumericValue,
     NumericValueStep,
     NumericValueJump,
-
-    // f32
     FontSize,
     FontWeight,
 
@@ -897,7 +850,7 @@ enum PropertyId {
 
     // LengthSlice
     CharacterLengths,
-    WordStarts,
+    WordLengths,
 
     // CoordSlice
     CharacterPositions,
@@ -926,7 +879,6 @@ enum PropertyId {
     Bounds,
     TextSelection,
     CustomActions,
-    TreeId,
 
     // This MUST be last.
     Unset,
@@ -1348,41 +1300,6 @@ macro_rules! f64_property_methods {
     }
 }
 
-macro_rules! f32_property_methods {
-    ($($(#[$doc:meta])* ($id:ident, $getter:ident, $setter:ident, $clearer:ident)),+) => {
-        $(property_methods! {
-            $(#[$doc])*
-            ($id, $getter, get_f32_property, Option<f32>, $setter, set_f32_property, f32, $clearer)
-        })*
-        impl Node {
-            option_properties_debug_method! { debug_f32_properties, [$($getter,)*] }
-        }
-        $(#[cfg(test)]
-        mod $getter {
-            use super::{Node, Role};
-
-            #[test]
-            fn getter_should_return_default_value() {
-                let node = Node::new(Role::Unknown);
-                assert!(node.$getter().is_none());
-            }
-            #[test]
-            fn setter_should_update_the_property() {
-                let mut node = Node::new(Role::Unknown);
-                node.$setter(1.0);
-                assert_eq!(node.$getter(), Some(1.0));
-            }
-            #[test]
-            fn clearer_should_reset_the_property() {
-                let mut node = Node::new(Role::Unknown);
-                node.$setter(1.0);
-                node.$clearer();
-                assert!(node.$getter().is_none());
-            }
-        })*
-    }
-}
-
 macro_rules! usize_property_methods {
     ($($(#[$doc:meta])* ($id:ident, $getter:ident, $setter:ident, $clearer:ident)),+) => {
         $(property_methods! {
@@ -1422,14 +1339,14 @@ macro_rules! color_property_methods {
     ($($(#[$doc:meta])* ($id:ident, $getter:ident, $setter:ident, $clearer:ident)),+) => {
         $(property_methods! {
             $(#[$doc])*
-            ($id, $getter, get_color_property, Option<Color>, $setter, set_color_property, Color, $clearer)
+            ($id, $getter, get_color_property, Option<u32>, $setter, set_color_property, u32, $clearer)
         })*
         impl Node {
             option_properties_debug_method! { debug_color_properties, [$($getter,)*] }
         }
         $(#[cfg(test)]
         mod $getter {
-            use super::{Color, Node, Role};
+            use super::{Node, Role};
 
             #[test]
             fn getter_should_return_default_value() {
@@ -1439,13 +1356,13 @@ macro_rules! color_property_methods {
             #[test]
             fn setter_should_update_the_property() {
                 let mut node = Node::new(Role::Unknown);
-                node.$setter(Color { red: 255, green: 255, blue: 255, alpha: 255 });
-                assert_eq!(node.$getter(), Some(Color { red: 255, green: 255, blue: 255, alpha: 255 }));
+                node.$setter(1);
+                assert_eq!(node.$getter(), Some(1));
             }
             #[test]
             fn clearer_should_reset_the_property() {
                 let mut node = Node::new(Role::Unknown);
-                node.$setter(Color { red: 255, green: 255, blue: 255, alpha: 255 });
+                node.$setter(1);
                 node.$clearer();
                 assert!(node.$getter().is_none());
             }
@@ -1464,17 +1381,7 @@ macro_rules! text_decoration_property_methods {
         }
         $(#[cfg(test)]
         mod $getter {
-            use super::{Color, Node, Role, TextDecoration, TextDecorationStyle};
-
-            const TEST_TEXT_DECORATION: TextDecoration = TextDecoration {
-                style: TextDecorationStyle::Dotted,
-                color: Color {
-                    red: 0,
-                    green: 0,
-                    blue: 0,
-                    alpha: 255,
-                },
-            };
+            use super::{Node, Role, TextDecoration};
 
             #[test]
             fn getter_should_return_default_value() {
@@ -1484,13 +1391,13 @@ macro_rules! text_decoration_property_methods {
             #[test]
             fn setter_should_update_the_property() {
                 let mut node = Node::new(Role::Unknown);
-                node.$setter(TEST_TEXT_DECORATION);
-                assert_eq!(node.$getter(), Some(TEST_TEXT_DECORATION));
+                node.$setter(TextDecoration::Dotted);
+                assert_eq!(node.$getter(), Some(TextDecoration::Dotted));
             }
             #[test]
             fn clearer_should_reset_the_property() {
                 let mut node = Node::new(Role::Unknown);
-                node.$setter(TEST_TEXT_DECORATION);
+                node.$setter(TextDecoration::Dotted);
                 node.$clearer();
                 assert!(node.$getter().is_none());
             }
@@ -1739,6 +1646,7 @@ flag_methods! {
     (ReadOnly, is_read_only, set_read_only, clear_read_only),
     /// Use for a control or group of controls that disallows input.
     (Disabled, is_disabled, set_disabled, clear_disabled),
+    (Bold, is_bold, set_bold, clear_bold),
     (Italic, is_italic, set_italic, clear_italic),
     /// Indicates that this node clips its children, i.e. may have
     /// `overflow: hidden` or clip children by default.
@@ -1769,12 +1677,10 @@ copy_type_getters! {
     (get_rect_property, Rect, Rect),
     (get_node_id_property, NodeId, NodeId),
     (get_f64_property, f64, F64),
-    (get_f32_property, f32, F32),
     (get_usize_property, usize, Usize),
-    (get_color_property, Color, Color),
+    (get_color_property, u32, Color),
     (get_text_decoration_property, TextDecoration, TextDecoration),
-    (get_bool_property, bool, Bool),
-    (get_tree_id_property, TreeId, TreeId)
+    (get_bool_property, bool, Bool)
 }
 
 box_type_setters! {
@@ -1789,12 +1695,10 @@ copy_type_setters! {
     (set_rect_property, Rect, Rect),
     (set_node_id_property, NodeId, NodeId),
     (set_f64_property, f64, F64),
-    (set_f32_property, f32, F32),
     (set_usize_property, usize, Usize),
-    (set_color_property, Color, Color),
+    (set_color_property, u32, Color),
     (set_text_decoration_property, TextDecoration, TextDecoration),
-    (set_bool_property, bool, Bool),
-    (set_tree_id_property, TreeId, TreeId)
+    (set_bool_property, bool, Bool)
 }
 
 vec_type_methods! {
@@ -1821,9 +1725,6 @@ node_id_vec_property_methods! {
 }
 
 node_id_property_methods! {
-    /// For a composite widget such as a listbox, tree, or grid, identifies
-    /// the currently active descendant. Used when focus remains on the container
-    /// while the active item changes.
     (ActiveDescendant, active_descendant, set_active_descendant, clear_active_descendant),
     (ErrorMessage, error_message, set_error_message, clear_error_message),
     (InPageLinkTarget, in_page_link_target, set_in_page_link_target, clear_in_page_link_target),
@@ -1863,7 +1764,6 @@ string_property_methods! {
     /// modifiers(s), that will perform this node's default action.
     /// The value of this property should be in a human-friendly format.
     (KeyboardShortcut, keyboard_shortcut, set_keyboard_shortcut, clear_keyboard_shortcut),
-    /// An [IETF language tag](https://www.rfc-editor.org/info/bcp47).
     /// Only present when different from parent.
     (Language, language, set_language, clear_language),
     /// If a text input has placeholder text, it should be exposed
@@ -1887,9 +1787,7 @@ string_property_methods! {
     (Tooltip, tooltip, set_tooltip, clear_tooltip),
     (Url, url, set_url, clear_url),
     (RowIndexText, row_index_text, set_row_index_text, clear_row_index_text),
-    (ColumnIndexText, column_index_text, set_column_index_text, clear_column_index_text),
-    (BrailleLabel, braille_label, set_braille_label, clear_braille_label),
-    (BrailleRoleDescription, braille_role_description, set_braille_role_description, clear_braille_role_description)
+    (ColumnIndexText, column_index_text, set_column_index_text, clear_column_index_text)
 }
 
 f64_property_methods! {
@@ -1903,10 +1801,7 @@ f64_property_methods! {
     (MinNumericValue, min_numeric_value, set_min_numeric_value, clear_min_numeric_value),
     (MaxNumericValue, max_numeric_value, set_max_numeric_value, clear_max_numeric_value),
     (NumericValueStep, numeric_value_step, set_numeric_value_step, clear_numeric_value_step),
-    (NumericValueJump, numeric_value_jump, set_numeric_value_jump, clear_numeric_value_jump)
-}
-
-f32_property_methods! {
+    (NumericValueJump, numeric_value_jump, set_numeric_value_jump, clear_numeric_value_jump),
     /// Font size is in pixels.
     (FontSize, font_size, set_font_size, clear_font_size),
     /// Font weight can take on any arbitrary numeric value. Increments of 100 in
@@ -1932,11 +1827,11 @@ usize_property_methods! {
 }
 
 color_property_methods! {
-    /// For [`Role::ColorWell`], specifies the selected color.
+    /// For [`Role::ColorWell`], specifies the selected color in RGBA.
     (ColorValue, color_value, set_color_value, clear_color_value),
-    /// Background color.
+    /// Background color in RGBA.
     (BackgroundColor, background_color, set_background_color, clear_background_color),
-    /// Foreground color.
+    /// Foreground color in RGBA.
     (ForegroundColor, foreground_color, set_foreground_color, clear_foreground_color)
 }
 
@@ -1967,16 +1862,9 @@ length_slice_property_methods! {
     /// [`value`]: Node::value
     (CharacterLengths, character_lengths, set_character_lengths, clear_character_lengths),
 
-    /// For text runs, the start index of each word in characters, as defined
-    /// in [`character_lengths`]. This list must be sorted.
-    ///
-    /// If this text run doesn't contain the start of any words, but only
-    /// the middle or end of a word, this list must be empty.
-    ///
-    /// If this text run is the first in the document or the first in a paragraph
-    /// (that is, the previous run ends with a newline character), then the first
-    /// character of the run is implicitly the start of a word. In this case,
-    /// beginning this list with `0` is permitted but not necessary.
+    /// For text runs, the length of each word in characters, as defined
+    /// in [`character_lengths`]. The sum of these lengths must equal
+    /// the length of [`character_lengths`].
     ///
     /// The end of each word is the beginning of the next word; there are no
     /// characters that are not considered part of a word. Trailing whitespace
@@ -1996,7 +1884,7 @@ length_slice_property_methods! {
     /// word boundaries itself.
     ///
     /// [`character_lengths`]: Node::character_lengths
-    (WordStarts, word_starts, set_word_starts, clear_word_starts)
+    (WordLengths, word_lengths, set_word_lengths, clear_word_lengths)
 }
 
 coord_slice_property_methods! {
@@ -2101,20 +1989,11 @@ property_methods! {
     /// [`transform`]: Node::transform
     (Bounds, bounds, get_rect_property, Option<Rect>, set_bounds, set_rect_property, Rect, clear_bounds),
 
-    (TextSelection, text_selection, get_text_selection_property, Option<&TextSelection>, set_text_selection, set_text_selection_property, impl Into<Box<TextSelection>>, clear_text_selection),
-
-    /// The tree that this node grafts. When set, this node acts as a graft
-    /// point, and its child is the root of the specified subtree.
-    ///
-    /// A graft node must be created before its subtree is pushed.
-    ///
-    /// Removing a graft node or clearing this property removes its subtree,
-    /// unless a new graft node is provided in the same update.
-    (TreeId, tree_id, get_tree_id_property, Option<TreeId>, set_tree_id, set_tree_id_property, TreeId, clear_tree_id)
+    (TextSelection, text_selection, get_text_selection_property, Option<&TextSelection>, set_text_selection, set_text_selection_property, impl Into<Box<TextSelection>>, clear_text_selection)
 }
 
 impl Node {
-    option_properties_debug_method! { debug_option_properties, [transform, bounds, text_selection, tree_id,] }
+    option_properties_debug_method! { debug_option_properties, [transform, bounds, text_selection,] }
 }
 
 #[cfg(test)]
@@ -2219,31 +2098,6 @@ mod text_selection {
     }
 }
 
-#[cfg(test)]
-mod tree_id {
-    use super::{Node, Role, TreeId, Uuid};
-
-    #[test]
-    fn getter_should_return_default_value() {
-        let node = Node::new(Role::GenericContainer);
-        assert!(node.tree_id().is_none());
-    }
-    #[test]
-    fn setter_should_update_the_property() {
-        let mut node = Node::new(Role::GenericContainer);
-        let value = TreeId(Uuid::nil());
-        node.set_tree_id(value);
-        assert_eq!(node.tree_id(), Some(value));
-    }
-    #[test]
-    fn clearer_should_reset_the_property() {
-        let mut node = Node::new(Role::GenericContainer);
-        node.set_tree_id(TreeId(Uuid::nil()));
-        node.clear_tree_id();
-        assert!(node.tree_id().is_none());
-    }
-}
-
 vec_property_methods! {
     (CustomActions, CustomAction, custom_actions, get_custom_action_vec, set_custom_actions, set_custom_action_vec, push_custom_action, push_to_custom_action_vec, clear_custom_actions)
 }
@@ -2323,7 +2177,6 @@ impl fmt::Debug for Node {
         self.debug_node_id_properties(&mut fmt);
         self.debug_string_properties(&mut fmt);
         self.debug_f64_properties(&mut fmt);
-        self.debug_f32_properties(&mut fmt);
         self.debug_usize_properties(&mut fmt);
         self.debug_color_properties(&mut fmt);
         self.debug_text_decoration_properties(&mut fmt);
@@ -2392,7 +2245,6 @@ impl Serialize for Properties {
                 NodeId,
                 String,
                 F64,
-                F32,
                 Usize,
                 Color,
                 TextDecoration,
@@ -2414,8 +2266,7 @@ impl Serialize for Properties {
                 Affine,
                 Rect,
                 TextSelection,
-                CustomActionVec,
-                TreeId
+                CustomActionVec
             });
         }
         map.end()
@@ -2478,9 +2329,7 @@ impl<'de> Visitor<'de> for PropertiesVisitor {
                     Tooltip,
                     Url,
                     RowIndexText,
-                    ColumnIndexText,
-                    BrailleLabel,
-                    BrailleRoleDescription
+                    ColumnIndexText
                 },
                 F64 {
                     ScrollX,
@@ -2493,9 +2342,7 @@ impl<'de> Visitor<'de> for PropertiesVisitor {
                     MinNumericValue,
                     MaxNumericValue,
                     NumericValueStep,
-                    NumericValueJump
-                },
-                F32 {
+                    NumericValueJump,
                     FontSize,
                     FontWeight
                 },
@@ -2522,7 +2369,7 @@ impl<'de> Visitor<'de> for PropertiesVisitor {
                 },
                 LengthSlice {
                     CharacterLengths,
-                    WordStarts
+                    WordLengths
                 },
                 CoordSlice {
                     CharacterPositions,
@@ -2547,8 +2394,7 @@ impl<'de> Visitor<'de> for PropertiesVisitor {
                 Affine { Transform },
                 Rect { Bounds },
                 TextSelection { TextSelection },
-                CustomActionVec { CustomActions },
-                TreeId { TreeId }
+                CustomActionVec { CustomActions }
             });
         }
 
@@ -2572,7 +2418,7 @@ macro_rules! add_schema_property {
         let name = format!("{:?}", $enum_value);
         let name = name[..1].to_ascii_lowercase() + &name[1..];
         let subschema = $gen.subschema_for::<$type>();
-        $properties.insert(name, SchemaValue::from(subschema));
+        $properties.insert(name, subschema);
     }};
 }
 
@@ -2586,12 +2432,12 @@ macro_rules! add_properties_to_schema {
 #[cfg(feature = "schemars")]
 impl JsonSchema for Properties {
     #[inline]
-    fn schema_name() -> Cow<'static, str> {
+    fn schema_name() -> String {
         "Properties".into()
     }
 
     fn json_schema(gen: &mut SchemaGenerator) -> Schema {
-        let mut properties = SchemaMap::<String, SchemaValue>::new();
+        let mut properties = SchemaMap::<String, Schema>::new();
         add_properties_to_schema!(gen, properties, {
             Vec<NodeId> {
                 Children,
@@ -2630,9 +2476,7 @@ impl JsonSchema for Properties {
                 Tooltip,
                 Url,
                 RowIndexText,
-                ColumnIndexText,
-                BrailleLabel,
-                BrailleRoleDescription
+                ColumnIndexText
             },
             f64 {
                 ScrollX,
@@ -2645,9 +2489,7 @@ impl JsonSchema for Properties {
                 MinNumericValue,
                 MaxNumericValue,
                 NumericValueStep,
-                NumericValueJump
-            },
-            f32 {
+                NumericValueJump,
                 FontSize,
                 FontWeight
             },
@@ -2662,7 +2504,7 @@ impl JsonSchema for Properties {
                 SizeOfSet,
                 PositionInSet
             },
-            Color {
+            u32 {
                 ColorValue,
                 BackgroundColor,
                 ForegroundColor
@@ -2674,7 +2516,7 @@ impl JsonSchema for Properties {
             },
             Box<[u8]> {
                 CharacterLengths,
-                WordStarts
+                WordLengths
             },
             Box<[f32]> {
                 CharacterPositions,
@@ -2701,10 +2543,18 @@ impl JsonSchema for Properties {
             TextSelection { TextSelection },
             Vec<CustomAction> { CustomActions }
         });
-        json_schema!({
-            "type": "object",
-            "properties": properties
-        })
+        SchemaObject {
+            instance_type: Some(InstanceType::Object.into()),
+            object: Some(
+                ObjectValidation {
+                    properties,
+                    ..Default::default()
+                }
+                .into(),
+            ),
+            ..Default::default()
+        }
+        .into()
     }
 }
 
@@ -2780,26 +2630,11 @@ pub struct TreeUpdate {
     /// a tree.
     pub tree: Option<Tree>,
 
-    /// The identifier of the tree that this update applies to.
-    ///
-    /// Use [`TreeId::ROOT`] for the main/root tree. For subtrees, use a unique
-    /// [`TreeId`] that identifies the subtree.
-    ///
-    /// When updating a subtree (non-ROOT tree_id):
-    /// - A graft node with [`Node::tree_id`] set to this tree's ID must already
-    ///   exist in the parent tree before the first subtree update.
-    /// - The first update for a subtree must include [`tree`](Self::tree) data.
-    pub tree_id: TreeId,
-
     /// The node within this tree that has keyboard focus when the native
     /// host (e.g. window) has focus. If no specific node within the tree
     /// has keyboard focus, this must be set to the root. The latest focus state
     /// must be provided with every tree update, even if the focus state
     /// didn't change in a given update.
-    ///
-    /// For subtrees, this specifies which node has focus when the subtree
-    /// itself is focused (i.e., when focus is on the graft node in the parent
-    /// tree).
     pub focus: NodeId,
 }
 
@@ -2873,8 +2708,7 @@ pub enum ActionData {
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct ActionRequest {
     pub action: Action,
-    pub target_tree: TreeId,
-    pub target_node: NodeId,
+    pub target: NodeId,
     pub data: Option<ActionData>,
 }
 

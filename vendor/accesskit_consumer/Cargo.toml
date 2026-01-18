@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.77.2"
 name = "accesskit_consumer"
-version = "0.33.0"
+version = "0.31.0"
 authors = ["The AccessKit contributors"]
 build = false
 autolib = false
@@ -37,9 +37,9 @@ name = "accesskit_consumer"
 path = "src/lib.rs"
 
 [dependencies.accesskit]
-version = "0.23.0"
+version = "0.21.1"
 
 [dependencies.hashbrown]
-version = "0.16"
+version = "0.15"
 features = ["default-hasher"]
 default-features = false

@@ -8,8 +8,9 @@ use crate::{
     context::get_or_init_app_context,
     executor::{Executor, Task},
 };
+use accesskit::NodeId;
 use accesskit_atspi_common::{
-    NodeId, NodeIdOrRoot, ObjectEvent, PlatformNode, PlatformRoot, Property, WindowEvent,
+    NodeIdOrRoot, ObjectEvent, PlatformNode, PlatformRoot, Property, WindowEvent,
 };
 use atspi::{
     events::EventBodyBorrowed,
@@ -118,27 +119,20 @@ impl Bus {
             )
             .await?;
         }
-        if new_interfaces.contains(Interface::Hyperlink) {
+        if new_interfaces.contains(Interface::Selection) {
             self.register_interface(
                 &path,
-                HyperlinkInterface::new(bus_name.clone(), node.clone()),
+                SelectionInterface::new(bus_name.clone(), node.clone()),
             )
             .await?;
-            if new_interfaces.contains(Interface::Selection) {
-                self.register_interface(
-                    &path,
-                    SelectionInterface::new(bus_name.clone(), node.clone()),
-                )
+        }
+        if new_interfaces.contains(Interface::Text) {
+            self.register_interface(&path, TextInterface::new(node.clone()))
                 .await?;
-            }
-            if new_interfaces.contains(Interface::Text) {
-                self.register_interface(&path, TextInterface::new(node.clone()))
-                    .await?;
-            }
-            if new_interfaces.contains(Interface::Value) {
-                self.register_interface(&path, ValueInterface::new(node.clone()))
-                    .await?;
-            }
+        }
+        if new_interfaces.contains(Interface::Value) {
+            self.register_interface(&path, ValueInterface::new(node.clone()))
+                .await?;
         }
 
         Ok(())
@@ -175,10 +169,6 @@ impl Bus {
         }
         if old_interfaces.contains(Interface::Component) {
             self.unregister_interface::<ComponentInterface>(&path)
-                .await?;
-        }
-        if old_interfaces.contains(Interface::Hyperlink) {
-            self.unregister_interface::<HyperlinkInterface>(&path)
                 .await?;
         }
         if old_interfaces.contains(Interface::Selection) {

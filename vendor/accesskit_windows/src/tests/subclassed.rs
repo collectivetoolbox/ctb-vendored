@@ -4,8 +4,7 @@
 // the LICENSE-MIT file), at your option.
 
 use accesskit::{
-    Action, ActionHandler, ActionRequest, ActivationHandler, Node, NodeId, Role, Tree, TreeId,
-    TreeUpdate,
+    Action, ActionHandler, ActionRequest, ActivationHandler, Node, NodeId, Role, Tree, TreeUpdate,
 };
 use once_cell::sync::Lazy;
 use windows::{
@@ -53,7 +52,6 @@ fn get_initial_state() -> TreeUpdate {
             (BUTTON_2_ID, button_2),
         ],
         tree: Some(Tree::new(WINDOW_ID)),
-        tree_id: TreeId::ROOT,
         focus: BUTTON_1_ID,
     }
 }

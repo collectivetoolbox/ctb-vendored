@@ -5,9 +5,9 @@
 
 #![allow(non_upper_case_globals)]
 
-use accesskit::{Action, ActionData, ActionRequest, ScrollHint, VerticalOffset};
+use accesskit::{Action, ActionData, ActionRequest, ScrollHint};
 use accesskit_consumer::{
-    Node, TextPosition as Position, TextRange as Range, Tree, TreeState, WeakTextRange as WeakRange,
+    Node, TextPosition as Position, TextRange as Range, TreeState, WeakTextRange as WeakRange,
 };
 use std::sync::{Arc, RwLock, Weak};
 use windows::{
@@ -291,12 +291,12 @@ impl PlatformRange {
 
     fn do_action<F>(&self, f: F) -> Result<()>
     where
-        for<'a> F: FnOnce(Range<'a>, &Tree) -> ActionRequest,
+        for<'a> F: FnOnce(Range<'a>) -> ActionRequest,
     {
         let context = self.upgrade_context()?;
         let tree = context.read_tree();
         let range = self.upgrade_for_read(tree.state())?;
-        let request = f(range, &tree);
+        let request = f(range);
         drop(tree);
         context.do_action(request);
         Ok(())
@@ -426,13 +426,15 @@ impl ITextRangeProvider_Impl for PlatformRange_Impl {
     }
 
     fn GetAttributeValue(&self, id: UIA_TEXTATTRIBUTE_ID) -> Result<VARIANT> {
-        self.read(|range| match id {
+        match id {
             UIA_IsReadOnlyAttributeId => {
                 // TBD: do we ever want to support mixed read-only/editable text?
-                let value = range.node().is_read_only();
-                Ok(value.into())
+                self.with_node(|node| {
+                    let value = node.is_read_only();
+                    Ok(value.into())
+                })
             }
-            UIA_CaretPositionAttributeId => {
+            UIA_CaretPositionAttributeId => self.read(|range| {
                 let mut value = CaretPosition_Unknown;
                 if range.is_degenerate() {
                     let pos = range.start();
@@ -443,55 +445,13 @@ impl ITextRangeProvider_Impl for PlatformRange_Impl {
                     }
                 }
                 Ok(value.0.into())
-            }
-            UIA_CultureAttributeId => Ok(Variant::from(range.language().map(LocaleName)).into()),
-            UIA_FontNameAttributeId => Ok(Variant::from(range.font_family()).into()),
-            UIA_FontSizeAttributeId => {
-                Ok(Variant::from(range.font_size().map(|value| value as f64)).into())
-            }
-            UIA_FontWeightAttributeId => {
-                Ok(Variant::from(range.font_weight().map(|value| value as i32)).into())
-            }
-            UIA_IsItalicAttributeId => Ok(Variant::from(range.is_italic()).into()),
-            UIA_BackgroundColorAttributeId => Ok(Variant::from(range.background_color()).into()),
-            UIA_ForegroundColorAttributeId => Ok(Variant::from(range.foreground_color()).into()),
-            UIA_OverlineStyleAttributeId => {
-                Ok(Variant::from(range.overline().map(|d| d.style)).into())
-            }
-            UIA_OverlineColorAttributeId => {
-                Ok(Variant::from(range.overline().map(|d| d.color)).into())
-            }
-            UIA_StrikethroughStyleAttributeId => {
-                Ok(Variant::from(range.strikethrough().map(|d| d.style)).into())
-            }
-            UIA_StrikethroughColorAttributeId => {
-                Ok(Variant::from(range.strikethrough().map(|d| d.color)).into())
-            }
-            UIA_UnderlineStyleAttributeId => {
-                Ok(Variant::from(range.underline().map(|d| d.style)).into())
-            }
-            UIA_UnderlineColorAttributeId => {
-                Ok(Variant::from(range.underline().map(|d| d.color)).into())
-            }
-            UIA_HorizontalTextAlignmentAttributeId => Ok(Variant::from(range.text_align()).into()),
-            UIA_IsSubscriptAttributeId => Ok(Variant::from(
-                range
-                    .vertical_offset()
-                    .map(|o| o == VerticalOffset::Subscript),
-            )
-            .into()),
-            UIA_IsSuperscriptAttributeId => Ok(Variant::from(
-                range
-                    .vertical_offset()
-                    .map(|o| o == VerticalOffset::Superscript),
-            )
-            .into()),
+            }),
             // TODO: implement more attributes
             _ => {
                 let value = unsafe { UiaGetReservedNotSupportedValue() }.unwrap();
                 Ok(value.into())
             }
-        })
+        }
     }
 
     fn GetBoundingRectangles(&self) -> Result<*mut SAFEARRAY> {
@@ -597,14 +557,10 @@ impl ITextRangeProvider_Impl for PlatformRange_Impl {
     }
 
     fn Select(&self) -> Result<()> {
-        self.do_action(|range, tree| {
-            let (target_node, target_tree) = tree.locate_node(range.node().id()).unwrap();
-            ActionRequest {
-                action: Action::SetTextSelection,
-                target_tree,
-                target_node,
-                data: Some(ActionData::SetTextSelection(range.to_text_selection())),
-            }
+        self.do_action(|range| ActionRequest {
+            action: Action::SetTextSelection,
+            target: range.node().id(),
+            data: Some(ActionData::SetTextSelection(range.to_text_selection())),
         })
     }
 
@@ -619,17 +575,15 @@ impl ITextRangeProvider_Impl for PlatformRange_Impl {
     }
 
     fn ScrollIntoView(&self, align_to_top: BOOL) -> Result<()> {
-        self.do_action(|range, tree| {
+        self.do_action(|range| {
             let position = if align_to_top.into() {
                 range.start()
             } else {
                 range.end()
             };
-            let (target_node, target_tree) = tree.locate_node(position.inner_node().id()).unwrap();
             ActionRequest {
+                target: position.inner_node().id(),
                 action: Action::ScrollIntoView,
-                target_tree,
-                target_node,
                 data: Some(ActionData::ScrollHint(if align_to_top.into() {
                     ScrollHint::TopEdge
                 } else {

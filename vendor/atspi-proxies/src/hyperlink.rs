@@ -10,29 +10,28 @@
 //! section of the zbus documentation.
 //!
 
-use atspi_common::object_ref::ObjectRefOwned;
+use crate::common::ObjectRef;
 
 #[zbus::proxy(interface = "org.a11y.atspi.Hyperlink", assume_defaults = true)]
 pub trait Hyperlink {
-	/// `GetObject` method
-	fn get_object(&self, i: i32) -> zbus::Result<ObjectRefOwned>;
+	/// GetObject method
+	fn get_object(&self, i: i32) -> zbus::Result<ObjectRef>;
 
-	/// `GetURI` method
-	#[zbus(name = "GetURI")]
+	/// GetURI method
 	fn get_uri(&self, i: i32) -> zbus::Result<String>;
 
-	/// `IsValid` method
+	/// IsValid method
 	fn is_valid(&self) -> zbus::Result<bool>;
 
-	/// `EndIndex` property
+	/// EndIndex property
 	#[zbus(property)]
 	fn end_index(&self) -> zbus::Result<i32>;
 
-	/// `NAnchors` property
+	/// NAnchors property
 	#[zbus(property)]
-	fn n_anchors(&self) -> zbus::Result<i16>;
+	fn nanchors(&self) -> zbus::Result<i16>;
 
-	/// `StartIndex` property
+	/// StartIndex property
 	#[zbus(property)]
 	fn start_index(&self) -> zbus::Result<i32>;
 }

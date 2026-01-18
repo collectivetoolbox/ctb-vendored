@@ -31,95 +31,147 @@ impl core::fmt::Display for Expect {
     }
 }
 
+/// JSON lexer token.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Token {
+    /// `null`
+    Null,
+    /// `true`
+    True,
+    /// `false`
+    False,
+    /// `,`
+    Comma,
+    /// `:`
+    Colon,
+    /// `[`
+    LSquare,
+    /// `]`
+    RSquare,
+    /// `{`
+    LCurly,
+    /// `}`
+    RCurly,
+    /// `"`
+    Quote,
+    /// a digit (0-9) or a minus (`-`)
+    DigitOrMinus,
+    /// anything else
+    Error,
+}
+
+impl core::fmt::Display for Token {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        use Token::*;
+        match self {
+            Null => "null".fmt(f),
+            True => "true".fmt(f),
+            False => "false".fmt(f),
+            Comma => ",".fmt(f),
+            Colon => ":".fmt(f),
+            LSquare => "[".fmt(f),
+            RSquare => "]".fmt(f),
+            LCurly => "{".fmt(f),
+            RCurly => "}".fmt(f),
+            Quote => '"'.fmt(f),
+            DigitOrMinus => "number".fmt(f),
+            Error => "unknown token".fmt(f),
+        }
+    }
+}
+
+impl Token {
+    /// Return `Ok(())` if `self` equals `token`, else return `Err(err)`.
+    pub fn equals_or<E>(&self, token: Token, err: E) -> Result<(), E> {
+        if *self == token {
+            Ok(())
+        } else {
+            Err(err)
+        }
+    }
+}
+
 /// Lexing that does not require allocation.
-///
-/// Many functions in this trait, including
-/// [`Lex::exactly_one`], [`Lex::seq`], and [`Lex::expect`],
-/// take a custom "peek function" that implements
-/// `FnMut(&mut Self) -> Option<u8>`.
-/// That function is used to determine the next non-whitespace character.
-/// You can use [`Lex::ws_peek`] as JSON-compliant peek function.
-///
-/// The general policy for handling peeked characters is:
-/// When a function takes a `next: u8` character,
-/// then that character is assumed to be peeked; i.e.,
-/// [`crate::Read::peek_next`] must return `Some(next)`.
-/// This policy is helpful to determine where the input must be advanced,
-/// e.g. by using [`crate::Read::take_next`].
 pub trait Lex: crate::Read {
     /// Skip input until the earliest non-whitespace character.
     fn eat_whitespace(&mut self) {
-        self.skip_until(|c| !matches!(c, b' ' | b'\t' | b'\r' | b'\n'))
+        self.skip_next_until(|c| !matches!(c, b' ' | b'\t' | b'\r' | b'\n'))
     }
 
-    /// Skip whitespace and peek at the following character.
-    fn ws_peek(&mut self) -> Option<u8> {
+    /// Skip potential whitespace and return the following token if there is some.
+    fn ws_token(&mut self) -> Option<Token> {
         self.eat_whitespace();
-        self.peek_next()
+        Some(self.token(*self.peek_next()?))
     }
 
-    /// Parse a JSON token starting with a letter.
-    ///
-    /// This returns:
-    ///
-    /// - `Some(None)` if the input is "null",
-    /// - `Some(Some(b))` if the input is a boolean `b` ("true" or "false"), else
-    /// - `None`.
-    fn null_or_bool(&mut self) -> Option<Option<bool>> {
+    /// Return `out` if the input matches `s`, otherwise return an error.
+    fn exact<const N: usize>(&mut self, s: [u8; N], out: Token) -> Token {
         // we are calling this function without having advanced before
-        Some(match self.take_next() {
-            Some(b'n') if self.strip_prefix(b"ull") => None,
-            Some(b't') if self.strip_prefix(b"rue") => Some(true),
-            Some(b'f') if self.strip_prefix(b"alse") => Some(false),
-            _ => return None,
-        })
-    }
-
-    /// Take next character, discard it, and return mutable handle to lexer.
-    ///
-    /// This is useful in particular when parsing negative numbers,
-    /// where you want to discard `-` and immediately continue.
-    fn discarded(&mut self) -> &mut Self {
         self.take_next();
-        self
-    }
-
-    /// Peek at next character, and discard it if it matches the expected character.
-    ///
-    /// Returns
-    /// `Some(())` if the peeked character matched the expected character, else
-    /// `None`.
-    ///
-    /// If [`bool::ok_or_else`] was stable, we could return a `bool` here.
-    fn expect(&mut self, pf: impl FnOnce(&mut Self) -> Option<u8>, expect: u8) -> Option<()> {
-        if pf(self) == Some(expect) {
-            self.take_next().map(|_| ())
+        if self.strip_prefix(s) {
+            out
         } else {
-            None
+            Token::Error
         }
     }
 
-    /// Execute `f` for every item in the comma-separated sequence until `end`.
-    fn seq<E: From<Expect>, PF, F>(&mut self, end: u8, mut pf: PF, mut f: F) -> Result<(), E>
+    /// Convert a character to a token, such as '`:`' to `Token::Colon`.
+    ///
+    /// When the token consists of several characters, such as
+    /// `null`, `true`, or `false`,
+    /// also consume the following characters.
+    fn token(&mut self, c: u8) -> Token {
+        let token = match c {
+            // it is important to `return` here in order not to read a byte,
+            // like we do for the regular, single-character tokens
+            b'n' => return self.exact([b'u', b'l', b'l'], Token::Null),
+            b't' => return self.exact([b'r', b'u', b'e'], Token::True),
+            b'f' => return self.exact([b'a', b'l', b's', b'e'], Token::False),
+            b'0'..=b'9' | b'-' => return Token::DigitOrMinus,
+            b'"' => Token::Quote,
+            b'[' => Token::LSquare,
+            b']' => Token::RSquare,
+            b'{' => Token::LCurly,
+            b'}' => Token::RCurly,
+            b',' => Token::Comma,
+            b':' => Token::Colon,
+            _ => Token::Error,
+        };
+        self.take_next();
+        token
+    }
+
+    /// Parse a string with given function, followed by a colon.
+    fn str_colon<T, E: From<Expect>, F>(&mut self, token: Token, f: F) -> Result<T, E>
     where
-        PF: FnMut(&mut Self) -> Option<u8>,
-        F: FnMut(u8, &mut Self) -> Result<(), E>,
+        F: FnOnce(&mut Self) -> Result<T, E>,
     {
-        let mut next = pf(self).ok_or(Expect::ValueOrEnd)?;
-        if next == end {
-            self.take_next();
+        token.equals_or(Token::Quote, Expect::String)?;
+        let key = f(self)?;
+
+        let colon = self.ws_token().filter(|t| *t == Token::Colon);
+        colon.ok_or(Expect::Colon)?;
+
+        Ok(key)
+    }
+
+    /// Execute `f` for every item in the comma-separated sequence until `end`.
+    fn seq<E: From<Expect>, F>(&mut self, end: Token, mut f: F) -> Result<(), E>
+    where
+        F: FnMut(Token, &mut Self) -> Result<(), E>,
+    {
+        let mut token = self.ws_token().ok_or(Expect::ValueOrEnd)?;
+        if token == end {
             return Ok(());
         };
 
         loop {
-            f(next, self)?;
-            next = pf(self).ok_or(Expect::CommaOrEnd)?;
-            if next == end {
-                self.take_next();
+            f(token, self)?;
+            token = self.ws_token().ok_or(Expect::CommaOrEnd)?;
+            if token == end {
                 return Ok(());
-            } else if next == b',' {
-                self.take_next();
-                next = pf(self).ok_or(Expect::Value)?;
+            } else if token == Token::Comma {
+                token = self.ws_token().ok_or(Expect::Value)?;
             } else {
                 return Err(Expect::CommaOrEnd)?;
             }
@@ -127,14 +179,14 @@ pub trait Lex: crate::Read {
     }
 
     /// Parse once using given function and assure that the function has consumed all tokens.
-    fn exactly_one<T, E: From<Expect>, PF, F>(&mut self, mut pf: PF, f: F) -> Result<T, E>
+    fn exactly_one<T, E: From<Expect>, F>(&mut self, f: F) -> Result<T, E>
     where
-        PF: FnMut(&mut Self) -> Option<u8>,
-        F: FnOnce(u8, &mut Self) -> Result<T, E>,
+        F: FnOnce(Token, &mut Self) -> Result<T, E>,
     {
-        let next = pf(self).ok_or(Expect::Value)?;
-        let v = f(next, self)?;
-        match pf(self) {
+        let token = self.ws_token().ok_or(Expect::Value)?;
+        let v = f(token, self)?;
+        self.eat_whitespace();
+        match self.peek_next() {
             None => Ok(v),
             Some(_) => Err(Expect::Eof)?,
         }

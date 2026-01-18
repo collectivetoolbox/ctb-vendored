@@ -81,7 +81,7 @@ impl ObjectMatchRule {
 	}
 }
 
-/// The 'builder' type for `MatchRule`.
+/// The 'builder' type for `MatchRule`.  
 /// Use its methods to set match criteria.
 #[derive(Debug, Clone, Default)]
 pub struct ObjectMatchRuleBuilder {
@@ -170,10 +170,10 @@ impl ObjectMatchRuleBuilder {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Type, Default)]
 #[repr(i32)]
 pub enum MatchType {
-	#[default]
-	/// Invalidates match criterion. Meanting: the search of this property will not be performed.
+	/// Invalidates match criterion.
 	Invalid,
 
+	#[default]
 	/// All of the criteria must be met.
 	All,
 

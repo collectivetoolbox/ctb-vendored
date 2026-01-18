@@ -2,7 +2,7 @@
 
 use accesskit::{
     Action, ActionHandler, ActionRequest, ActivationHandler, Live, Node, NodeId, Rect, Role, Tree,
-    TreeId, TreeUpdate,
+    TreeUpdate,
 };
 use accesskit_windows::Adapter;
 use once_cell::sync::Lazy;
@@ -95,7 +95,6 @@ impl InnerWindowState {
         if self.announcement.is_some() {
             node.push_child(ANNOUNCEMENT_ID);
         }
-        node.set_language("en");
         node
     }
 }
@@ -115,7 +114,6 @@ impl ActivationHandler for InnerWindowState {
                 (BUTTON_2_ID, button_2),
             ],
             tree: Some(tree),
-            tree_id: TreeId::ROOT,
             focus: self.focus,
         };
         if let Some(announcement) = &self.announcement {
@@ -139,7 +137,6 @@ impl WindowState {
         if let Some(events) = adapter.update_if_active(|| TreeUpdate {
             nodes: vec![],
             tree: None,
-            tree_id: TreeId::ROOT,
             focus,
         }) {
             drop(adapter);
@@ -162,7 +159,6 @@ impl WindowState {
             TreeUpdate {
                 nodes: vec![(ANNOUNCEMENT_ID, announcement), (WINDOW_ID, root)],
                 tree: None,
-                tree_id: TreeId::ROOT,
                 focus: inner_state.focus,
             }
         }) {
@@ -204,7 +200,7 @@ impl ActionHandler for SimpleActionHandler {
                         Some(self.window),
                         SET_FOCUS_MSG,
                         WPARAM(0),
-                        LPARAM(request.target_node.0 as _),
+                        LPARAM(request.target.0 as _),
                     )
                 }
                 .unwrap();
@@ -215,7 +211,7 @@ impl ActionHandler for SimpleActionHandler {
                         Some(self.window),
                         CLICK_MSG,
                         WPARAM(0),
-                        LPARAM(request.target_node.0 as _),
+                        LPARAM(request.target.0 as _),
                     )
                 }
                 .unwrap();

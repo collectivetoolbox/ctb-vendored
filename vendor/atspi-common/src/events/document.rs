@@ -1,12 +1,11 @@
-use crate::events::{DBusInterface, DBusMatchRule, DBusMember, RegistryEventString};
-use crate::object_ref::ObjectRefOwned;
 #[cfg(feature = "zbus")]
-use crate::EventProperties;
-
-#[cfg(feature = "zbus")]
-use crate::AtspiError;
-#[cfg(feature = "zbus")]
-use zbus::message::Header;
+use crate::{
+	error::AtspiError,
+	events::{MessageConversion, MessageConversionExt},
+};
+use crate::{events::BusProperties, EventProperties};
+use zbus_names::UniqueName;
+use zvariant::ObjectPath;
 
 /// An event triggered by the completion of a document load action.
 /// For example: a web page has finished loading its initial payload, or
@@ -14,7 +13,7 @@ use zbus::message::Header;
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize, Eq, Hash, Default)]
 pub struct LoadCompleteEvent {
 	/// The [`crate::ObjectRef`] which the event applies to.
-	pub item: ObjectRefOwned,
+	pub item: crate::events::ObjectRef,
 }
 
 /// An event triggered by a reloading of a document.
@@ -22,7 +21,7 @@ pub struct LoadCompleteEvent {
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize, Eq, Hash, Default)]
 pub struct ReloadEvent {
 	/// The [`crate::ObjectRef`] which the event applies to.
-	pub item: ObjectRefOwned,
+	pub item: crate::events::ObjectRef,
 }
 
 /// An event triggered by the cancelling of a document load.
@@ -30,19 +29,19 @@ pub struct ReloadEvent {
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize, Eq, Hash, Default)]
 pub struct LoadStoppedEvent {
 	/// The [`crate::ObjectRef`] which the event applies to.
-	pub item: ObjectRefOwned,
+	pub item: crate::events::ObjectRef,
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize, Eq, Hash, Default)]
 pub struct ContentChangedEvent {
 	/// The [`crate::ObjectRef`] which the event applies to.
-	pub item: ObjectRefOwned,
+	pub item: crate::events::ObjectRef,
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize, Eq, Hash, Default)]
 pub struct AttributesChangedEvent {
 	/// The [`crate::ObjectRef`] which the event applies to.
-	pub item: ObjectRefOwned,
+	pub item: crate::events::ObjectRef,
 }
 
 /// The focused page has changed.
@@ -57,59 +56,56 @@ pub struct AttributesChangedEvent {
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize, Eq, Hash, Default)]
 pub struct PageChangedEvent {
 	/// The [`crate::ObjectRef`] which the event applies to.
-	pub item: ObjectRefOwned,
+	pub item: crate::events::ObjectRef,
 }
 
-impl_member_interface_registry_string_and_match_rule_for_event!(
-	LoadCompleteEvent,
-	"LoadComplete",
-	"org.a11y.atspi.Event.Document",
-	"document:load-complete",
-	"type='signal',interface='org.a11y.atspi.Event.Document',member='LoadComplete'"
-);
+impl BusProperties for LoadCompleteEvent {
+	const DBUS_MEMBER: &'static str = "LoadComplete";
+	const DBUS_INTERFACE: &'static str = "org.a11y.atspi.Event.Document";
+	const MATCH_RULE_STRING: &'static str =
+		"type='signal',interface='org.a11y.atspi.Event.Document',member='LoadComplete'";
+	const REGISTRY_EVENT_STRING: &'static str = "Document:";
+}
 
-impl_member_interface_registry_string_and_match_rule_for_event!(
-	ReloadEvent,
-	"Reload",
-	"org.a11y.atspi.Event.Document",
-	"document:reload",
-	"type='signal',interface='org.a11y.atspi.Event.Document',member='LoadStopped'"
-);
+impl BusProperties for ReloadEvent {
+	const DBUS_MEMBER: &'static str = "Reload";
+	const DBUS_INTERFACE: &'static str = "org.a11y.atspi.Event.Document";
+	const MATCH_RULE_STRING: &'static str =
+		"type='signal',interface='org.a11y.atspi.Event.Document',member='Reload'";
+	const REGISTRY_EVENT_STRING: &'static str = "Document:";
+}
 
-impl_member_interface_registry_string_and_match_rule_for_event!(
-	LoadStoppedEvent,
-	"LoadStopped",
-	"org.a11y.atspi.Event.Document",
-	"document:load-stopped",
-	"type='signal',interface='org.a11y.atspi.Event.Document',member='LoadStopped'"
-);
+impl BusProperties for LoadStoppedEvent {
+	const DBUS_MEMBER: &'static str = "LoadStopped";
+	const DBUS_INTERFACE: &'static str = "org.a11y.atspi.Event.Document";
+	const MATCH_RULE_STRING: &'static str =
+		"type='signal',interface='org.a11y.atspi.Event.Document',member='LoadStopped'";
+	const REGISTRY_EVENT_STRING: &'static str = "Document:";
+}
 
-// TODO confirm registry event string, not found in grep at at-spi2-core
-impl_member_interface_registry_string_and_match_rule_for_event!(
-	ContentChangedEvent,
-	"ContentChanged",
-	"org.a11y.atspi.Event.Document",
-	"document:content-changed",
-	"type='signal',interface='org.a11y.atspi.Event.Document',member='ContentChanged'"
-);
+impl BusProperties for ContentChangedEvent {
+	const DBUS_MEMBER: &'static str = "ContentChanged";
+	const DBUS_INTERFACE: &'static str = "org.a11y.atspi.Event.Document";
+	const MATCH_RULE_STRING: &'static str =
+		"type='signal',interface='org.a11y.atspi.Event.Document',member='ContentChanged'";
+	const REGISTRY_EVENT_STRING: &'static str = "Document:";
+}
 
-impl_member_interface_registry_string_and_match_rule_for_event!(
-	AttributesChangedEvent,
-	"AttributesChanged",
-	"org.a11y.atspi.Event.Document",
-	"document:attributes-changed",
-	"type='signal',interface='org.a11y.atspi.Event.Document',member='AttributesChanged'"
-);
+impl BusProperties for AttributesChangedEvent {
+	const DBUS_MEMBER: &'static str = "AttributesChanged";
+	const DBUS_INTERFACE: &'static str = "org.a11y.atspi.Event.Document";
+	const MATCH_RULE_STRING: &'static str =
+		"type='signal',interface='org.a11y.atspi.Event.Document',member='AttributesChanged'";
+	const REGISTRY_EVENT_STRING: &'static str = "Document:";
+}
 
-impl_member_interface_registry_string_and_match_rule_for_event!(
-	PageChangedEvent,
-	"PageChanged",
-	"org.a11y.atspi.Event.Document",
-	"document:page-changed",
-	"type='signal',interface='org.a11y.atspi.Event.Document',member='PageChanged'"
-);
-
-impl_event_type_properties_for_event!(LoadCompleteEvent);
+impl BusProperties for PageChangedEvent {
+	const DBUS_MEMBER: &'static str = "PageChanged";
+	const DBUS_INTERFACE: &'static str = "org.a11y.atspi.Event.Document";
+	const MATCH_RULE_STRING: &'static str =
+		"type='signal',interface='org.a11y.atspi.Event.Document',member='PageChanged'";
+	const REGISTRY_EVENT_STRING: &'static str = "Document:";
+}
 
 event_test_cases!(LoadCompleteEvent);
 impl_to_dbus_message!(LoadCompleteEvent);
@@ -117,50 +113,32 @@ impl_from_dbus_message!(LoadCompleteEvent);
 impl_event_properties!(LoadCompleteEvent);
 impl_from_object_ref!(LoadCompleteEvent);
 
-impl_event_type_properties_for_event!(ReloadEvent);
 event_test_cases!(ReloadEvent);
 impl_to_dbus_message!(ReloadEvent);
 impl_from_dbus_message!(ReloadEvent);
 impl_event_properties!(ReloadEvent);
 impl_from_object_ref!(ReloadEvent);
 
-impl_event_type_properties_for_event!(LoadStoppedEvent);
 event_test_cases!(LoadStoppedEvent);
 impl_to_dbus_message!(LoadStoppedEvent);
 impl_from_dbus_message!(LoadStoppedEvent);
 impl_event_properties!(LoadStoppedEvent);
 impl_from_object_ref!(LoadStoppedEvent);
 
-impl_event_type_properties_for_event!(ContentChangedEvent);
 event_test_cases!(ContentChangedEvent);
 impl_to_dbus_message!(ContentChangedEvent);
 impl_from_dbus_message!(ContentChangedEvent);
 impl_event_properties!(ContentChangedEvent);
 impl_from_object_ref!(ContentChangedEvent);
 
-impl_event_type_properties_for_event!(AttributesChangedEvent);
 event_test_cases!(AttributesChangedEvent);
 impl_to_dbus_message!(AttributesChangedEvent);
 impl_from_dbus_message!(AttributesChangedEvent);
 impl_event_properties!(AttributesChangedEvent);
 impl_from_object_ref!(AttributesChangedEvent);
 
-impl_event_type_properties_for_event!(PageChangedEvent);
 event_test_cases!(PageChangedEvent);
 impl_to_dbus_message!(PageChangedEvent);
 impl_from_dbus_message!(PageChangedEvent);
 impl_event_properties!(PageChangedEvent);
 impl_from_object_ref!(PageChangedEvent);
-impl_msg_conversion_ext_for_target_type!(LoadCompleteEvent);
-impl_msg_conversion_ext_for_target_type!(ReloadEvent);
-impl_msg_conversion_ext_for_target_type!(LoadStoppedEvent);
-impl_msg_conversion_ext_for_target_type!(ContentChangedEvent);
-impl_msg_conversion_ext_for_target_type!(AttributesChangedEvent);
-impl_msg_conversion_ext_for_target_type!(PageChangedEvent);
-
-impl_msg_conversion_for_types_built_from_object_ref!(LoadCompleteEvent);
-impl_msg_conversion_for_types_built_from_object_ref!(ReloadEvent);
-impl_msg_conversion_for_types_built_from_object_ref!(LoadStoppedEvent);
-impl_msg_conversion_for_types_built_from_object_ref!(ContentChangedEvent);
-impl_msg_conversion_for_types_built_from_object_ref!(AttributesChangedEvent);
-impl_msg_conversion_for_types_built_from_object_ref!(PageChangedEvent);

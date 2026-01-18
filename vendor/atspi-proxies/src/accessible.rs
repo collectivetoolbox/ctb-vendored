@@ -8,8 +8,6 @@
 
 use crate::common::{InterfaceSet, ObjectRef, RelationType, Role, StateSet};
 use crate::AtspiError;
-use atspi_common::object_ref::ObjectRefOwned;
-use zbus::names::BusName;
 
 /// # `AccessibleProxy`
 ///
@@ -18,11 +16,7 @@ use zbus::names::BusName;
 ///
 /// Accessible is the interface which is implemented by all accessible objects.
 ///
-#[zbus::proxy(
-	interface = "org.a11y.atspi.Accessible",
-	default_path = "/org/a11y/atspi/accessible/root",
-	assume_defaults = true
-)]
+#[zbus::proxy(interface = "org.a11y.atspi.Accessible", assume_defaults = true)]
 pub trait Accessible {
 	/// Returns an [`ObjectRef`] which refers to the `Application` object of the application.
 	/// This object will have [`Application`] interface implemented.
@@ -35,9 +29,9 @@ pub trait Accessible {
 	/// guaranteed to be persistent for the lifetime of the application.
 	/// All other objects in the accessibility hierarchy may be created and destroyed dynamically.
 	///
-	/// [`ObjectRef`]: [`crate::common::events::ObjectRef`]
-	/// [`Application`]: [`crate::application::ApplicationProxy`]
-	fn get_application(&self) -> zbus::Result<ObjectRefOwned>;
+	/// [`ObjectRef`]: ../crate::common::events::ObjectRef
+	/// [`Application`]: crate::application::ApplicationProxy
+	fn get_application(&self) -> zbus::Result<ObjectRef>;
 
 	/// Gets a list of name/value pairs of attributes or annotations for this object.
 	///
@@ -45,8 +39,8 @@ pub trait Accessible {
 	/// For	typographic, textual, or textually-semantic attributes,
 	/// see [`TextProxy`]'s [`get_attributes`] method instead.
 	///
-	/// [`TextProxy`]: [`crate::text::TextProxy`]
-	/// [`get_attributes`]: [`crate::text::TextProxy#method.get_attributes`]
+	/// [`TextProxy`]: crate::text::TextProxy
+	/// [`get_attributes`]: crate::text::TextProxy#method.get_attributes
 	fn get_attributes(&self) -> zbus::Result<std::collections::HashMap<String, String>>;
 
 	/// Retrieve child by index (starting from 0),
@@ -59,11 +53,11 @@ pub trait Accessible {
 	/// GTK4 returns an error, while atk-adaptor (e.g. Gtk3) returns the
 	/// null object path "/org/a11y/atspi/null".
 	///
-	/// Documentation advises implementors to return a `DBus` Error when the index is
+	/// Documentation advises implementors to return a DBus Error when the index is
 	/// out of range, to "keep the type system gods happy".
 	///
 	/// [`get_children`]: #method.get_children
-	fn get_child_at_index(&self, index: i32) -> zbus::Result<ObjectRefOwned>;
+	fn get_child_at_index(&self, index: i32) -> zbus::Result<ObjectRef>;
 
 	/// Retrieves a list of the object's accessible children.
 	///
@@ -74,8 +68,8 @@ pub trait Accessible {
 	/// On the [`Accessible`] interface of `org.a11y.atspi.Registry`, the registry daemon, this method retrieves a list
 	/// of all accessible applications' root objects on the bus.
 	///
-	/// [`Accessible`]: [`crate::accessible::AccessibleProxy`]
-	fn get_children(&self) -> zbus::Result<Vec<ObjectRefOwned>>;
+	/// [`Accessible`]: crate::accessible::AccessibleProxy
+	fn get_children(&self) -> zbus::Result<Vec<ObjectRef>>;
 
 	/// This object resides in its parent's list of children.
 	/// This returns its position in this list of children, starting from 0.
@@ -85,7 +79,7 @@ pub trait Accessible {
 	fn get_index_in_parent(&self) -> zbus::Result<i32>;
 
 	/// Returns an [`InterfaceSet`] accessible interface names supported by the `self` object.
-	/// [`InterfaceSet`]: [`crate::common::InterfaceSet`]
+	/// [`InterfaceSet`]: crate::common::InterfaceSet
 	fn get_interfaces(&self) -> zbus::Result<InterfaceSet>;
 
 	/// Gets a `String` corresponding to the name of the role played by an object,
@@ -119,12 +113,12 @@ pub trait Accessible {
 	/// and/or the other UI components that are directly affected by user interactions with the valuator.
 	/// Common examples include the association of scrollbars with the viewport or panel that they control.
 	///
-	/// [`RelationType`]: [`crate::common::RelationType`]
-	/// [`RelationType::LabelledBy`]: [`crate::common::RelationType::LabelledBy`]
-	/// [`RelationType::ControllerFor`]: [`crate::common::RelationType::ControllerFor`]
+	/// [`RelationType`]: crate::common::RelationType
+	/// [`RelationType::LabelledBy`]: crate::common::RelationType::LabelledBy
+	/// [`RelationType::ControllerFor`]: crate::common::RelationType::ControllerFor
 	/// [`name`]: #method.name
-	/// [`Accessible`]: [`crate::common::events::Accessible`]
-	fn get_relation_set(&self) -> zbus::Result<Vec<(RelationType, Vec<ObjectRefOwned>)>>;
+	/// [`Accessible`]: ../crate::common::events::Accessible
+	fn get_relation_set(&self) -> zbus::Result<Vec<(RelationType, Vec<ObjectRef>)>>;
 
 	/// Gets the [`Role`] that the current accessible object represents.
 	///
@@ -135,8 +129,8 @@ pub trait Accessible {
 	/// (appears unpressed; presses	when acted upon; invokes a certain action
 	/// when pressed) can expose an	[`Role::Button`] role.
 	///
-	/// [`Role::Button`]: [`crate::common::Role::Button`]
-	/// [`Role`]: [`crate::common::Role`]
+	/// [`Role::Button`]: crate::common::Role::Button
+	/// [`Role`]: crate::common::Role
 	fn get_role(&self) -> zbus::Result<Role>;
 
 	/// Gets a `String` corresponding to the name of the role played by an object,
@@ -155,14 +149,14 @@ pub trait Accessible {
 	fn get_role_name(&self) -> zbus::Result<String>;
 
 	/// Method to retrieve the [`StateSet`] of states currently held by `self`.
-	/// [`StateSet`]: [`crate::common::StateSet`]
+	/// [`StateSet`]: crate::common::StateSet
 	fn get_state(&self) -> zbus::Result<StateSet>;
 
 	/// Application-specific identifier for the current object.
 	///
 	/// A special id given to an object.
 	/// Accessible application developers can use this to give a special id to an object
-	/// to use in tests, for example, "`my_widget`".
+	/// to use in tests, for example, "my_widget".
 	///
 	/// Note that there is no way to directly find an object by its id;
 	/// a test program may have to recursively get the children to find a specific id.
@@ -191,7 +185,7 @@ pub trait Accessible {
 
 	/// Unix locale for the current object.
 	///
-	/// This is a string in the form of "`language_territory.codeset`".
+	/// This is a string in the form of "language_territory.codeset".
 	/// For example, "en_US.UTF-8" or "de_DE.UTF-8".
 	///
 	/// For an application, this may be the locale for the language that the application
@@ -217,11 +211,11 @@ pub trait Accessible {
 	/// slider had a `LabeledBy` relation to corresponding labels visible in the user
 	/// interface.
 	///
-	/// [`RelationType::LabelledBy`]: [`crate::common::RelationType::LabelledBy`]
+	/// [`RelationType::LabelledBy`]: crate::common::RelationType::LabelledBy
 	#[zbus(property)]
 	fn name(&self) -> zbus::Result<String>;
 
-	/// `ObjectRef` parent object of the current object.
+	/// ObjectRef parent object of the current object.
 	///
 	/// Null parent:
 	/// If the object has no parent (e.g. the application's root object is being queried),
@@ -232,30 +226,30 @@ pub trait Accessible {
 	/// An application must have a single root object, called "/org/a11y/atspi/accessible/root".
 	/// All other objects should have that one as their highest-level ancestor.
 	#[zbus(property)]
-	fn parent(&self) -> zbus::Result<ObjectRefOwned>;
+	fn parent(&self) -> zbus::Result<ObjectRef>;
 
 	/// Help text for the current object.
 	#[zbus(property)]
 	fn help_text(&self) -> zbus::Result<String>;
 }
 
-impl TryFrom<AccessibleProxy<'_>> for ObjectRefOwned {
+impl TryFrom<AccessibleProxy<'_>> for ObjectRef {
 	type Error = AtspiError;
-	fn try_from(proxy: AccessibleProxy<'_>) -> Result<ObjectRefOwned, Self::Error> {
-		let sender = proxy.inner().destination();
-		let path = proxy.inner().path();
-		let object_ref = ObjectRef::try_from_bus_name_and_path(sender.into(), path.into())?;
-		Ok(ObjectRefOwned::from(object_ref))
+	fn try_from(proxy: AccessibleProxy<'_>) -> Result<ObjectRef, Self::Error> {
+		Ok(ObjectRef {
+			name: proxy.inner().destination().as_str().try_into()?,
+			path: proxy.inner().path().to_string().try_into()?,
+		})
 	}
 }
 
-impl TryFrom<&AccessibleProxy<'_>> for ObjectRefOwned {
+impl TryFrom<&AccessibleProxy<'_>> for ObjectRef {
 	type Error = AtspiError;
-	fn try_from(proxy: &AccessibleProxy<'_>) -> Result<ObjectRefOwned, Self::Error> {
-		let sender = proxy.inner().destination().clone();
-		let path = proxy.inner().path().clone();
-		let object_ref = ObjectRef::try_from_bus_name_and_path(sender, path)?;
-		Ok(ObjectRefOwned::from(object_ref))
+	fn try_from(proxy: &AccessibleProxy<'_>) -> Result<ObjectRef, Self::Error> {
+		Ok(ObjectRef {
+			name: proxy.inner().destination().as_str().try_into()?,
+			path: proxy.inner().path().to_string().try_into()?,
+		})
 	}
 }
 
@@ -263,69 +257,60 @@ pub trait ObjectRefExt {
 	/// Returns an [`AccessibleProxy`], the handle to the object's  `Accessible` interface.
 	///
 	/// # Errors  
-	/// If the `ObjectRef` is null, this method returns an error.
-	/// Users are advised to check if the `ObjectRef` is null before calling this method.
+	///
+	/// `UniqueName` or `ObjectPath` are assumed to be valid because they are obtained from a valid `ObjectRef`.
+	/// If the builder is lacking the necessary parameters to build a proxy. See [`zbus::proxy::Builder::build`].
+	/// If this method fails, you may want to check the `AccessibleProxy` default values for missing / invalid parameters.
 	fn as_accessible_proxy(
 		&self,
 		conn: &zbus::Connection,
-	) -> impl std::future::Future<Output = Result<AccessibleProxy<'_>, AtspiError>> + Send;
+	) -> impl std::future::Future<Output = Result<AccessibleProxy<'_>, zbus::Error>> + Send;
 
 	/// Returns an [`AccessibleProxy`], the handle to the object's  `Accessible` interface.
 	///
 	/// # Errors  
-	/// If the `ObjectRef` is null, this method returns an error.
-	/// Users are advised to check if the `ObjectRef` is null before calling this method.
+	///
+	/// `UniqueName` or `ObjectPath` are assumed to be valid because they are obtained from a valid `ObjectRef`.
+	/// If the builder is lacking the necessary parameters to build a proxy. See [`zbus::proxy::Builder::build`].
+	/// If this method fails, you may want to check the `AccessibleProxy` default values for missing / invalid parameters.
 	fn into_accessible_proxy(
 		self,
 		conn: &zbus::Connection,
-	) -> impl std::future::Future<Output = Result<AccessibleProxy<'_>, AtspiError>> + Send;
+	) -> impl std::future::Future<Output = Result<AccessibleProxy<'_>, zbus::Error>> + Send;
 }
 
-impl ObjectRefExt for ObjectRefOwned {
+impl ObjectRefExt for ObjectRef {
 	async fn as_accessible_proxy(
 		&self,
 		conn: &zbus::Connection,
-	) -> Result<AccessibleProxy<'_>, AtspiError> {
-		if self.is_null() {
-			return Err(AtspiError::NullRef(
-				"`as_accessible_proxy` called on null-reference ObjectRef",
-			));
-		}
-
-		let name: BusName = self.name().ok_or(AtspiError::MissingName)?.clone().into();
-		let path = self.path();
-
+	) -> Result<AccessibleProxy<'_>, zbus::Error> {
 		AccessibleProxy::builder(conn)
-			.destination(name)?
-			.path(path)?
+			.destination(self.name.clone())?
+			.path(self.path.clone())?
 			.cache_properties(zbus::proxy::CacheProperties::No)
 			.build()
 			.await
-			.map_err(AtspiError::from)
 	}
 
 	async fn into_accessible_proxy(
 		self,
 		conn: &zbus::Connection,
-	) -> Result<AccessibleProxy<'_>, AtspiError> {
-		if self.is_null() {
-			return Err(AtspiError::NullRef(
-				"`into_accessible_proxy` called on null-reference ObjectRef",
-			));
-		}
-
-		let name: BusName = self.name().ok_or(AtspiError::MissingName)?.clone().into();
-		let path = self.path();
-
+	) -> Result<AccessibleProxy<'_>, zbus::Error> {
 		AccessibleProxy::builder(conn)
-			.destination(name)?
-			.path(path)?
+			.destination(self.name)?
+			.path(self.path)?
 			.cache_properties(zbus::proxy::CacheProperties::No)
 			.build()
 			.await
-			.map_err(AtspiError::from)
 	}
 }
+
+impl PartialEq for AccessibleProxy<'_> {
+	fn eq<'a>(&self, other: &Self) -> bool {
+		self.inner().path() == other.inner().path()
+	}
+}
+impl Eq for AccessibleProxy<'_> {}
 
 #[cfg(test)]
 mod tests {

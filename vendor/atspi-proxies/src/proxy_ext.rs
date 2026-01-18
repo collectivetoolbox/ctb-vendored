@@ -7,12 +7,17 @@ use crate::{
 };
 use atspi_common::{Interface, InterfaceSet, Result};
 
-/// Acquire the other interface proxies an object may have implemented.
+/// Easily acquire the other interface proxies an object may have.
 ///
-/// Equip objects with conversions to proxies of the objects' implemented interfaces
+/// Equip objects with conversions to proxies of the objects' further implemented interfaces
 /// by extending `AccessibleProxy`.
 ///
-/// The `proxies` method returns a `Proxies` struct.
+/// The `proxies` method returns a `Proxies` struct, which contains lazily loaded proxy accessors.
+///
+/// # Lazy initialization and cheap checks
+///
+/// Proxies are lazily initialized, so they are only created when requested.
+/// Interface availability is checked before creating the proxy and is a cheap bitop.
 pub trait ProxyExt<'a> {
 	/// Get `Proxies` for the current object.
 	fn proxies(&self) -> impl std::future::Future<Output = Result<Proxies<'a>>>;
@@ -23,6 +28,26 @@ pub trait ProxyExt<'a> {
 pub struct Proxies<'a> {
 	interfaces: InterfaceSet,
 	proxy: zbus::Proxy<'a>,
+	inner: InnerProxies<'a>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct InnerProxies<'a> {
+	action: Option<ActionProxy<'a>>,
+	application: Option<ApplicationProxy<'a>>,
+	cache: Option<CacheProxy<'a>>,
+	collection: Option<CollectionProxy<'a>>,
+	component: Option<ComponentProxy<'a>>,
+	document: Option<DocumentProxy<'a>>,
+	editable_text: Option<EditableTextProxy<'a>>,
+	hyperlink: Option<HyperlinkProxy<'a>>,
+	hypertext: Option<HypertextProxy<'a>>,
+	image: Option<ImageProxy<'a>>,
+	selection: Option<SelectionProxy<'a>>,
+	table: Option<TableProxy<'a>>,
+	table_cell: Option<TableCellProxy<'a>>,
+	text: Option<TextProxy<'a>>,
+	value: Option<ValueProxy<'a>>,
 }
 
 impl<'a> ProxyExt<'a> for AccessibleProxy<'a> {
@@ -30,7 +55,7 @@ impl<'a> ProxyExt<'a> for AccessibleProxy<'a> {
 		let iface_set: InterfaceSet = self.get_interfaces().await?;
 		let proxy = self.inner().clone();
 
-		Ok(Proxies { interfaces: iface_set, proxy })
+		Ok(Proxies { interfaces: iface_set, proxy, inner: InnerProxies::default() })
 	}
 }
 
@@ -40,14 +65,13 @@ impl<'a> Proxies<'a> {
 	/// # Errors
 	///
 	/// Returns an error if the interface is not available.
-	pub async fn action(&self) -> Result<ActionProxy<'a>> {
+	pub fn action(&mut self) -> Result<&mut ActionProxy<'a>> {
 		if self.interfaces.contains(Interface::Action) {
-			Ok(ActionProxy::builder(self.proxy.connection())
-				.cache_properties(zbus::proxy::CacheProperties::No)
-				.destination(self.proxy.destination())?
-				.path(self.proxy.path())?
-				.build()
-				.await?)
+			let proxy_ref = self
+				.inner
+				.action
+				.get_or_insert_with(|| ActionProxy::from(self.proxy.clone()));
+			Ok(proxy_ref)
 		} else {
 			Err(AtspiError::InterfaceNotAvailable("Action"))
 		}
@@ -58,14 +82,13 @@ impl<'a> Proxies<'a> {
 	/// # Errors
 	///
 	/// Returns an error if the interface is not available.
-	pub async fn application(&self) -> Result<ApplicationProxy<'a>> {
+	pub fn application(&mut self) -> Result<&mut ApplicationProxy<'a>> {
 		if self.interfaces.contains(Interface::Application) {
-			Ok(ApplicationProxy::builder(self.proxy.connection())
-				.cache_properties(zbus::proxy::CacheProperties::No)
-				.destination(self.proxy.destination())?
-				.path(self.proxy.path())?
-				.build()
-				.await?)
+			let proxy_ref = self
+				.inner
+				.application
+				.get_or_insert_with(|| ApplicationProxy::from(self.proxy.clone()));
+			Ok(proxy_ref)
 		} else {
 			Err(AtspiError::InterfaceNotAvailable("Application"))
 		}
@@ -76,14 +99,13 @@ impl<'a> Proxies<'a> {
 	/// # Errors
 	///
 	/// Returns an error if the interface is not available.
-	pub async fn cache(&self) -> Result<CacheProxy<'a>> {
+	pub fn cache(&mut self) -> Result<&mut CacheProxy<'a>> {
 		if self.interfaces.contains(Interface::Cache) {
-			Ok(CacheProxy::builder(self.proxy.connection())
-				.cache_properties(zbus::proxy::CacheProperties::No)
-				.destination(self.proxy.destination())?
-				.path(self.proxy.path())?
-				.build()
-				.await?)
+			let proxy_ref = self
+				.inner
+				.cache
+				.get_or_insert_with(|| CacheProxy::from(self.proxy.clone()));
+			Ok(proxy_ref)
 		} else {
 			Err(AtspiError::InterfaceNotAvailable("Cache"))
 		}
@@ -94,14 +116,13 @@ impl<'a> Proxies<'a> {
 	/// # Errors
 	///
 	/// Returns an error if the interface is not available.
-	pub async fn collection(&self) -> Result<CollectionProxy<'a>> {
+	pub fn collection(&mut self) -> Result<&mut CollectionProxy<'a>> {
 		if self.interfaces.contains(Interface::Collection) {
-			Ok(CollectionProxy::builder(self.proxy.connection())
-				.cache_properties(zbus::proxy::CacheProperties::No)
-				.destination(self.proxy.destination())?
-				.path(self.proxy.path())?
-				.build()
-				.await?)
+			let proxy_ref = self
+				.inner
+				.collection
+				.get_or_insert_with(|| CollectionProxy::from(self.proxy.clone()));
+			Ok(proxy_ref)
 		} else {
 			Err(AtspiError::InterfaceNotAvailable("Collection"))
 		}
@@ -112,14 +133,13 @@ impl<'a> Proxies<'a> {
 	/// # Errors
 	///
 	/// Returns an error if the interface is not available.
-	pub async fn component(&self) -> Result<ComponentProxy<'a>> {
+	pub fn component(&mut self) -> Result<&mut ComponentProxy<'a>> {
 		if self.interfaces.contains(Interface::Component) {
-			Ok(ComponentProxy::builder(self.proxy.connection())
-				.cache_properties(zbus::proxy::CacheProperties::No)
-				.destination(self.proxy.destination())?
-				.path(self.proxy.path())?
-				.build()
-				.await?)
+			let proxy_ref = self
+				.inner
+				.component
+				.get_or_insert_with(|| ComponentProxy::from(self.proxy.clone()));
+			Ok(proxy_ref)
 		} else {
 			Err(AtspiError::InterfaceNotAvailable("Component"))
 		}
@@ -130,14 +150,13 @@ impl<'a> Proxies<'a> {
 	/// # Errors
 	///
 	/// Returns an error if the interface is not available.
-	pub async fn document(&self) -> Result<DocumentProxy<'a>> {
+	pub fn document(&mut self) -> Result<&mut DocumentProxy<'a>> {
 		if self.interfaces.contains(Interface::Document) {
-			Ok(DocumentProxy::builder(self.proxy.connection())
-				.cache_properties(zbus::proxy::CacheProperties::No)
-				.destination(self.proxy.destination())?
-				.path(self.proxy.path())?
-				.build()
-				.await?)
+			let proxy_ref = self
+				.inner
+				.document
+				.get_or_insert_with(|| DocumentProxy::from(self.proxy.clone()));
+			Ok(proxy_ref)
 		} else {
 			Err(AtspiError::InterfaceNotAvailable("Document"))
 		}
@@ -148,14 +167,13 @@ impl<'a> Proxies<'a> {
 	/// # Errors
 	///
 	/// Returns an error if the interface is not available.
-	pub async fn editable_text(&self) -> Result<EditableTextProxy<'a>> {
+	pub fn editable_text(&mut self) -> Result<&mut EditableTextProxy<'a>> {
 		if self.interfaces.contains(Interface::EditableText) {
-			Ok(EditableTextProxy::builder(self.proxy.connection())
-				.cache_properties(zbus::proxy::CacheProperties::No)
-				.destination(self.proxy.destination())?
-				.path(self.proxy.path())?
-				.build()
-				.await?)
+			let proxy_ref = self
+				.inner
+				.editable_text
+				.get_or_insert_with(|| EditableTextProxy::from(self.proxy.clone()));
+			Ok(proxy_ref)
 		} else {
 			Err(AtspiError::InterfaceNotAvailable("EditableText"))
 		}
@@ -166,14 +184,13 @@ impl<'a> Proxies<'a> {
 	/// # Errors
 	///
 	/// Returns an error if the interface is not available.
-	pub async fn hyperlink(&self) -> Result<HyperlinkProxy<'a>> {
+	pub fn hyperlink(&mut self) -> Result<&mut HyperlinkProxy<'a>> {
 		if self.interfaces.contains(Interface::Hyperlink) {
-			Ok(HyperlinkProxy::builder(self.proxy.connection())
-				.cache_properties(zbus::proxy::CacheProperties::No)
-				.destination(self.proxy.destination())?
-				.path(self.proxy.path())?
-				.build()
-				.await?)
+			let proxy_ref = self
+				.inner
+				.hyperlink
+				.get_or_insert_with(|| HyperlinkProxy::from(self.proxy.clone()));
+			Ok(proxy_ref)
 		} else {
 			Err(AtspiError::InterfaceNotAvailable("Hyperlink"))
 		}
@@ -184,14 +201,13 @@ impl<'a> Proxies<'a> {
 	/// # Errors
 	///
 	/// Returns an error if the interface is not available.
-	pub async fn hypertext(&self) -> Result<HypertextProxy<'a>> {
+	pub fn hypertext(&mut self) -> Result<&mut HypertextProxy<'a>> {
 		if self.interfaces.contains(Interface::Hypertext) {
-			Ok(HypertextProxy::builder(self.proxy.connection())
-				.cache_properties(zbus::proxy::CacheProperties::No)
-				.destination(self.proxy.destination())?
-				.path(self.proxy.path())?
-				.build()
-				.await?)
+			let proxy_ref = self
+				.inner
+				.hypertext
+				.get_or_insert_with(|| HypertextProxy::from(self.proxy.clone()));
+			Ok(proxy_ref)
 		} else {
 			Err(AtspiError::InterfaceNotAvailable("Hypertext"))
 		}
@@ -202,14 +218,13 @@ impl<'a> Proxies<'a> {
 	/// # Errors
 	///
 	/// Returns an error if the interface is not available.
-	pub async fn image(&self) -> Result<ImageProxy<'a>> {
+	pub fn image(&mut self) -> Result<&mut ImageProxy<'a>> {
 		if self.interfaces.contains(Interface::Image) {
-			Ok(ImageProxy::builder(self.proxy.connection())
-				.cache_properties(zbus::proxy::CacheProperties::No)
-				.destination(self.proxy.destination())?
-				.path(self.proxy.path())?
-				.build()
-				.await?)
+			let proxy_ref = self
+				.inner
+				.image
+				.get_or_insert_with(|| ImageProxy::from(self.proxy.clone()));
+			Ok(proxy_ref)
 		} else {
 			Err(AtspiError::InterfaceNotAvailable("Image"))
 		}
@@ -220,14 +235,13 @@ impl<'a> Proxies<'a> {
 	/// # Errors
 	///
 	/// Returns an error if the interface is not available.
-	pub async fn selection(&self) -> Result<SelectionProxy<'a>> {
+	pub fn selection(&mut self) -> Result<&mut SelectionProxy<'a>> {
 		if self.interfaces.contains(Interface::Selection) {
-			Ok(SelectionProxy::builder(self.proxy.connection())
-				.cache_properties(zbus::proxy::CacheProperties::No)
-				.destination(self.proxy.destination())?
-				.path(self.proxy.path())?
-				.build()
-				.await?)
+			let proxy_ref = self
+				.inner
+				.selection
+				.get_or_insert_with(|| SelectionProxy::from(self.proxy.clone()));
+			Ok(proxy_ref)
 		} else {
 			Err(AtspiError::InterfaceNotAvailable("Selection"))
 		}
@@ -238,14 +252,13 @@ impl<'a> Proxies<'a> {
 	/// # Errors
 	///
 	/// Returns an error if the interface is not available.
-	pub async fn table(&self) -> Result<TableProxy<'a>> {
+	pub fn table(&mut self) -> Result<&mut TableProxy<'a>> {
 		if self.interfaces.contains(Interface::Table) {
-			Ok(TableProxy::builder(self.proxy.connection())
-				.cache_properties(zbus::proxy::CacheProperties::No)
-				.destination(self.proxy.destination())?
-				.path(self.proxy.path())?
-				.build()
-				.await?)
+			let proxy_ref = self
+				.inner
+				.table
+				.get_or_insert_with(|| TableProxy::from(self.proxy.clone()));
+			Ok(proxy_ref)
 		} else {
 			Err(AtspiError::InterfaceNotAvailable("Table"))
 		}
@@ -256,14 +269,13 @@ impl<'a> Proxies<'a> {
 	/// # Errors
 	///
 	/// Returns an error if the interface is not available.
-	pub async fn table_cell(&self) -> Result<TableCellProxy<'a>> {
+	pub fn table_cell(&mut self) -> Result<&mut TableCellProxy<'a>> {
 		if self.interfaces.contains(Interface::TableCell) {
-			Ok(TableCellProxy::builder(self.proxy.connection())
-				.cache_properties(zbus::proxy::CacheProperties::No)
-				.destination(self.proxy.destination())?
-				.path(self.proxy.path())?
-				.build()
-				.await?)
+			let proxy_ref = self
+				.inner
+				.table_cell
+				.get_or_insert_with(|| TableCellProxy::from(self.proxy.clone()));
+			Ok(proxy_ref)
 		} else {
 			Err(AtspiError::InterfaceNotAvailable("TableCell"))
 		}
@@ -274,14 +286,13 @@ impl<'a> Proxies<'a> {
 	/// # Errors
 	///
 	/// Returns an error if the interface is not available.
-	pub async fn text(&self) -> Result<TextProxy<'a>> {
+	pub fn text(&mut self) -> Result<&mut TextProxy<'a>> {
 		if self.interfaces.contains(Interface::Text) {
-			Ok(TextProxy::builder(self.proxy.connection())
-				.cache_properties(zbus::proxy::CacheProperties::No)
-				.destination(self.proxy.destination())?
-				.path(self.proxy.path())?
-				.build()
-				.await?)
+			let proxy_ref = self
+				.inner
+				.text
+				.get_or_insert_with(|| TextProxy::from(self.proxy.clone()));
+			Ok(proxy_ref)
 		} else {
 			Err(AtspiError::InterfaceNotAvailable("Text"))
 		}
@@ -292,14 +303,13 @@ impl<'a> Proxies<'a> {
 	/// # Errors
 	///
 	/// Returns an error if the interface is not available.
-	pub async fn value(&self) -> Result<ValueProxy<'a>> {
+	pub fn value(&mut self) -> Result<&mut ValueProxy<'a>> {
 		if self.interfaces.contains(Interface::Value) {
-			Ok(ValueProxy::builder(self.proxy.connection())
-				.cache_properties(zbus::proxy::CacheProperties::No)
-				.destination(self.proxy.destination())?
-				.path(self.proxy.path())?
-				.build()
-				.await?)
+			let proxy_ref = self
+				.inner
+				.value
+				.get_or_insert_with(|| ValueProxy::from(self.proxy.clone()));
+			Ok(proxy_ref)
 		} else {
 			Err(AtspiError::InterfaceNotAvailable("Value"))
 		}

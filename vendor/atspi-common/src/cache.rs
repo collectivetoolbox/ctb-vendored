@@ -1,10 +1,11 @@
 //! Common types for `org.a11y.atspi.Cache` events.
 //!
 
-use crate::{object_ref::ObjectRefOwned, InterfaceSet, ObjectRef, Role, StateSet};
+use crate::{InterfaceSet, ObjectRef, Role, StateSet};
 use serde::{Deserialize, Serialize};
 use zbus_lockstep_macros::validate;
-use zvariant::Type;
+use zbus_names::UniqueName;
+use zvariant::{ObjectPath, Type};
 
 /// The item type provided by `Cache:Add` signals
 #[allow(clippy::module_name_repetitions)]
@@ -12,11 +13,11 @@ use zvariant::Type;
 #[validate(signal: "AddAccessible")]
 pub struct CacheItem {
 	/// The accessible object (within the application)   (so)
-	pub object: ObjectRefOwned,
+	pub object: ObjectRef,
 	/// The application (root object(?)    (so)
-	pub app: ObjectRefOwned,
+	pub app: ObjectRef,
 	/// The parent object.  (so)
-	pub parent: ObjectRefOwned,
+	pub parent: ObjectRef,
 	/// The accessbile index in parent.  i
 	pub index: i32,
 	/// Child count of the accessible  i
@@ -36,18 +37,24 @@ pub struct CacheItem {
 impl Default for CacheItem {
 	fn default() -> Self {
 		Self {
-			object: ObjectRefOwned::from_static_str_unchecked(
-				":0.0",
-				"/org/a11y/atspi/accessible/object",
-			),
-			app: ObjectRefOwned::from_static_str_unchecked(
-				":0.0",
-				"/org/a11y/atspi/accessible/application",
-			),
-			parent: ObjectRefOwned::from_static_str_unchecked(
-				":0.0",
-				"/org/a11y/atspi/accessible/parent",
-			),
+			object: ObjectRef {
+				name: UniqueName::from_static_str(":0.0").unwrap().into(),
+				path: ObjectPath::from_static_str("/org/a11y/atspi/accessible/object")
+					.unwrap()
+					.into(),
+			},
+			app: ObjectRef {
+				name: UniqueName::from_static_str(":0.0").unwrap().into(),
+				path: ObjectPath::from_static_str("/org/a11y/atspi/accessible/application")
+					.unwrap()
+					.into(),
+			},
+			parent: ObjectRef {
+				name: UniqueName::from_static_str(":0.0").unwrap().into(),
+				path: ObjectPath::from_static_str("/org/a11y/atspi/accessible/parent")
+					.unwrap()
+					.into(),
+			},
 			index: 0,
 			children: 0,
 			ifaces: InterfaceSet::empty(),
@@ -64,13 +71,13 @@ impl Default for CacheItem {
 #[derive(Clone, Debug, Serialize, Deserialize, Type, PartialEq, Eq, Hash)]
 pub struct LegacyCacheItem {
 	/// The accessible object (within the application)   (so)
-	pub object: ObjectRefOwned,
+	pub object: ObjectRef,
 	/// The application (root object(?)    (so)
-	pub app: ObjectRefOwned,
+	pub app: ObjectRef,
 	/// The parent object.  (so)
-	pub parent: ObjectRefOwned,
+	pub parent: ObjectRef,
 	/// List of references to the accessible's children.  a(so)
-	pub children: Vec<ObjectRefOwned>,
+	pub children: Vec<ObjectRef>,
 	/// The exposed interface(s) set.  as
 	pub ifaces: InterfaceSet,
 	/// The short localized name.  s
@@ -82,25 +89,27 @@ pub struct LegacyCacheItem {
 	/// The states applicable to the accessible.  au
 	pub states: StateSet,
 }
-
 impl Default for LegacyCacheItem {
 	fn default() -> Self {
 		Self {
-			object: ObjectRef::from_static_str_unchecked(
-				":0.0",
-				"/org/a11y/atspi/accessible/object",
-			)
-			.into(),
-			app: ObjectRef::from_static_str_unchecked(
-				":0.0",
-				"/org/a11y/atspi/accessible/application",
-			)
-			.into(),
-			parent: ObjectRef::from_static_str_unchecked(
-				":0.0",
-				"/org/a11y/atspi/accessible/parent",
-			)
-			.into(),
+			object: ObjectRef {
+				name: UniqueName::from_static_str(":0.0").unwrap().into(),
+				path: ObjectPath::from_static_str("/org/a11y/atspi/accessible/object")
+					.unwrap()
+					.into(),
+			},
+			app: ObjectRef {
+				name: UniqueName::from_static_str(":0.0").unwrap().into(),
+				path: ObjectPath::from_static_str("/org/a11y/atspi/accessible/application")
+					.unwrap()
+					.into(),
+			},
+			parent: ObjectRef {
+				name: UniqueName::from_static_str(":0.0").unwrap().into(),
+				path: ObjectPath::from_static_str("/org/a11y/atspi/accessible/parent")
+					.unwrap()
+					.into(),
+			},
 			children: Vec::new(),
 			ifaces: InterfaceSet::empty(),
 			short_name: String::default(),

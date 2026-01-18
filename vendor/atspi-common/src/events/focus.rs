@@ -1,33 +1,25 @@
 #[cfg(feature = "zbus")]
-use crate::error::AtspiError;
-#[cfg(feature = "zbus")]
-use crate::EventProperties;
 use crate::{
-	events::{DBusInterface, DBusMatchRule, DBusMember, RegistryEventString},
-	object_ref::ObjectRefOwned,
+	error::AtspiError,
+	events::{MessageConversion, MessageConversionExt},
 };
-
-#[cfg(feature = "zbus")]
-use zbus::message::Header;
+use crate::{events::BusProperties, EventProperties};
+use zbus_names::UniqueName;
+use zvariant::ObjectPath;
 
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize, Eq, Hash, Default)]
 pub struct FocusEvent {
 	/// The [`crate::ObjectRef`] which the event applies to.
-	pub item: ObjectRefOwned,
+	pub item: crate::events::ObjectRef,
 }
 
-impl_event_type_properties_for_event!(FocusEvent);
-
-impl_member_interface_registry_string_and_match_rule_for_event! {
-	FocusEvent,
-	"Focus",
-	"org.a11y.atspi.Event.Focus",
-	"focus:",
-	"type='signal',interface='org.a11y.atspi.Event.Focus',member='Focus'"
+impl BusProperties for FocusEvent {
+	const DBUS_MEMBER: &'static str = "Focus";
+	const DBUS_INTERFACE: &'static str = "org.a11y.atspi.Event.Focus";
+	const MATCH_RULE_STRING: &'static str =
+		"type='signal',interface='org.a11y.atspi.Event.Focus',member='Focus'";
+	const REGISTRY_EVENT_STRING: &'static str = "Focus:";
 }
-
-impl_msg_conversion_ext_for_target_type!(FocusEvent);
-impl_msg_conversion_for_types_built_from_object_ref!(FocusEvent);
 
 event_test_cases!(FocusEvent);
 impl_to_dbus_message!(FocusEvent);

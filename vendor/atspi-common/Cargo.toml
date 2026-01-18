@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.77.2"
 name = "atspi-common"
-version = "0.13.0"
+version = "0.9.0"
 build = false
 include = [
     "LICENSE-*",
@@ -40,43 +40,43 @@ license = "Apache-2.0 OR MIT"
 repository = "https://github.com/odilia-app/atspi"
 
 [features]
+async-std = ["zbus/async-io"]
 default = [
+    "async-std",
     "wrappers",
-    "zbus",
 ]
+tokio = ["zbus/tokio"]
 wrappers = []
-zbus = ["dep:zbus"]
 
 [lib]
 name = "atspi_common"
 path = "src/lib.rs"
 
 [dependencies.enumflags2]
-version = "0.7.9"
+version = "0.7.7"
 
 [dependencies.serde]
-version = "1.0.200"
+version = "1.0"
 
 [dependencies.static_assertions]
 version = "1.1.0"
 
 [dependencies.zbus]
 version = "5.5"
-features = ["async-io"]
 optional = true
 default-features = false
 
 [dependencies.zbus-lockstep]
-version = "0.5.1"
+version = "0.5.0"
 
 [dependencies.zbus-lockstep-macros]
-version = "0.5.1"
+version = "0.5.0"
 
 [dependencies.zbus_names]
-version = "4.1.1"
+version = "4.0"
 
 [dependencies.zvariant]
-version = "5.2"
+version = "5.1"
 default-features = false
 
 [dev-dependencies.assert_matches]
@@ -92,7 +92,7 @@ version = "1.0.1"
 version = "1.1.0"
 
 [dev-dependencies.tokio]
-version = "1.38.2"
+version = "1"
 features = [
     "macros",
     "rt-multi-thread",
@@ -100,7 +100,7 @@ features = [
 default-features = false
 
 [dev-dependencies.tokio-stream]
-version = "0.1.1"
+version = "0.1"
 features = ["time"]
 default-features = false
 
@@ -109,8 +109,4 @@ version = "0.4.2"
 
 [dev-dependencies.zbus]
 version = "5.5"
-features = ["async-io"]
 default-features = false
-
-[dev-dependencies.zbus_xml]
-version = "5.0.2"

@@ -15,16 +15,11 @@ extern crate static_assertions;
 pub(crate) mod macros;
 
 pub mod action;
-#[cfg(feature = "wrappers")]
-pub use crate::events::event_wrappers::{
-	CacheEvents, DocumentEvents, Event, EventListenerEvents, FocusEvents, KeyboardEvents,
-	MouseEvents, ObjectEvents, TerminalEvents, WindowEvents,
-};
 pub use action::Action;
 pub mod object_match;
 pub use object_match::{MatchType, ObjectMatchRule, SortOrder, TreeTraversalType};
 pub mod object_ref;
-pub use object_ref::{ObjectRef, ObjectRefOwned};
+pub use object_ref::ObjectRef;
 pub mod operation;
 pub use operation::Operation;
 pub mod interface;
@@ -36,7 +31,9 @@ pub use cache::{CacheItem, LegacyCacheItem};
 pub mod error;
 pub use error::AtspiError;
 pub mod events;
-pub use events::{EventProperties, EventTypeProperties};
+#[cfg(feature = "wrappers")]
+pub use events::Event;
+pub use events::{BusProperties, EventProperties, EventTypeProperties};
 mod role;
 pub use role::Role;
 mod relation_type;
@@ -54,11 +51,11 @@ pub type Result<T> = std::result::Result<T, AtspiError>;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub struct TextSelection {
 	/// starting object reference
-	start_obj: ObjectRefOwned,
+	start_obj: ObjectRef,
 	/// text offset within `start_obj`
 	start_idx: i32,
 	/// ending object reference
-	end_obj: ObjectRefOwned,
+	end_obj: ObjectRef,
 	/// text offset within `end_obj`
 	end_idx: i32,
 	/// is the `start_obj` active;

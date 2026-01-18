@@ -22,16 +22,8 @@ This crate makes use of the
 [dbus communication](https://www.freedesktop.org/wiki/Software/dbus/).
 We use the asynchronous zbus API, so to use atspi, you will need to run an async executer like
 [tokio](https://crates.io/crates/tokio) or
-[smol](https://crates.io/crates/smol).
-
-## Feature Flags
-
-- `default`: `proxies`, `connection`.
-- `proxies`: enable re-export of the `atspi-proxies` crate; this allows you to directly communicate with DBus.
-- `connection`: enable re-export of the `atspi-connection` crate; this gives some nice abstractions over DBus when receiving only. `proxies` will still be needed to query information actively.
-- `tokio`: enable support for the `tokio` runtime; other runtimes can be used without an integration feature.
-    - One exception on `glomio` as it has its own types not related to how other runtimes work; `atspi` is **_not_** compatible with `atspi` (PRs welcome though)
-- `tracing`: enable support for the `tracing` logger.
+[async-std](https://crates.io/crates/async-std).
+The `async-io` and `tokio` features are exposed and will be passed through to zbus.
 
 ## D-Bus type validation
 
@@ -43,16 +35,6 @@ Not all types can be validated (easily) with zbus_lockstep because types may not
 in the protocol descriptions, for example because they are deprecated (but still in use) or we have chosen a different representation.
 
 [A (partial) review of type validation may be found here](type_validation.md)
-
-## Contributors
-
-This repository offers basic pre-commit and pre-push scripts in the `.githooks` directory.
-We recommend contributors to enable local git hooks.
-This command will configure git to use the hooks from the `.githooks` directory for this repository.
-
-```sh
-git config core.hooksPath .githooks
-```
 
 ## License
 

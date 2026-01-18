@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.77.2"
 name = "accesskit_atspi_common"
-version = "0.16.0"
+version = "0.14.2"
 authors = ["The AccessKit contributors"]
 build = false
 autolib = false
@@ -40,16 +40,19 @@ name = "accesskit_atspi_common"
 path = "src/lib.rs"
 
 [dependencies.accesskit]
-version = "0.23.0"
+version = "0.21.1"
 
 [dependencies.accesskit_consumer]
-version = "0.33.0"
+version = "0.31.0"
 
 [dependencies.atspi-common]
-version = "0.13"
+version = "0.9"
 default-features = false
 
 [dependencies.serde]
+version = "1.0"
+
+[dependencies.thiserror]
 version = "1.0"
 
 [dependencies.zvariant]

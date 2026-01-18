@@ -3,8 +3,8 @@
 // the LICENSE-APACHE file) or the MIT license (found in
 // the LICENSE-MIT file), at your option.
 
-use accesskit::{Color, Point, TextAlign, TextDecorationStyle};
-use accesskit_consumer::{TextRangePropertyValue, TreeState};
+use accesskit::Point;
+use accesskit_consumer::TreeState;
 use std::{
     fmt::{self, Write},
     mem::ManuallyDrop,
@@ -14,7 +14,6 @@ use windows::{
     core::*,
     Win32::{
         Foundation::*,
-        Globalization::*,
         Graphics::Gdi::*,
         System::{Com::*, Ole::*, Variant::*},
         UI::{Accessibility::*, WindowsAndMessaging::*},
@@ -41,16 +40,6 @@ impl Write for WideString {
 impl From<WideString> for BSTR {
     fn from(value: WideString) -> Self {
         Self::from_wide(&value.0)
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub(crate) struct LocaleName<'a>(pub(crate) &'a str);
-
-impl From<LocaleName<'_>> for Variant {
-    fn from(value: LocaleName) -> Self {
-        let lcid = unsafe { LocaleNameToLCID(&HSTRING::from(value.0), LOCALE_ALLOW_NEUTRAL_NAMES) };
-        (lcid != 0).then_some(lcid as i32).into()
     }
 }
 
@@ -146,39 +135,6 @@ impl From<OrientationType> for Variant {
     }
 }
 
-impl From<Color> for Variant {
-    fn from(value: Color) -> Self {
-        let rgb: i32 =
-            (value.red as i32) | ((value.green as i32) << 8) | ((value.blue as i32) << 16);
-        Self(rgb.into())
-    }
-}
-
-impl From<TextDecorationStyle> for Variant {
-    fn from(value: TextDecorationStyle) -> Self {
-        let value = match value {
-            TextDecorationStyle::Solid => TextDecorationLineStyle_Single,
-            TextDecorationStyle::Dotted => TextDecorationLineStyle_Dot,
-            TextDecorationStyle::Dashed => TextDecorationLineStyle_Dash,
-            TextDecorationStyle::Double => TextDecorationLineStyle_Double,
-            TextDecorationStyle::Wavy => TextDecorationLineStyle_Wavy,
-        };
-        Self::from(value.0)
-    }
-}
-
-impl From<TextAlign> for Variant {
-    fn from(value: TextAlign) -> Self {
-        let value = match value {
-            TextAlign::Left => HorizontalTextAlignment_Left,
-            TextAlign::Right => HorizontalTextAlignment_Right,
-            TextAlign::Center => HorizontalTextAlignment_Centered,
-            TextAlign::Justify => HorizontalTextAlignment_Justified,
-        };
-        Self::from(value.0)
-    }
-}
-
 impl From<bool> for Variant {
     fn from(value: bool) -> Self {
         Self(value.into())
@@ -188,17 +144,6 @@ impl From<bool> for Variant {
 impl<T: Into<Variant>> From<Option<T>> for Variant {
     fn from(value: Option<T>) -> Self {
         value.map_or_else(Self::empty, T::into)
-    }
-}
-
-impl<T: Into<Variant> + std::fmt::Debug + PartialEq> From<TextRangePropertyValue<T>> for Variant {
-    fn from(value: TextRangePropertyValue<T>) -> Self {
-        match value {
-            TextRangePropertyValue::Single(value) => value.into(),
-            TextRangePropertyValue::Mixed => unsafe { UiaGetReservedMixedAttributeValue() }
-                .unwrap()
-                .into(),
-        }
     }
 }
 
@@ -292,10 +237,6 @@ pub(crate) fn invalid_operation() -> Error {
     HRESULT(UIA_E_INVALIDOPERATION as _).into()
 }
 
-pub(crate) fn not_supported() -> Error {
-    HRESULT(UIA_E_NOTSUPPORTED as _).into()
-}
-
 pub(crate) fn client_top_left(hwnd: WindowHandle) -> Point {
     let mut result = POINT::default();
     // If ClientToScreen fails, that means the window is gone.
@@ -349,42 +290,5 @@ pub(crate) fn upgrade<T>(weak: &Weak<T>) -> Result<Arc<T>> {
         Ok(strong)
     } else {
         Err(element_not_available())
-    }
-}
-
-pub(crate) struct AriaProperties<W: Write> {
-    inner: W,
-    need_separator: bool,
-}
-
-impl<W: Write> AriaProperties<W> {
-    pub(crate) fn new(inner: W) -> Self {
-        Self {
-            inner,
-            need_separator: false,
-        }
-    }
-
-    pub(crate) fn write_property(&mut self, name: &str, value: &str) -> fmt::Result {
-        if self.need_separator {
-            self.inner.write_char(';')?;
-        }
-        self.inner.write_str(name)?;
-        self.inner.write_char('=')?;
-        self.inner.write_str(value)?;
-        self.need_separator = true;
-        Ok(())
-    }
-
-    pub(crate) fn write_bool_property(&mut self, name: &str, value: bool) -> fmt::Result {
-        self.write_property(name, if value { "true" } else { "false" })
-    }
-
-    pub(crate) fn write_usize_property(&mut self, name: &str, value: usize) -> fmt::Result {
-        self.write_property(name, &value.to_string())
-    }
-
-    pub(crate) fn has_properties(&self) -> bool {
-        self.need_separator
     }
 }

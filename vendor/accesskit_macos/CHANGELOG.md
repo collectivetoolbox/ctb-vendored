@@ -37,60 +37,6 @@
     * accesskit bumped from 0.16.2 to 0.16.3
     * accesskit_consumer bumped from 0.24.2 to 0.24.3
 
-## [0.24.0](https://github.com/AccessKit/accesskit/compare/accesskit_macos-v0.23.0...accesskit_macos-v0.24.0) (2026-01-15)
-
-
-### ⚠ BREAKING CHANGES
-
-* Multiple tree support ([#655](https://github.com/AccessKit/accesskit/issues/655))
-
-### Features
-
-* Implement the `url` property ([#669](https://github.com/AccessKit/accesskit/issues/669)) ([6202e63](https://github.com/AccessKit/accesskit/commit/6202e63c667e73216a306b3dd45ff25c364a4f45))
-* Multiple tree support ([#655](https://github.com/AccessKit/accesskit/issues/655)) ([c16eb80](https://github.com/AccessKit/accesskit/commit/c16eb80c49d14f39e8a7defb1694bf22b8ceed6f))
-
-
-### Dependencies
-
-* The following workspace dependencies were updated
-  * dependencies
-    * accesskit bumped from 0.22.0 to 0.23.0
-    * accesskit_consumer bumped from 0.32.0 to 0.33.0
-
-## [0.23.0](https://github.com/AccessKit/accesskit/compare/accesskit_macos-v0.22.2...accesskit_macos-v0.23.0) (2025-12-23)
-
-
-### ⚠ BREAKING CHANGES
-
-* Drop deprecated roles ([#642](https://github.com/AccessKit/accesskit/issues/642))
-* Infrastructure for supporting text formatting changes ([#626](https://github.com/AccessKit/accesskit/issues/626))
-
-### Features
-
-* Add GridCell role ([#643](https://github.com/AccessKit/accesskit/issues/643)) ([1e5abca](https://github.com/AccessKit/accesskit/commit/1e5abca737d1ee942c0804fec2c06d3cb08faa94))
-* Implement BrailleLabel and BrailleRoleDescription roles ([#638](https://github.com/AccessKit/accesskit/issues/638)) ([0fdcebb](https://github.com/AccessKit/accesskit/commit/0fdcebb55e308e039ec99fbc31e94e8087a69f2d))
-* Rename HeaderAsNonLandmark to SectionHeader, FooterAsNonLandmark to SectionFooter ([#635](https://github.com/AccessKit/accesskit/issues/635)) ([dd69526](https://github.com/AccessKit/accesskit/commit/dd695260877cb862ece4c2b7d8607308f5fed608))
-
-
-### Bug Fixes
-
-* Expose dialogs in the platform adapters ([1576a94](https://github.com/AccessKit/accesskit/commit/1576a940ec3e9066fc5e181419dae6899bf2db46))
-* Upgrade hashbrown, indexmap ([#653](https://github.com/AccessKit/accesskit/issues/653)) ([fd73a85](https://github.com/AccessKit/accesskit/commit/fd73a85e57a6591a449b0a1880025fb940873c66))
-
-
-### Code Refactoring
-
-* Drop deprecated roles ([#642](https://github.com/AccessKit/accesskit/issues/642)) ([4d46c27](https://github.com/AccessKit/accesskit/commit/4d46c2740631c5fe4f057707b949d12b26931d0b))
-* Infrastructure for supporting text formatting changes ([#626](https://github.com/AccessKit/accesskit/issues/626)) ([ea23ec4](https://github.com/AccessKit/accesskit/commit/ea23ec424c7dbb8841e03d71b6a15b74264850a9))
-
-
-### Dependencies
-
-* The following workspace dependencies were updated
-  * dependencies
-    * accesskit bumped from 0.21.1 to 0.22.0
-    * accesskit_consumer bumped from 0.31.0 to 0.32.0
-
 ## [0.22.2](https://github.com/AccessKit/accesskit/compare/accesskit_macos-v0.22.1...accesskit_macos-v0.22.2) (2025-10-20)
 
 

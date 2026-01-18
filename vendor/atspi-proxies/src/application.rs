@@ -17,7 +17,7 @@
 //! * [`set_id`]
 //! * [`atspi_version`]
 //! * [`get_locale`]
-//!
+//!  
 //! [`toolkit_name`] and [`version`] are still in use.
 //!
 //! See the documentation of the individual methods and properties for details.
@@ -45,7 +45,7 @@
 /// * [`set_id`]
 /// * [`atspi_version`]
 /// * [`get_locale`]
-///
+///  
 /// [`toolkit_name`] and [`version`] are still in use.
 ///
 /// See the documentation of the individual methods and properties for details.
@@ -57,16 +57,12 @@
 /// [`toolkit_name`]: ApplicationProxy#method.toolkit_name
 /// [`version`]: ApplicationProxy#method.version
 ///
-#[zbus::proxy(
-	interface = "org.a11y.atspi.Application",
-	default_path = "/org/a11y/atspi/accessible/root",
-	assume_defaults = true
-)]
+#[zbus::proxy(interface = "org.a11y.atspi.Application", assume_defaults = true)]
 pub trait Application {
 	/// Method to retrieve the application's locale.
 	///
 	/// ## Deprecation
-	///
+	///  
 	/// This method is likely to be removed in the future.
 	///
 	/// There is no need to call this method because there is also
@@ -75,7 +71,7 @@ pub trait Application {
 	///
 	/// See also: [Orca issues: "Plans for per-object locale?"](<https://gitlab.gnome.org/GNOME/orca/-/issues/260>)
 	///
-	/// member: `GetLocale`, type: method
+	/// member: "GetLocale", type: method
 	///
 	/// [`locale`]: crate::accessible::AccessibleProxy#method.locale
 	fn get_locale(&self, lctype: u32) -> zbus::Result<String>;
@@ -89,7 +85,7 @@ pub trait Application {
 	/// that the application supports, but atspi will probably move to
 	/// using versioned interface names instead.
 	///
-	/// member: `AtspiVersion`, type: property
+	/// member: "AtspiVersion", type: property
 	#[zbus(property)]
 	fn atspi_version(&self) -> zbus::Result<String>;
 
@@ -111,13 +107,13 @@ pub trait Application {
 	/// it may turn out that this id is not actually used subsequently.
 	/// This is a remnant of the time when registryd actually had to
 	/// make up identifiers for each application.
-	/// With `DBus`, however,	it is the bus that assigns unique names to applications that
+	/// With DBus, however,	it is the bus that assigns unique names to applications that
 	/// connect to it.
 	///
 	/// Applications or toolkits can remember the `Id` passed when the accessibility
 	/// registry sets this property, and return it back when the property is read.
 	///
-	/// member: `Id`, type: property
+	/// member: "Id", type: property
 	///
 	/// [`embed`]: crate::socket::SocketProxy#method.embed
 	/// [`org.a11y.atspi.Socket`]: crate::socket::SocketProxy
@@ -135,7 +131,7 @@ pub trait Application {
 	///
 	/// See [`id`] for details.
 	///
-	/// member: `Id`, type: property
+	/// member: "Id", type: property
 	///
 	/// [`id`]: crate::application::ApplicationProxy#method.id
 	#[zbus(property)]
@@ -144,20 +140,14 @@ pub trait Application {
 	/// Retrieves the name of the toolkit used to implement the application's
 	/// user interface.
 	///
-	/// member: `ToolkitName`, type: property
+	/// member: "ToolkitName", type: property
 	#[zbus(property)]
 	fn toolkit_name(&self) -> zbus::Result<String>;
 
 	/// Returns the version of the toolkit used to implement the
 	/// application's user interface.
 	///
-	/// member: `Version`, type: property
+	/// member: "Version", type: property
 	#[zbus(property)]
 	fn version(&self) -> zbus::Result<String>;
-
-	/// Method to obtain the unix socket address.
-	/// The unix socket can be used to setup a connection, to perform peer-to-peer (P2P) method calls.
-	///
-	/// Known implementors include `Gtk3` and `Firefox`.
-	fn get_application_bus_address(&self) -> zbus::Result<String>;
 }

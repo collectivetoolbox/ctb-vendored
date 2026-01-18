@@ -11,14 +11,11 @@
 #![allow(non_upper_case_globals)]
 
 use accesskit::{
-    Action, ActionData, ActionRequest, AriaCurrent, HasPopup, Live, NodeId as LocalNodeId,
-    Orientation, Point, Role, SortDirection, Toggled, TreeId,
+    Action, ActionData, ActionRequest, Live, NodeId, NodeIdContent, Orientation, Point, Role,
+    Toggled,
 };
-use accesskit_consumer::{FilterResult, Node, NodeId, Tree, TreeState};
-use std::{
-    fmt::Write,
-    sync::{atomic::Ordering, Arc, Weak},
-};
+use accesskit_consumer::{FilterResult, Node, TreeState};
+use std::sync::{atomic::Ordering, Arc, Weak};
 use windows::{
     core::*,
     Win32::{
@@ -35,15 +32,13 @@ use crate::{
     util::*,
 };
 
-const RUNTIME_ID_SIZE: usize = 5;
+const RUNTIME_ID_SIZE: usize = 3;
 
 fn runtime_id_from_node_id(id: NodeId) -> [i32; RUNTIME_ID_SIZE] {
-    static_assertions::assert_eq_size!(NodeId, u128);
-    let id: u128 = id.into();
+    static_assertions::assert_eq_size!(NodeIdContent, u64);
+    let id = id.0;
     [
         UiaAppendRuntimeId as _,
-        ((id >> 96) & 0xFFFFFFFF) as _,
-        ((id >> 64) & 0xFFFFFFFF) as _,
         ((id >> 32) & 0xFFFFFFFF) as _,
         (id & 0xFFFFFFFF) as _,
     ]
@@ -58,7 +53,7 @@ impl NodeWrapper<'_> {
         match role {
             Role::Unknown => UIA_CustomControlTypeId,
             Role::TextRun => UIA_CustomControlTypeId,
-            Role::Cell | Role::GridCell => UIA_DataItemControlTypeId,
+            Role::Cell => UIA_DataItemControlTypeId,
             Role::Label => UIA_TextControlTypeId,
             Role::Image => UIA_ImageControlTypeId,
             Role::Link => UIA_HyperlinkControlTypeId,
@@ -101,10 +96,11 @@ impl NodeWrapper<'_> {
             Role::Abbr => UIA_TextControlTypeId,
             Role::Alert => UIA_TextControlTypeId,
             Role::AlertDialog => {
-                // Documentation suggests the use of UIA_PaneControlTypeId,
-                // but Chromium's implementation uses UIA_WindowControlTypeId
-                // instead.
-                UIA_WindowControlTypeId
+                // Chromium's implementation suggests the use of
+                // UIA_TextControlTypeId, not UIA_PaneControlTypeId, because some
+                // Windows screen readers are not compatible with
+                // Role::AlertDialog yet.
+                UIA_TextControlTypeId
             }
             Role::Application => UIA_PaneControlTypeId,
             Role::Article => UIA_GroupControlTypeId,
@@ -124,13 +120,11 @@ impl NodeWrapper<'_> {
             Role::ContentInfo => UIA_GroupControlTypeId,
             Role::Definition => UIA_GroupControlTypeId,
             Role::DescriptionList => UIA_ListControlTypeId,
+            Role::DescriptionListDetail => UIA_TextControlTypeId,
+            Role::DescriptionListTerm => UIA_ListItemControlTypeId,
             Role::Details => UIA_GroupControlTypeId,
-            Role::Dialog => {
-                // Documentation suggests the use of UIA_PaneControlTypeId,
-                // but Chromium's implementation uses UIA_WindowControlTypeId
-                // instead.
-                UIA_WindowControlTypeId
-            }
+            Role::Dialog => UIA_PaneControlTypeId,
+            Role::Directory => UIA_ListControlTypeId,
             Role::DisclosureTriangle => UIA_ButtonControlTypeId,
             Role::Document | Role::Terminal => UIA_DocumentControlTypeId,
             Role::EmbeddedObject => UIA_PaneControlTypeId,
@@ -139,10 +133,12 @@ impl NodeWrapper<'_> {
             Role::FigureCaption => UIA_TextControlTypeId,
             Role::Figure => UIA_GroupControlTypeId,
             Role::Footer => UIA_GroupControlTypeId,
+            Role::FooterAsNonLandmark => UIA_GroupControlTypeId,
             Role::Form => UIA_GroupControlTypeId,
             Role::Grid => UIA_DataGridControlTypeId,
             Role::Group => UIA_GroupControlTypeId,
             Role::Header => UIA_GroupControlTypeId,
+            Role::HeaderAsNonLandmark => UIA_GroupControlTypeId,
             Role::Heading => UIA_TextControlTypeId,
             Role::Iframe => UIA_DocumentControlTypeId,
             Role::IframePresentational => UIA_GroupControlTypeId,
@@ -164,6 +160,8 @@ impl NodeWrapper<'_> {
             Role::Navigation => UIA_GroupControlTypeId,
             Role::Note => UIA_GroupControlTypeId,
             Role::PluginObject => UIA_GroupControlTypeId,
+            Role::Portal => UIA_ButtonControlTypeId,
+            Role::Pre => UIA_GroupControlTypeId,
             Role::ProgressIndicator => UIA_ProgressBarControlTypeId,
             Role::RadioGroup => UIA_GroupControlTypeId,
             Role::Region => UIA_GroupControlTypeId,
@@ -183,8 +181,6 @@ impl NodeWrapper<'_> {
             Role::ScrollView => UIA_PaneControlTypeId,
             Role::Search => UIA_GroupControlTypeId,
             Role::Section => UIA_GroupControlTypeId,
-            Role::SectionFooter => UIA_GroupControlTypeId,
-            Role::SectionHeader => UIA_GroupControlTypeId,
             Role::Slider => UIA_SliderControlTypeId,
             Role::SpinButton => UIA_SpinnerControlTypeId,
             Role::Splitter => UIA_SeparatorControlTypeId,
@@ -265,136 +261,6 @@ impl NodeWrapper<'_> {
         self.0.role_description()
     }
 
-    fn aria_role(&self) -> Option<&str> {
-        match self.0.role() {
-            Role::Alert => Some("alert"),
-            Role::AlertDialog => Some("alertdialog"),
-            Role::Application => Some("application"),
-            Role::Article => Some("article"),
-            Role::Banner | Role::Header => Some("banner"),
-            Role::Button | Role::DefaultButton => Some("button"),
-            Role::Blockquote => Some("blockquote"),
-            Role::Caption | Role::FigureCaption => Some("caption"),
-            Role::Cell => Some("cell"),
-            Role::CheckBox => Some("checkbox"),
-            Role::Code => Some("code"),
-            Role::ColumnHeader => Some("columnheader"),
-            Role::ComboBox | Role::EditableComboBox => Some("combobox"),
-            Role::Comment => Some("comment"),
-            Role::Complementary => Some("complementary"),
-            Role::ContentInfo | Role::Footer => Some("contentinfo"),
-            Role::Definition => Some("definition"),
-            Role::ContentDeletion => Some("deletion"),
-            Role::Dialog => Some("dialog"),
-            Role::Document
-            | Role::Iframe
-            | Role::WebView
-            | Role::RootWebArea
-            | Role::Terminal
-            | Role::PdfRoot => Some("document"),
-            Role::Emphasis => Some("emphasis"),
-            Role::Feed => Some("feed"),
-            Role::Figure => Some("figure"),
-            Role::Form => Some("form"),
-            Role::GenericContainer => Some("generic"),
-            Role::GraphicsDocument => Some("graphics-document"),
-            Role::GraphicsObject => Some("graphics-object"),
-            Role::GraphicsSymbol => Some("graphics-symbol"),
-            Role::Grid | Role::ListGrid => Some("grid"),
-            Role::GridCell => Some("gridcell"),
-            Role::Group
-            | Role::Details
-            | Role::IframePresentational
-            | Role::TitleBar
-            | Role::LayoutTable
-            | Role::LayoutTableCell
-            | Role::LayoutTableRow
-            | Role::Audio
-            | Role::Video
-            | Role::ListMarker
-            | Role::EmbeddedObject
-            | Role::ImeCandidate => Some("group"),
-            Role::Heading => Some("heading"),
-            Role::Image | Role::Canvas => Some("img"),
-            Role::ContentInsertion => Some("insertion"),
-            Role::Link => Some("link"),
-            Role::List | Role::DescriptionList | Role::MenuListPopup => Some("list"),
-            Role::ListBox => Some("listbox"),
-            Role::ListItem => Some("listitem"),
-            Role::Log => Some("log"),
-            Role::Main => Some("main"),
-            Role::Mark => Some("marker"),
-            Role::Marquee => Some("marquee"),
-            Role::Math => Some("math"),
-            Role::Menu => Some("menu"),
-            Role::MenuBar => Some("menubar"),
-            Role::MenuItem => Some("menuitem"),
-            Role::MenuItemCheckBox => Some("menuitemcheckbox"),
-            Role::MenuItemRadio => Some("menuitemradio"),
-            Role::Meter => Some("meter"),
-            Role::Navigation => Some("navigation"),
-            Role::Note => Some("note"),
-            Role::ListBoxOption | Role::MenuListOption => Some("option"),
-            Role::Paragraph => Some("paragraph"),
-            Role::ProgressIndicator => Some("progressbar"),
-            Role::RadioButton => Some("radio"),
-            Role::RadioGroup => Some("radiogroup"),
-            Role::Region
-            | Role::Pane
-            | Role::Window
-            | Role::Keyboard
-            | Role::Unknown
-            | Role::ScrollView
-            | Role::Caret => Some("region"),
-            Role::Row => Some("row"),
-            Role::RowGroup => Some("rowgroup"),
-            Role::RowHeader => Some("rowheader"),
-            Role::ScrollBar => Some("scrollbar"),
-            Role::Search => Some("search"),
-            Role::SearchInput => Some("searchbox"),
-            Role::SectionFooter => Some("sectionfooter"),
-            Role::SectionHeader => Some("sectionheader"),
-            Role::Splitter => Some("separator"),
-            Role::Slider => Some("slider"),
-            Role::SpinButton => Some("spinbutton"),
-            Role::Status => Some("status"),
-            Role::Strong => Some("strong"),
-            // subscript
-            Role::Suggestion => Some("suggestion"),
-            // superscript
-            Role::Switch => Some("switch"),
-            Role::Tab => Some("tab"),
-            Role::Table => Some("table"),
-            Role::TabList => Some("tablist"),
-            Role::TabPanel => Some("tabpanel"),
-            Role::Term => Some("term"),
-            Role::TextInput
-            | Role::MultilineTextInput
-            | Role::DateInput
-            | Role::DateTimeInput
-            | Role::WeekInput
-            | Role::MonthInput
-            | Role::TimeInput
-            | Role::EmailInput
-            | Role::NumberInput
-            | Role::PasswordInput
-            | Role::PhoneNumberInput
-            | Role::UrlInput
-            | Role::ColorWell => Some("textbox"),
-            Role::Time => Some("time"),
-            Role::Timer => Some("timer"),
-            Role::Toolbar => Some("toolbar"),
-            Role::Tooltip => Some("tooltip"),
-            Role::Tree => Some("tree"),
-            Role::TreeGrid => Some("treegrid"),
-            Role::TreeItem => Some("treeitem"),
-            _ => {
-                // TODO: Expose more ARIA roles.
-                None
-            }
-        }
-    }
-
     pub(crate) fn name(&self) -> Option<WideString> {
         let mut result = WideString::default();
         if self.0.label_comes_from_value() {
@@ -410,113 +276,12 @@ impl NodeWrapper<'_> {
         self.0.description()
     }
 
-    fn culture(&self) -> Option<LocaleName<'_>> {
-        self.0.language().map(LocaleName)
-    }
-
     fn placeholder(&self) -> Option<&str> {
         self.0.placeholder()
     }
 
     fn is_content_element(&self) -> bool {
         filter(self.0) == FilterResult::Include
-    }
-
-    fn aria_properties(&self) -> Option<WideString> {
-        let mut result = WideString::default();
-        let mut properties = AriaProperties::new(&mut result);
-
-        // TODO: Atomic, and busy flags should include false when explicitly set to that
-        if self.0.is_live_atomic() {
-            properties.write_bool_property("atomic", true).unwrap();
-        }
-
-        if let Some(label) = self.0.braille_label() {
-            properties.write_property("braillelabel", label).unwrap();
-        }
-
-        if let Some(description) = self.0.braille_role_description() {
-            properties
-                .write_property("brailleroledescription", description)
-                .unwrap();
-        }
-
-        if self.0.is_busy() {
-            properties.write_bool_property("busy", true).unwrap();
-        }
-
-        if let Some(colindextext) = self.0.column_index_text() {
-            properties
-                .write_property("colindextext", colindextext)
-                .unwrap();
-        }
-
-        if let Some(current) = self.0.aria_current() {
-            if current != AriaCurrent::False {
-                properties
-                    .write_property(
-                        "current",
-                        match current {
-                            AriaCurrent::True => "true",
-                            AriaCurrent::Page => "page",
-                            AriaCurrent::Step => "step",
-                            AriaCurrent::Location => "location",
-                            AriaCurrent::Date => "date",
-                            AriaCurrent::Time => "time",
-                            AriaCurrent::False => unreachable!(),
-                        },
-                    )
-                    .unwrap();
-            }
-        }
-
-        if let Some(has_popup) = self.0.has_popup() {
-            properties
-                .write_property(
-                    "haspopup",
-                    match has_popup {
-                        HasPopup::Menu => "menu",
-                        HasPopup::Listbox => "listbox",
-                        HasPopup::Tree => "tree",
-                        HasPopup::Grid => "grid",
-                        HasPopup::Dialog => "dialog",
-                    },
-                )
-                .unwrap();
-        }
-
-        if let Some(level) = self.0.level() {
-            properties.write_usize_property("level", level).unwrap();
-        }
-
-        if self.0.is_multiline() {
-            properties.write_bool_property("multiline", true).unwrap();
-        }
-
-        if let Some(rowindextext) = self.0.row_index_text() {
-            properties
-                .write_property("rowindextext", rowindextext)
-                .unwrap();
-        }
-
-        if let Some(sort_direction) = self.0.sort_direction() {
-            properties
-                .write_property(
-                    "sort",
-                    match sort_direction {
-                        SortDirection::Ascending => "ascending",
-                        SortDirection::Descending => "descending",
-                        SortDirection::Other => "other",
-                    },
-                )
-                .unwrap();
-        }
-
-        if properties.has_properties() {
-            Some(result)
-        } else {
-            None
-        }
     }
 
     fn is_enabled(&self) -> bool {
@@ -573,9 +338,6 @@ impl NodeWrapper<'_> {
     }
 
     fn is_value_pattern_supported(&self) -> bool {
-        if self.0.supports_url() {
-            return true;
-        }
         self.0.has_value() && !self.0.label_comes_from_value()
     }
 
@@ -584,11 +346,6 @@ impl NodeWrapper<'_> {
     }
 
     fn value(&self) -> WideString {
-        if let Some(url) = self.0.supports_url().then(|| self.0.url()).flatten() {
-            let mut result = WideString::default();
-            result.write_str(url).unwrap();
-            return result;
-        }
         let mut result = WideString::default();
         self.0.write_value(&mut result).unwrap();
         result
@@ -644,7 +401,6 @@ impl NodeWrapper<'_> {
             | Role::MenuListOption
             | Role::Tab
             | Role::TreeItem => self.0.is_selected().is_some(),
-            Role::GridCell => true,
             _ => false,
         }
     }
@@ -689,18 +445,6 @@ impl NodeWrapper<'_> {
 
     fn is_password(&self) -> bool {
         self.0.role() == Role::PasswordInput
-    }
-
-    fn is_dialog(&self) -> bool {
-        self.0.is_dialog()
-    }
-
-    fn is_window_pattern_supported(&self) -> bool {
-        self.0.is_dialog()
-    }
-
-    fn is_modal(&self) -> bool {
-        self.0.is_modal()
     }
 
     pub(crate) fn enqueue_property_changes(
@@ -762,8 +506,7 @@ impl NodeWrapper<'_> {
     IScrollItemProvider,
     ISelectionItemProvider,
     ISelectionProvider,
-    ITextProvider,
-    IWindowProvider
+    ITextProvider
 )]
 pub(crate) struct PlatformNode {
     pub(crate) context: Weak<Context>,
@@ -793,16 +536,9 @@ impl PlatformNode {
     where
         F: FnOnce(&TreeState, &Context) -> Result<T>,
     {
-        self.with_tree_and_context(|tree, context| f(tree.state(), context))
-    }
-
-    fn with_tree_and_context<F, T>(&self, f: F) -> Result<T>
-    where
-        F: FnOnce(&Tree, &Context) -> Result<T>,
-    {
         let context = self.upgrade_context()?;
         let tree = context.read_tree();
-        f(&tree, &context)
+        f(tree.state(), &context)
     }
 
     fn with_tree_state<F, T>(&self, f: F) -> Result<T>
@@ -812,8 +548,7 @@ impl PlatformNode {
         self.with_tree_state_and_context(|state, _| f(state))
     }
 
-    fn node<'a>(&self, tree: &'a Tree) -> Result<Node<'a>> {
-        let state = tree.state();
+    fn node<'a>(&self, state: &'a TreeState) -> Result<Node<'a>> {
         if let Some(id) = self.node_id {
             if let Some(node) = state.node_by_id(id) {
                 Ok(node)
@@ -825,20 +560,12 @@ impl PlatformNode {
         }
     }
 
-    fn node_with_location<'a>(&self, tree: &'a Tree) -> Result<(Node<'a>, LocalNodeId, TreeId)> {
-        let node = self.node(tree)?;
-        let (local_id, tree_id) = tree
-            .locate_node(node.id())
-            .ok_or_else(element_not_available)?;
-        Ok((node, local_id, tree_id))
-    }
-
     fn resolve_with_context<F, T>(&self, f: F) -> Result<T>
     where
         for<'a> F: FnOnce(Node<'a>, &Context) -> Result<T>,
     {
-        self.with_tree_and_context(|tree, context| {
-            let node = self.node(tree)?;
+        self.with_tree_state_and_context(|state, context| {
+            let node = self.node(state)?;
             f(node, context)
         })
     }
@@ -847,9 +574,9 @@ impl PlatformNode {
     where
         for<'a> F: FnOnce(Node<'a>, &TreeState, &Context) -> Result<T>,
     {
-        self.with_tree_and_context(|tree, context| {
-            let node = self.node(tree)?;
-            f(node, tree.state(), context)
+        self.with_tree_state_and_context(|state, context| {
+            let node = self.node(state)?;
+            f(node, state, context)
         })
     }
 
@@ -864,8 +591,8 @@ impl PlatformNode {
     where
         for<'a> F: FnOnce(Node<'a>, &Context) -> Result<T>,
     {
-        self.with_tree_and_context(|tree, context| {
-            let node = self.node(tree)?;
+        self.with_tree_state_and_context(|state, context| {
+            let node = self.node(state)?;
             if node.supports_text_ranges() {
                 f(node, context)
             } else {
@@ -883,15 +610,16 @@ impl PlatformNode {
 
     fn do_complex_action<F>(&self, f: F) -> Result<()>
     where
-        for<'a> F: FnOnce(Node<'a>, LocalNodeId, TreeId) -> Result<Option<ActionRequest>>,
+        for<'a> F: FnOnce(Node<'a>) -> Result<Option<ActionRequest>>,
     {
         let context = self.upgrade_context()?;
         if context.is_placeholder.load(Ordering::SeqCst) {
             return Err(element_not_enabled());
         }
         let tree = context.read_tree();
-        let (node, target_node, target_tree) = self.node_with_location(&tree)?;
-        if let Some(request) = f(node, target_node, target_tree)? {
+        let state = tree.state();
+        let node = self.node(state)?;
+        if let Some(request) = f(node)? {
             drop(tree);
             context.do_action(request);
         }
@@ -902,15 +630,14 @@ impl PlatformNode {
     where
         F: FnOnce() -> (Action, Option<ActionData>),
     {
-        self.do_complex_action(|node, target_node, target_tree| {
+        self.do_complex_action(|node| {
             if node.is_disabled() {
                 return Err(element_not_enabled());
             }
             let (action, data) = f();
             Ok(Some(ActionRequest {
+                target: node.id(),
                 action,
-                target_tree,
-                target_node,
                 data,
             }))
         })
@@ -921,7 +648,7 @@ impl PlatformNode {
     }
 
     fn set_selected(&self, selected: bool) -> Result<()> {
-        self.do_complex_action(|node, target_node, target_tree| {
+        self.do_complex_action(|node| {
             if node.is_disabled() {
                 return Err(element_not_enabled());
             }
@@ -931,8 +658,7 @@ impl PlatformNode {
             }
             Ok(Some(ActionRequest {
                 action: Action::Click,
-                target_tree,
-                target_node,
+                target: node.id(),
                 data: None,
             }))
         })
@@ -1234,10 +960,8 @@ macro_rules! patterns {
 properties! {
     (UIA_ControlTypePropertyId, control_type),
     (UIA_LocalizedControlTypePropertyId, localized_control_type),
-    (UIA_AriaRolePropertyId, aria_role),
     (UIA_NamePropertyId, name),
     (UIA_FullDescriptionPropertyId, description),
-    (UIA_CulturePropertyId, culture),
     (UIA_HelpTextPropertyId, placeholder),
     (UIA_IsContentElementPropertyId, is_content_element),
     (UIA_IsControlElementPropertyId, is_content_element),
@@ -1251,9 +975,7 @@ properties! {
     (UIA_IsRequiredForFormPropertyId, is_required),
     (UIA_IsPasswordPropertyId, is_password),
     (UIA_PositionInSetPropertyId, position_in_set),
-    (UIA_SizeOfSetPropertyId, size_of_set),
-    (UIA_AriaPropertiesPropertyId, aria_properties),
-    (UIA_IsDialogPropertyId, is_dialog)
+    (UIA_SizeOfSetPropertyId, size_of_set)
 }
 
 patterns! {
@@ -1296,11 +1018,10 @@ patterns! {
     )),
     (UIA_ScrollItemPatternId, IScrollItemProvider, IScrollItemProvider_Impl, is_scroll_item_pattern_supported, (), (
         fn ScrollIntoView(&self) -> Result<()> {
-            self.do_complex_action(|_node, target_node, target_tree| {
+            self.do_complex_action(|node| {
                 Ok(Some(ActionRequest {
+                    target: node.id(),
                     action: Action::ScrollIntoView,
-                    target_tree,
-                    target_node,
                     data: None,
                 }))
             })
@@ -1404,41 +1125,6 @@ patterns! {
                     Ok(SupportedTextSelection_None)
                 }
             })
-        }
-    )),
-    (UIA_WindowPatternId, IWindowProvider, IWindowProvider_Impl, is_window_pattern_supported, (
-        (UIA_WindowIsModalPropertyId, IsModal, is_modal, BOOL)
-    ), (
-        fn SetVisualState(&self, _: WindowVisualState) -> Result<()> {
-            Err(invalid_operation())
-        },
-
-        fn Close(&self) -> Result<()> {
-            Err(not_supported())
-        },
-
-        fn WaitForInputIdle(&self, _: i32) -> Result<BOOL> {
-            Err(not_supported())
-        },
-
-        fn CanMaximize(&self) -> Result<BOOL> {
-            Err(not_supported())
-        },
-
-        fn CanMinimize(&self) -> Result<BOOL> {
-            Err(not_supported())
-        },
-
-        fn WindowVisualState(&self) -> Result<WindowVisualState> {
-            Err(not_supported())
-        },
-
-        fn WindowInteractionState(&self) -> Result<WindowInteractionState> {
-            Ok(WindowInteractionState_ReadyForUserInteraction)
-        },
-
-        fn IsTopmost(&self) -> Result<BOOL> {
-            Err(not_supported())
         }
     ))
 }
