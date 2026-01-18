@@ -11,9 +11,9 @@
 
 [package]
 edition = "2021"
-rust-version = "1.70"
+rust-version = "1.82"
 name = "gix-tempfile"
-version = "17.1.0"
+version = "20.0.1"
 authors = ["Sebastian Thiel <sebastian.thiel@icloud.com>"]
 build = false
 include = [
@@ -58,33 +58,25 @@ version = "0.2.0"
 optional = true
 
 [dependencies.gix-fs]
-version = "^0.15.0"
-
-[dependencies.once_cell]
-version = "1.21.3"
-features = [
-    "race",
-    "std",
-]
-default-features = false
+version = "^0.18.2"
 
 [dependencies.parking_lot]
-version = "0.12.1"
+version = "0.12.4"
 
 [dependencies.signal-hook]
-version = "0.3.9"
+version = "0.4.1"
 optional = true
 default-features = false
 
 [dependencies.signal-hook-registry]
-version = "1.4.5"
+version = "1.4.8"
 optional = true
 
 [dependencies.tempfile]
-version = "3.19.1"
+version = "3.24.0"
 
 [target."cfg(not(windows))".dependencies.libc]
-version = "0.2.172"
+version = "0.2.178"
 default-features = false
 
 [lints.clippy]

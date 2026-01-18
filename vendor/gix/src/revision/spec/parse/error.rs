@@ -26,7 +26,7 @@ pub enum CandidateInfo {
     /// The candidate is a commit.
     Commit {
         /// The date of the commit.
-        date: gix_date::Time,
+        date: String,
         /// The subject line.
         title: BString,
     },
@@ -39,7 +39,13 @@ impl std::fmt::Display for CandidateInfo {
             CandidateInfo::Tag { name } => write!(f, "tag {name:?}"),
             CandidateInfo::Object { kind } => std::fmt::Display::fmt(kind, f),
             CandidateInfo::Commit { date, title } => {
-                write!(f, "commit {} {title:?}", date.format(gix_date::time::format::SHORT))
+                write!(
+                    f,
+                    "commit {} {title:?}",
+                    gix_date::parse_header(date)
+                        .unwrap_or_default()
+                        .format_or_unix(gix_date::time::format::SHORT)
+                )
             }
         }
     }
@@ -90,8 +96,18 @@ impl Error {
                             gix_object::Kind::Commit => {
                                 use bstr::ByteSlice;
                                 let commit = obj.to_commit_ref();
+                                let date = match commit.committer() {
+                                    Ok(signature) => signature.time.trim().to_owned(),
+                                    Err(_) => {
+                                        let committer = commit.committer;
+                                        let manually_parsed_best_effort = committer
+                                            .rfind_byte(b'>')
+                                            .map(|pos| committer[pos + 1..].trim().as_bstr().to_string());
+                                        manually_parsed_best_effort.unwrap_or_default()
+                                    }
+                                };
                                 CandidateInfo::Commit {
-                                    date: commit.committer().time,
+                                    date,
                                     title: commit.message().title.trim().into(),
                                 }
                             }

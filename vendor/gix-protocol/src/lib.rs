@@ -2,10 +2,10 @@
 //!
 //! Generally, there is the following order of operations.
 //!
-//! * create a [`Transport`](gix_transport::client::Transport)
+//! * create a `Transport`, either blocking or async
 //! * perform a [`handshake()`]
 //! * execute a [`Command`]
-//!     - [list references](ls_refs())
+//!     - [list references](LsRefsCommand)
 //!          - create a mapping between [refspecs and references](fetch::RefMap)
 //!     - [receive a pack](fetch())
 //!
@@ -14,7 +14,7 @@
     all(doc, feature = "document-features"),
     doc = ::document_features::document_features!()
 )]
-#![cfg_attr(all(doc, feature = "document-features"), feature(doc_cfg, doc_auto_cfg))]
+#![cfg_attr(all(doc, feature = "document-features"), feature(doc_cfg))]
 #![deny(missing_docs, rust_2018_idioms, unsafe_code)]
 
 /// A function that performs a given credential action, trying to obtain credentials for an operation that needs it.
@@ -61,11 +61,13 @@ pub mod handshake;
 #[cfg(any(feature = "blocking-client", feature = "async-client"))]
 #[cfg(feature = "handshake")]
 pub use handshake::function::handshake;
+#[cfg(feature = "handshake")]
+pub use handshake::hero::Handshake;
 
 ///
 pub mod ls_refs;
 #[cfg(any(feature = "blocking-client", feature = "async-client"))]
-pub use ls_refs::function::ls_refs;
+pub use ls_refs::function::LsRefsCommand;
 
 mod util;
 pub use util::*;

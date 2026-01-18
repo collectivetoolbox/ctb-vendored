@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.51](https://github.com/rust-lang/cc-rs/compare/cc-v1.2.50...cc-v1.2.51) - 2025-12-26
+
+### Other
+
+- Regenerate target info ([#1642](https://github.com/rust-lang/cc-rs/pull/1642))
+- Update Readmes ([#1641](https://github.com/rust-lang/cc-rs/pull/1641))
+
+## [1.2.50](https://github.com/rust-lang/cc-rs/compare/cc-v1.2.49...cc-v1.2.50) - 2025-12-19
+
+### Other
+
+- Add tests for `OUT_DIR` escape for '..' file paths (#1631)
+- Fix #283: Make warnings(false) actually suppress compiler warnings ([#1633](https://github.com/rust-lang/cc-rs/pull/1633))
+
 ## [1.2.49](https://github.com/rust-lang/cc-rs/compare/cc-v1.2.48...cc-v1.2.49) - 2025-12-06
 
 ### Other

@@ -11,13 +11,13 @@ use gix_features::parallel::{in_parallel_if, Reduce};
 use gix_filter::pipeline::convert::ToGitOutcome;
 use gix_object::FindExt;
 
-use crate::index_as_worktree::Context;
+use crate::index_as_worktree::types::ConflictIndexEntry;
 use crate::{
     index_as_worktree::{
         traits,
         traits::{read_data::Stream, CompareBlobs, SubmoduleStatus},
         types::{Error, Options},
-        Change, Conflict, EntryStatus, Outcome, VisitEntry,
+        Change, Conflict, Context, EntryStatus, Outcome, VisitEntry,
     },
     is_dir_to_mode, AtomicU64, SymlinkCheck,
 };
@@ -166,7 +166,7 @@ where
                             return None;
                         }
                         Conflict::try_from_entry(all_entries, state.path_backing, absolute_entry_index, entry_path)
-                            .map(|(_conflict, offset)| offset)
+                            .map(|(_conflict, offset, _entries)| offset)
                     });
                     if let Some(entries_to_skip_as_conflict_originates_in_previous_chunk) = offset {
                         // skip current entry as it's done, along with following conflict entries
@@ -280,7 +280,7 @@ impl<'index> State<'_, 'index> {
                         .is_ok_and(|platform| platform.matching_attributes(out))
                 },
             )
-            .map_or(true, |m| m.is_excluded());
+            .is_none_or(|m| m.is_excluded());
 
         if is_excluded {
             self.skipped_by_pathspec.fetch_add(1, Ordering::Relaxed);
@@ -288,10 +288,22 @@ impl<'index> State<'_, 'index> {
         }
         let status = if entry.stage_raw() != 0 {
             Ok(
-                Conflict::try_from_entry(entries, self.path_backing, entry_index, path).map(|(conflict, offset)| {
-                    *outer_entry_index += offset; // let out loop skip over entries related to the conflict
-                    EntryStatus::Conflict(conflict)
-                }),
+                Conflict::try_from_entry(entries, self.path_backing, entry_index, path).map(
+                    |(conflict, offset, entries)| {
+                        *outer_entry_index += offset; // let out loop skip over entries related to the conflict
+                        EntryStatus::Conflict {
+                            summary: conflict,
+                            entries: Box::new({
+                                let mut a: [Option<ConflictIndexEntry>; 3] = Default::default();
+                                let src = entries.into_iter().map(|e| e.map(ConflictIndexEntry::from));
+                                for (a, b) in a.iter_mut().zip(src) {
+                                    *a = b;
+                                }
+                                a
+                            }),
+                        }
+                    },
+                ),
             )
         } else {
             self.compute_status(entry, path, diff, submodule, objects)
@@ -409,12 +421,12 @@ impl<'index> State<'_, 'index> {
                 None => false,
             };
 
-        // Here we implement racy-git. See racy-git.txt in the git documentation for a detailed documentation.
+        // We implement racy-git. See racy-git.txt in the git documentation for detailed documentation.
         //
         // A file is racy if:
-        // 1. its `mtime` is at or after the last index timestamp and its entry stat information
-        //   matches the on-disk file but the file contents are actually modified
-        // 2. it's size is 0 (set after detecting a file was racy previously)
+        // 1. Its `mtime` is at or after the last index timestamp and its entry stat information
+        //   matches the on-disk file, but the file contents are actually modified
+        // 2. Its size is 0 (set after detecting a file was racy previously)
         //
         // The first case is detected below by checking the timestamp if the file is marked unmodified.
         // The second case is usually detected either because the on-disk file is not empty, hence
@@ -450,7 +462,16 @@ impl<'index> State<'_, 'index> {
             file_len: file_size_bytes,
             filter: &mut self.filter,
             attr_stack: &mut self.attr_stack,
-            options: self.options,
+            core_symlinks:
+            // If this is legitimately a symlink, then pretend symlinks are enabled as the option seems stale.
+            // Otherwise, respect the option.
+            if metadata.is_symlink()
+                && entry.mode.to_tree_entry_mode().map(|m| m.kind()) == Some(gix_object::tree::EntryKind::Link)
+            {
+                true
+            } else {
+                self.options.fs.symlink
+            },
             id: &entry.id,
             objects,
             worktree_reads: self.worktree_reads,
@@ -518,7 +539,7 @@ where
     entry: &'a gix_index::Entry,
     filter: &'a mut gix_filter::Pipeline,
     attr_stack: &'a mut gix_worktree::Stack,
-    options: &'a Options,
+    core_symlinks: bool,
     id: &'a gix_hash::oid,
     objects: Find,
     worktree_bytes: &'a AtomicU64,
@@ -546,11 +567,10 @@ where
         //
         let is_symlink = self.entry.mode == gix_index::entry::Mode::SYMLINK;
         // TODO: what to do about precompose unicode and ignore_case for symlinks
-        let out = if is_symlink && self.options.fs.symlink {
-            // conversion to bstr can never fail because symlinks are only used
-            // on unix (by git) so no reason to use the try version here
-            let symlink_path =
-                gix_path::to_unix_separators_on_windows(gix_path::into_bstr(std::fs::read_link(self.path).unwrap()));
+        let out = if is_symlink && self.core_symlinks {
+            let symlink_path = gix_path::to_unix_separators_on_windows(gix_path::into_bstr(
+                std::fs::read_link(self.path).map_err(gix_hash::io::Error::from)?,
+            ));
             self.buf.extend_from_slice(&symlink_path);
             self.worktree_bytes.fetch_add(self.buf.len() as u64, Ordering::Relaxed);
             Stream {
@@ -575,7 +595,7 @@ where
                     },
                     &mut |buf| Ok(self.objects.find_blob(self.id, buf).map(|_| Some(()))?),
                 )
-                .map_err(|err| Error::Io(io::Error::new(io::ErrorKind::Other, err).into()))?;
+                .map_err(|err| Error::Io(io::Error::other(err).into()))?;
             let len = match out {
                 ToGitOutcome::Unchanged(_) => Some(self.file_len),
                 ToGitOutcome::Process(_) | ToGitOutcome::Buffer(_) => None,
@@ -614,20 +634,23 @@ impl Conflict {
     /// Also return the amount of extra-entries that were part of the conflict declaration (not counting the entry at `start_index`)
     ///
     /// If for some reason entry at `start_index` isn't in conflicting state, `None` is returned.
-    pub fn try_from_entry(
-        entries: &[gix_index::Entry],
+    ///
+    /// Return `(Self, num_consumed_entries, three_possibly_entries)`.
+    pub fn try_from_entry<'entry>(
+        entries: &'entry [gix_index::Entry],
         path_backing: &gix_index::PathStorageRef,
         start_index: usize,
         entry_path: &BStr,
-    ) -> Option<(Self, usize)> {
+    ) -> Option<(Self, usize, [Option<&'entry gix_index::Entry>; 3])> {
         use Conflict::*;
         let mut mask = None::<u8>;
+        let mut seen: [Option<&gix_index::Entry>; 3] = Default::default();
 
-        let mut count = 0_usize;
-        for stage in (start_index..(start_index + 3).min(entries.len())).filter_map(|idx| {
+        let mut num_consumed_entries = 0_usize;
+        for (stage, entry) in (start_index..(start_index + 3).min(entries.len())).filter_map(|idx| {
             let entry = &entries[idx];
             let stage = entry.stage_raw();
-            (stage > 0 && entry.path_in(path_backing) == entry_path).then_some(stage)
+            (stage > 0 && entry.path_in(path_backing) == entry_path).then_some((stage, entry))
         }) {
             // This could be `1 << (stage - 1)` but let's be specific.
             *mask.get_or_insert(0) |= match stage {
@@ -636,7 +659,8 @@ impl Conflict {
                 3 => 0b100,
                 _ => 0,
             };
-            count += 1;
+            num_consumed_entries = stage as usize - 1;
+            seen[num_consumed_entries] = Some(entry);
         }
 
         mask.map(|mask| {
@@ -651,7 +675,8 @@ impl Conflict {
                     0b111 => BothModified,
                     _ => unreachable!("BUG: bitshifts and typical entry layout doesn't allow for more"),
                 },
-                count - 1,
+                num_consumed_entries,
+                seen,
             )
         })
     }

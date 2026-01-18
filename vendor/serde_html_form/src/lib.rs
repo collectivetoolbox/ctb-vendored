@@ -1,7 +1,10 @@
 #![doc = include_str!("../README.md")]
+#![no_std]
 #![warn(
+    missing_docs,
     rust_2018_idioms,
     unused_qualifications,
+    clippy::alloc_instead_of_core,
     clippy::branches_sharing_code,
     clippy::cloned_instead_of_copied,
     clippy::empty_line_after_outer_attr,
@@ -9,16 +12,26 @@
     clippy::mut_mut,
     clippy::nonstandard_macro_braces,
     clippy::semicolon_if_nothing_returned,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
     clippy::str_to_string,
     clippy::unreadable_literal,
     clippy::unseparated_literal_suffix,
     clippy::wildcard_imports
 )]
 
+extern crate alloc;
+#[cfg(feature = "std")]
+extern crate std;
+
+#[cfg(feature = "de")]
 pub mod de;
+#[cfg(feature = "ser")]
 pub mod ser;
 
+#[cfg(feature = "de")]
 #[doc(inline)]
-pub use crate::de::{from_bytes, from_reader, from_str, Deserializer};
+pub use crate::de::{from_bytes, from_str, Deserializer};
+#[cfg(feature = "ser")]
 #[doc(inline)]
 pub use crate::ser::{push_to_string, to_string, Serializer};

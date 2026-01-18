@@ -18,7 +18,7 @@ pub(crate) fn any_header_field_multi_line<'a, E: ParserError<&'a [u8]> + AddCont
     (
         terminated(take_till(1.., SPACE_OR_NL), SPACE),
         (
-            take_till(1.., NL),
+            take_till(0.., NL),
             NL,
             repeat(1.., terminated((SPACE, take_until(0.., NL)), NL)).map(|()| ()),
         )
@@ -70,4 +70,19 @@ pub(crate) fn signature<'a, E: ParserError<&'a [u8]> + AddContext<&'a [u8], StrC
     i: &mut &'a [u8],
 ) -> ModalResult<gix_actor::SignatureRef<'a>, E> {
     gix_actor::signature::decode(i)
+}
+
+pub(crate) fn signature_and_consumed<'a, E: ParserError<&'a [u8]> + AddContext<&'a [u8], StrContext>>(
+    i: &mut &'a [u8],
+) -> ModalResult<(gix_actor::SignatureRef<'a>, &'a BStr), E> {
+    let original = *i;
+    gix_actor::signature::decode(i).map(|signature| {
+        let consumed = original.len() - i.len();
+        (signature, original[..consumed].as_bstr())
+    })
+}
+
+pub(crate) fn parse_signature(raw: &BStr) -> Result<gix_actor::SignatureRef<'_>, crate::decode::Error> {
+    gix_actor::SignatureRef::from_bytes::<crate::decode::ParseError>(raw.as_ref())
+        .map_err(|err| crate::decode::Error::with_err(err, raw.as_ref()))
 }

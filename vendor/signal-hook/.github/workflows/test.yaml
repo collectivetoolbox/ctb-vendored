@@ -24,10 +24,9 @@ jobs:
           - stable
           - beta
           - nightly
-          # Introduction of self: Arc<..>, needed for the iterator module
-          - 1.36.0
-          # Introduction of non_exhaustive, used at certain exfiltrators
-          - 1.40.0
+          # Introduced the OwnedFd
+          # (current MRSV)
+          - 1.66.0
 
     runs-on: ${{ matrix.os }}
 
@@ -36,11 +35,9 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.rust }}
-          default: true
-          profile: minimal
+        run: |
+          rustup toolchain add ${{ matrix.rust }} --profile minimal
+          rustup default ${{ matrix.rust }}
 
       - name: Restore cache
         uses: Swatinem/rust-cache@v1
@@ -50,6 +47,7 @@ jobs:
           RUST_VERSION: ${{ matrix.rust }}
           OS: ${{ matrix.os }}
         run: ./ci-check.sh
+        shell: bash
 
   rustfmt:
     name: Check formatting
@@ -59,12 +57,9 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          default: true
-          components: rustfmt
+        run: |
+          rustup update stable
+          rustup component add rustfmt
 
       - run: cargo fmt --all -- --check
 
@@ -76,87 +71,57 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          default: true
+        run: rustup update stable
 
       - name: Restore cache
         uses: Swatinem/rust-cache@v1
 
       - name: Install cargo-deadlinks
-        uses: actions-rs/install@v0.1
-        with:
-          crate: cargo-deadlinks
-          use-tool-cache: true
+        run: cargo install cargo-deadlinks
 
       - name: Check links
         run: |
+          # Prepare "full" build including dependencies for deadlinks
+          cargo doc --all --all-features
           for package in $(cargo metadata --no-deps --format-version=1 | jq -r '.packages[] | .name'); do
-            cargo rustdoc -p "$package" --all-features -- -D warnings
             dname=$(echo "$package" | tr '-' '_')
             cargo deadlinks --dir "target/doc/$dname" --check-http --ignore-fragments
           done
+          # Try building each separately with enabling warnings as errors
+          for package in $(cargo metadata --no-deps --format-version=1 | jq -r '.packages[] | .name'); do
+            cargo rustdoc -p "$package" --all-features -- -D warnings
+          done
 
   ancient-registry:
-    name: Check compilation of signal-hook-registry on 1.26.0
+    name: Check compilation of signal-hook-registry on old compilers
     strategy:
       matrix:
         os:
           - ubuntu-latest
-          - macos-latest
           - windows-latest
+          # no macos-latest because that's aarch64 and old Rust lacks that target
+          # no macos-15-intel because of weird linker errors
+        rust:
+          - 1.26.0
+          - 1.31.0
     runs-on: ${{ matrix.os }}
     steps:
       - name: checkout
         uses: actions/checkout@v2
 
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: 1.26.0
-          default: true
-          profile: minimal
-
-      - name: Restore cache
-        uses: Swatinem/rust-cache@v1
+        run: |
+          rustup toolchain add ${{ matrix.rust }} --profile minimal
+          rustup default ${{ matrix.rust }}
 
       - name: Check compilation
         run: |
           rm Cargo.toml
           cd signal-hook-registry
           sed -i -e '/signal-hook =/d' Cargo.toml
+          sed -i -e 's/libc = "^0.2"/libc = "=0.2.156"/' Cargo.toml
+          sed -i -e 's/errno = ">=0.2, <0.4"/errno = "0.2"/' Cargo.toml
           cargo check
-
-  ancient:
-    name: Check compilation on 1.31.0
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-          - windows-latest
-    runs-on: ${{ matrix.os }}
-    steps:
-      - name: checkout
-        uses: actions/checkout@v2
-
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: 1.31.0
-          default: true
-          profile: minimal
-
-      - name: Restore cache
-        uses: Swatinem/rust-cache@v1
-
-      - name: Check compilation
-        run: |
-          rm Cargo.lock
-          cargo update
-          cargo check --no-default-features
-
 
   clippy:
     name: Clippy lints
@@ -166,18 +131,14 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          default: true
-          components: clippy
+        run: rustup toolchain update stable --profile minimal --component clippy
 
       - name: Restore cache
         uses: Swatinem/rust-cache@v1
 
       - name: Run clippy linter
-        run: cargo clippy --all --all-features --tests -- -D clippy::all -D warnings
+        # cfg(clippy) is necessary in signal-hook-registry because Rust 1.26 doesn't support allow(clippy::foo)
+        run: cargo clippy --all --all-features --tests -- -D clippy::all -D warnings -A clippy::unnecessary_clippy_cfg
 
   # There's bunch of platforms that have some weird quirks (or we don't know
   # that they don't). While fully compiling and testing on them is a bit of a
@@ -190,11 +151,10 @@ jobs:
       matrix:
         target:
           - x86_64-unknown-linux-musl
-          - x86_64-pc-solaris
           - x86_64-linux-android
           - aarch64-linux-android
           - arm-linux-androideabi
-          - mips-unknown-linux-musl
+          - s390x-unknown-linux-gnu
           - x86_64-unknown-netbsd
           - x86_64-unknown-freebsd
         extra-args:
@@ -202,8 +162,7 @@ jobs:
         include:
           # - wasm32-wasi (not yet? Or not ever?)
           # - x86_64-unknown-redox (Is that platform even usable on stable?)
-          - { target: x86_64-fuchsia, extra-args: "--all-features" }
-          - { target: asmjs-unknown-emscripten, extra-args: "--all-features" }
+          - { target: x86_64-unknown-fuchsia, extra-args: "--all-features" }
           # Seems we have some trouble with properly running C compiler on these. Might as well be problem with cross-compilation setup, but who knows
           # So we avoid the exfiltrator part/signal-hook-sys :-(
           - { target: x86_64-apple-darwin, extra-args: "--features=iterator --all --exclude signal-hook-sys" }
@@ -215,19 +174,17 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
+        run: |
+          rustup update stable
+          rustup target add ${{ matrix.target }}
+
+      - name: Install cross
+        uses: taiki-e/install-action@v2
         with:
-          toolchain: stable
-          profile: minimal
-          default: true
-          target: ${{ matrix.target }}
+          tool: cross@0.2.5
 
       - name: Restore cache
         uses: Swatinem/rust-cache@v1
 
       - name: Run the check
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: ${{ matrix.extra-args }} --tests --target=${{ matrix.target }}
-          use-cross: true
+        run: cross check ${{ matrix.extra-args }} --tests --target=${{ matrix.target }}

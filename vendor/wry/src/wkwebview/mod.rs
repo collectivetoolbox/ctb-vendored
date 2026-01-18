@@ -498,8 +498,8 @@ impl InnerWebView {
           webview.setInspectable(true);
         }
         // this cannot be on an `else` statement, it does not work on macOS :(
-        let dev = NSString::from_str("developerExtrasEnabled");
-        _preference.setValue_forKey(Some(&_yes), &dev);
+        let dev = ns_string!("developerExtrasEnabled");
+        _preference.setValue_forKey(Some(&_yes), dev);
       }
 
       // Message handler
@@ -570,7 +570,7 @@ impl InnerWebView {
         id: webview_id,
         mtm,
         webview: webview.clone(),
-        manager: manager.clone(),
+        manager,
         ns_view: ns_view.retain(),
         data_store,
         pending_scripts,
@@ -629,7 +629,7 @@ r#"Object.defineProperty(window, 'ipc', {
             NSAutoresizingMaskOptions::ViewHeightSizable
               | NSAutoresizingMaskOptions::ViewWidthSizable,
           );
-          parent_view.addSubview(&webview.clone());
+          parent_view.addSubview(&webview);
 
           // Tell the webview receive keyboard events in the window.
           // See https://github.com/tauri-apps/wry/issues/739
@@ -658,7 +658,7 @@ r#"Object.defineProperty(window, 'ipc', {
     }
   }
 
-  pub fn id(&self) -> crate::WebViewId {
+  pub fn id(&self) -> crate::WebViewId<'_> {
     &self.id
   }
 
@@ -1261,30 +1261,25 @@ pub fn url_from_webview(webview: &WKWebView) -> Result<String> {
 
 pub fn platform_webview_version() -> Result<String> {
   unsafe {
-    let Some(bundle) = NSBundle::bundleWithIdentifier(&NSString::from_str("com.apple.WebKit"))
-    else {
-      return Err(Error::Io(std::io::Error::new(
-        std::io::ErrorKind::Other,
+    let Some(bundle) = NSBundle::bundleWithIdentifier(ns_string!("com.apple.WebKit")) else {
+      return Err(Error::Io(std::io::Error::other(
         "failed to locate com.apple.WebKit bundle",
       )));
     };
     let Some(dict) = bundle.infoDictionary() else {
-      return Err(Error::Io(std::io::Error::new(
-        std::io::ErrorKind::Other,
+      return Err(Error::Io(std::io::Error::other(
         "failed to get WebKit info dictionary",
       )));
     };
 
-    let Some(webkit_version) = dict.objectForKey(&NSString::from_str("CFBundleVersion")) else {
-      return Err(Error::Io(std::io::Error::new(
-        std::io::ErrorKind::Other,
+    let Some(webkit_version) = dict.objectForKey(ns_string!("CFBundleVersion")) else {
+      return Err(Error::Io(std::io::Error::other(
         "failed to get WebKit version",
       )));
     };
 
     let Ok(webkit_version) = webkit_version.downcast::<NSString>() else {
-      return Err(Error::Io(std::io::Error::new(
-        std::io::ErrorKind::Other,
+      return Err(Error::Io(std::io::Error::other(
         "failed to parse WebKit version",
       )));
     };
@@ -1301,12 +1296,12 @@ impl Drop for InnerWebView {
     // We need to drop handler closures here
     unsafe {
       if let Some(ipc_handler) = self.ipc_handler_delegate.take() {
-        let ipc = NSString::from_str(IPC_MESSAGE_HANDLER_NAME);
+        let ipc = ns_string!(IPC_MESSAGE_HANDLER_NAME);
         // this will decrease the retain count of the ipc handler and trigger the drop
         ipc_handler
           .ivars()
           .controller
-          .removeScriptMessageHandlerForName(&ipc);
+          .removeScriptMessageHandlerForName(ipc);
       }
 
       // Remove webview from window's NSView before dropping.
@@ -1366,8 +1361,8 @@ unsafe fn wait_for_blocking_operation<T>(rx: std::sync::mpsc::Receiver<T>) -> Re
     let rl = objc2_foundation::NSRunLoop::mainRunLoop();
     let limit_date = NSDate::dateWithTimeIntervalSinceNow(interval_as_secs);
 
-    let mode = NSString::from_str("NSDefaultRunLoopMode");
+    let mode = ns_string!("NSDefaultRunLoopMode");
 
-    rl.acceptInputForMode_beforeDate(&mode, &limit_date);
+    rl.acceptInputForMode_beforeDate(mode, &limit_date);
   }
 }

@@ -1,6 +1,6 @@
 use crate::{
     civil::DateTime,
-    error::{err, Error},
+    error::{tz::timezone::Error as E, Error},
     tz::{
         ambiguous::{AmbiguousOffset, AmbiguousTimestamp, AmbiguousZoned},
         offset::{Dst, Offset},
@@ -9,7 +9,6 @@ use crate::{
     Timestamp, Zoned,
 };
 
-#[cfg(feature = "alloc")]
 use crate::tz::posix::PosixTimeZoneOwned;
 
 use self::repr::Repr;
@@ -392,10 +391,8 @@ impl TimeZone {
     pub fn try_system() -> Result<TimeZone, Error> {
         #[cfg(not(feature = "tz-system"))]
         {
-            Err(err!(
-                "failed to get system time zone since 'tz-system' \
-                 crate feature is not enabled",
-            ))
+            Err(Error::from(crate::error::CrateFeatureError::TzSystem)
+                .context(E::FailedSystem))
         }
         #[cfg(feature = "tz-system")]
         {
@@ -712,7 +709,6 @@ impl TimeZone {
     /// as POSIX time zones to POSIX time zones (e.g., fixed offset time
     /// zones). Instead, this only returns something when the actual
     /// representation of the time zone is a POSIX time zone.
-    #[cfg(feature = "alloc")]
     #[inline]
     pub(crate) fn posix_tz(&self) -> Option<&PosixTimeZoneOwned> {
         repr::each! {
@@ -916,7 +912,7 @@ impl TimeZone {
     /// assert_eq!(
     ///     tz.to_fixed_offset().unwrap_err().to_string(),
     ///     "cannot convert non-fixed IANA time zone \
-    ///      to offset without timestamp or civil datetime",
+    ///      to offset without a timestamp or civil datetime",
     /// );
     ///
     /// let tz = TimeZone::UTC;
@@ -935,11 +931,7 @@ impl TimeZone {
     #[inline]
     pub fn to_fixed_offset(&self) -> Result<Offset, Error> {
         let mkerr = || {
-            err!(
-                "cannot convert non-fixed {kind} time zone to offset \
-                 without timestamp or civil datetime",
-                kind = self.kind_description(),
-            )
+            Error::from(E::ConvertNonFixed { kind: self.kind_description() })
         };
         repr::each! {
             &self.repr,
@@ -1392,7 +1384,7 @@ impl TimeZone {
     /// Returns a short description about the kind of this time zone.
     ///
     /// This is useful in error messages.
-    fn kind_description(&self) -> &str {
+    fn kind_description(&self) -> &'static str {
         repr::each! {
             &self.repr,
             UTC => "UTC",
@@ -1887,12 +1879,12 @@ impl<'a> core::fmt::Display for DiagnosticName<'a> {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         repr::each! {
             &self.0.repr,
-            UTC => write!(f, "UTC"),
-            UNKNOWN => write!(f, "Etc/Unknown"),
-            FIXED(offset) => write!(f, "{offset}"),
-            STATIC_TZIF(tzif) => write!(f, "{}", tzif.name().unwrap_or("Local")),
-            ARC_TZIF(tzif) => write!(f, "{}", tzif.name().unwrap_or("Local")),
-            ARC_POSIX(posix) => write!(f, "{posix}"),
+            UTC => f.write_str("UTC"),
+            UNKNOWN => f.write_str("Etc/Unknown"),
+            FIXED(offset) => offset.fmt(f),
+            STATIC_TZIF(tzif) => f.write_str(tzif.name().unwrap_or("Local")),
+            ARC_TZIF(tzif) => f.write_str(tzif.name().unwrap_or("Local")),
+            ARC_POSIX(posix) => posix.fmt(f),
         }
     }
 }
@@ -1939,6 +1931,10 @@ impl<'t> TimeZoneAbbreviation<'t> {
 ///
 /// This module exists to _encapsulate_ the representation rigorously and
 /// expose a safe and sound API.
+// To squash warnings on older versions of Rust. Our polyfill below should
+// match what std does on newer versions of Rust, so the confusability should
+// be fine. ---AG
+#[allow(unstable_name_collisions)]
 mod repr {
     use core::mem::ManuallyDrop;
 
@@ -2271,9 +2267,9 @@ mod repr {
         fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
             each! {
                 self,
-                UTC => write!(f, "UTC"),
-                UNKNOWN => write!(f, "Etc/Unknown"),
-                FIXED(offset) => write!(f, "{offset:?}"),
+                UTC => f.write_str("UTC"),
+                UNKNOWN => f.write_str("Etc/Unknown"),
+                FIXED(offset) => core::fmt::Debug::fmt(&offset, f),
                 STATIC_TZIF(tzif) => {
                     // The full debug output is a bit much, so constrain it.
                     let field = tzif.name().unwrap_or("Local");
@@ -2284,7 +2280,11 @@ mod repr {
                     let field = tzif.name().unwrap_or("Local");
                     f.debug_tuple("TZif").field(&field).finish()
                 },
-                ARC_POSIX(posix) => write!(f, "Posix({posix})"),
+                ARC_POSIX(posix) => {
+                    f.write_str("Posix(")?;
+                    core::fmt::Display::fmt(&posix, f)?;
+                    f.write_str(")")
+                },
             }
         }
     }
@@ -3887,6 +3887,22 @@ mod tests {
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 84, 90, 195, 190, 10, 84,
                 90, 77, 49, 84, 90, 105, 102, 49, 44, 74, 51, 44, 50, 10,
             ],
+        );
+    }
+
+    /// A regression test where a TZ lookup for the minimum civil datetime
+    /// resulted in a panic in the TZif handling.
+    #[cfg(feature = "alloc")]
+    #[test]
+    fn regression_tz_lookup_datetime_min() {
+        use alloc::string::ToString;
+
+        let test_file = TzifTestFile::get("America/Boa_Vista");
+        let tz = TimeZone::tzif(test_file.name, test_file.data).unwrap();
+        let err = tz.to_timestamp(DateTime::MIN).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "converting datetime with time zone offset `-04:02:40` to timestamp overflowed: parameter 'unix-seconds' with value -377705102240 is not in the required range of -377705023201..=253402207200",
         );
     }
 }

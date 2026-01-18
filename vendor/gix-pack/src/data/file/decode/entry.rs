@@ -345,7 +345,8 @@ impl File {
                 let base_entry = cursor;
                 debug_assert!(!base_entry.header.is_delta());
                 object_kind = base_entry.header.as_kind();
-                self.decompress_entry_from_data_offset(base_entry.data_offset, inflate, out)?;
+                let out_base = &mut out[..out_size - total_delta_data_size];
+                self.decompress_entry_from_data_offset(base_entry.data_offset, inflate, out_base)?;
             }
 
             (first_buffer_size, second_buffer_end)
@@ -374,7 +375,7 @@ impl File {
             if delta_idx + 1 == chain_len {
                 last_result_size = Some(result_size);
             }
-            delta::apply(&source_buf[..base_size], &mut target_buf[..result_size], data);
+            delta::apply(&source_buf[..base_size], &mut target_buf[..result_size], data)?;
             // use the target as source for the next delta
             std::mem::swap(&mut source_buf, &mut target_buf);
         }
@@ -419,8 +420,9 @@ impl File {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use gix_testtools::size_ok;
+
+    use super::*;
 
     #[test]
     fn size_of_decode_entry_outcome() {

@@ -1,21 +1,21 @@
 //! Deserialization support for the `application/x-www-form-urlencoded` format.
 
-use std::io::Read;
-
 use form_urlencoded::{parse, Parse as UrlEncodedParse};
 use indexmap::map::{self, IndexMap};
 use serde_core::{
-    de::{self, value::MapDeserializer},
+    de::{self, value::MapDeserializer, Deserialize},
     forward_to_deserialize_any,
 };
 
 #[doc(inline)]
 pub use serde_core::de::value::Error;
 
+pub mod empty_as_none;
 mod part;
+mod utils;
 mod val_or_vec;
 
-use self::{part::Part, val_or_vec::ValOrVec};
+use self::{empty_as_none::EmptyAsNone, part::Part, val_or_vec::ValOrVec};
 
 /// Deserializes a `application/x-www-form-urlencoded` value from a `&[u8]`.
 ///
@@ -36,7 +36,7 @@ use self::{part::Part, val_or_vec::ValOrVec};
 /// ```
 pub fn from_bytes<'de, T>(input: &'de [u8]) -> Result<T, Error>
 where
-    T: de::Deserialize<'de>,
+    T: Deserialize<'de>,
 {
     T::deserialize(Deserializer::from_bytes(input))
 }
@@ -60,23 +60,9 @@ where
 /// ```
 pub fn from_str<'de, T>(input: &'de str) -> Result<T, Error>
 where
-    T: de::Deserialize<'de>,
+    T: Deserialize<'de>,
 {
     from_bytes(input.as_bytes())
-}
-
-/// Convenience function that reads all bytes from `reader` and deserializes
-/// them with `from_bytes`.
-pub fn from_reader<T, R>(mut reader: R) -> Result<T, Error>
-where
-    T: de::DeserializeOwned,
-    R: Read,
-{
-    let mut buf = vec![];
-    reader
-        .read_to_end(&mut buf)
-        .map_err(|e| de::Error::custom(format_args!("could not read input: {}", e)))?;
-    from_bytes(&buf)
 }
 
 /// A deserializer for the `application/x-www-form-urlencoded` format.
@@ -111,7 +97,7 @@ impl<'de> de::Deserializer<'de> for Deserializer<'de> {
     where
         V: de::Visitor<'de>,
     {
-        self.deserialize_seq(visitor)
+        self.deserialize_map(visitor)
     }
 
     fn deserialize_map<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -144,18 +130,6 @@ impl<'de> de::Deserializer<'de> for Deserializer<'de> {
         visitor.visit_newtype_struct(self)
     }
 
-    fn deserialize_struct<V>(
-        self,
-        _name: &'static str,
-        _fields: &'static [&'static str],
-        visitor: V,
-    ) -> Result<V::Value, Self::Error>
-    where
-        V: de::Visitor<'de>,
-    {
-        self.deserialize_map(visitor)
-    }
-
     forward_to_deserialize_any! {
         bool
         u8
@@ -176,11 +150,38 @@ impl<'de> de::Deserializer<'de> for Deserializer<'de> {
         byte_buf
         unit_struct
         tuple_struct
+        struct
         identifier
         tuple
         enum
         ignored_any
     }
+}
+
+/// Deserialization helper that treats empty values as `None`.
+///
+/// Use with `#[serde(deserialize_with)]`. Do not use with deserializers from
+/// other crates, as it may appear to work at first but result in strange
+/// behavior later.
+///
+/// # Example
+///
+/// ```
+/// # use serde::Deserialize;
+/// #[derive(Debug, PartialEq, Deserialize)]
+/// struct Form {
+///     #[serde(deserialize_with = "serde_html_form::de::empty_as_none")]
+///     value: Option<String>,
+/// }
+///
+/// assert_eq!(serde_html_form::from_str("value="), Ok(Form { value: None }));
+/// ```
+pub fn empty_as_none<'de, T, D>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: de::Deserializer<'de>,
+{
+    EmptyAsNone::deserialize(deserializer).map(|EmptyAsNone(option)| option)
 }
 
 struct PartIterator<'de>(UrlEncodedParse<'de>);
@@ -193,11 +194,21 @@ impl<'de> Iterator for PartIterator<'de> {
     }
 }
 
-fn group_entries(parse: UrlEncodedParse<'_>) -> IndexMap<Part<'_>, ValOrVec<Part<'_>>> {
+#[cfg(feature = "std")]
+type RandomState = std::collections::hash_map::RandomState;
+
+#[cfg(not(feature = "std"))]
+type RandomState = compile_error!("the `std` feature is currently required");
+
+fn group_entries(
+    parse: UrlEncodedParse<'_>,
+) -> IndexMap<Part<'_>, ValOrVec<Part<'_>>, RandomState> {
     use map::Entry::*;
 
-    let mut res = IndexMap::new();
+    let mut res = IndexMap::default();
 
+    // silence unhelpful errors when we hit the compile_error! above anyways
+    #[cfg(feature = "std")]
     for (key, value) in parse {
         match res.entry(Part(key)) {
             Vacant(v) => {

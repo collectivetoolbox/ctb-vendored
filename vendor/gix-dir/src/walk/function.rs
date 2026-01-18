@@ -1,10 +1,15 @@
-use std::borrow::Cow;
-use std::path::{Path, PathBuf};
+use std::{
+    borrow::Cow,
+    path::{Path, PathBuf},
+};
 
 use bstr::{BStr, BString, ByteSlice};
 
-use crate::walk::{classify, readdir, Action, Context, Delegate, Error, ForDeletionMode, Options, Outcome};
-use crate::{entry, EntryRef};
+use crate::{
+    entry,
+    walk::{classify, readdir, Action, Context, Delegate, Error, ForDeletionMode, Options, Outcome},
+    EntryRef,
+};
 
 /// A function to perform a git-style, unsorted, directory walk.
 ///
@@ -192,10 +197,7 @@ pub(super) fn emit_entry(
         || !emit_tracked && info.status == entry::Status::Tracked)
         || emit_ignored.is_none() && matches!(info.status, entry::Status::Ignored(_))
         || !emit_pruned
-            && (info.status.is_pruned()
-                || info
-                    .pathspec_match
-                    .map_or(true, |m| m == entry::PathspecMatch::Excluded))
+            && (info.status.is_pruned() || info.pathspec_match.is_none_or(|m| m == entry::PathspecMatch::Excluded))
     {
         return Action::Continue;
     }

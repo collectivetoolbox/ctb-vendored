@@ -2,9 +2,9 @@
 #![deny(rust_2018_idioms, missing_docs)]
 #![forbid(unsafe_code)]
 
-use std::io::Read;
 use std::{
     ffi::OsString,
+    io::Read,
     path::{Path, PathBuf},
 };
 
@@ -85,8 +85,8 @@ pub struct Context {
 }
 
 mod prepare {
-    use std::borrow::Cow;
     use std::{
+        borrow::Cow,
         ffi::OsString,
         process::{Command, Stdio},
     };
@@ -115,9 +115,10 @@ mod prepare {
         /// If neither this method nor [`with_shell()`](Self::with_shell()) is called, commands are
         /// always executed verbatim and directly, without the use of a shell.
         pub fn command_may_be_shell_script(mut self) -> Self {
-            self.use_shell = self.command.to_str().map_or(true, |cmd| {
-                cmd.as_bytes().find_byteset(b"|&;<>()$`\\\"' \t\n*?[#~=%").is_some()
-            });
+            self.use_shell = self
+                .command
+                .to_str()
+                .is_none_or(|cmd| cmd.as_bytes().find_byteset(b"|&;<>()$`\\\"' \t\n*?[#~=%").is_some());
             self
         }
 
@@ -134,8 +135,13 @@ mod prepare {
         /// commands are always executed verbatim and directly, without the use of a shell. (But
         /// see [`command_may_be_shell_script()`](Self::command_may_be_shell_script()) on other
         /// methods that call that method.)
+        ///
+        /// We also disallow manual argument splitting
+        /// (see [`command_may_be_shell_script_disallow_manual_argument_splitting`](Self::command_may_be_shell_script_disallow_manual_argument_splitting()))
+        /// to assure a shell is indeed used, no matter what.
         pub fn with_shell(mut self) -> Self {
             self.use_shell = true;
+            self.allow_manual_arg_splitting = false;
             self
         }
 
@@ -159,7 +165,7 @@ mod prepare {
         /// Set the name or path to the shell `program` to use if a shell is to be used, to avoid
         /// using the default shell which is `sh`.
         ///
-        /// Note that that shells that are not Bourne-style cannot be expected to work correctly,
+        /// Note that shells that are not Bourne-style cannot be expected to work correctly,
         /// because POSIX shell syntax is assumed when searching for and conditionally adding
         /// `"$@"` to receive arguments, where applicable (and in the behaviour of
         /// [`with_quoted_command()`](Self::with_quoted_command()), if called).
@@ -284,7 +290,7 @@ mod prepare {
                         let mut cmd = Command::new(shell);
                         cmd.arg("-c");
                         if !prep.args.is_empty() {
-                            if prep.command.to_str().map_or(true, |cmd| !cmd.contains("$@")) {
+                            if prep.command.to_str().is_none_or(|cmd| !cmd.contains("$@")) {
                                 if prep.quote_command {
                                     if let Ok(command) = gix_path::os_str_into_bstr(&prep.command) {
                                         prep.command = gix_path::from_bstring(gix_quote::single(command)).into();
@@ -425,9 +431,9 @@ pub fn extract_interpreter(executable: &Path) -> Option<shebang::Data> {
 
 ///
 pub mod shebang {
+    use std::{ffi::OsString, path::PathBuf};
+
     use bstr::{BStr, ByteSlice};
-    use std::ffi::OsString;
-    use std::path::PathBuf;
 
     /// Parse `buf` to extract all shebang information.
     pub fn parse(buf: &BStr) -> Option<Data> {

@@ -75,7 +75,7 @@ pub(super) mod _impl {
             progress.inc_by(out.len());
             hasher.update(out);
             if should_interrupt.load(std::sync::atomic::Ordering::SeqCst) {
-                return Err(std::io::Error::new(std::io::ErrorKind::Other, "Interrupted").into());
+                return Err(std::io::Error::other("Interrupted").into());
             }
         }
 
@@ -114,7 +114,13 @@ pub(super) mod _impl {
         /// Create a new hash writer which hashes all bytes written to `inner` with a hash of `kind`.
         pub fn new(inner: T, object_hash: crate::Kind) -> Self {
             match object_hash {
+                #[cfg(feature = "sha1")]
                 crate::Kind::Sha1 => Write {
+                    inner,
+                    hash: crate::hasher(object_hash),
+                },
+                #[cfg(feature = "sha256")]
+                crate::Kind::Sha256 => Write {
                     inner,
                     hash: crate::hasher(object_hash),
                 },

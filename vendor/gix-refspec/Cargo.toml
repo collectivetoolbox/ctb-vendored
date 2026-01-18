@@ -11,9 +11,9 @@
 
 [package]
 edition = "2021"
-rust-version = "1.70"
+rust-version = "1.82"
 name = "gix-refspec"
-version = "0.29.0"
+version = "0.35.0"
 authors = ["Sebastian Thiel <sebastian.thiel@icloud.com>"]
 build = false
 include = [
@@ -37,27 +37,31 @@ path = "src/lib.rs"
 doctest = false
 
 [dependencies.bstr]
-version = "1.3.0"
+version = "1.12.0"
 features = ["std"]
 default-features = false
 
+[dependencies.gix-glob]
+version = "^0.23.0"
+
 [dependencies.gix-hash]
-version = "^0.17.0"
+version = "^0.21.1"
 
 [dependencies.gix-revision]
-version = "^0.33.0"
+version = "^0.39.0"
 default-features = false
 
 [dependencies.gix-validate]
-version = "^0.9.4"
+version = "^0.10.1"
 
 [dependencies.smallvec]
-version = "1.9.0"
+version = "1.15.1"
 
 [dependencies.thiserror]
-version = "2.0.0"
+version = "2.0.17"
 
-[dev-dependencies]
+[dev-dependencies.insta]
+version = "1.44.3"
 
 [lints.clippy]
 bool_to_int_with_if = "allow"
@@ -88,6 +92,7 @@ inline_always = "allow"
 items_after_statements = "allow"
 iter_not_returning_iterator = "allow"
 iter_without_into_iter = "allow"
+large_enum_variant = "allow"
 large_stack_arrays = "allow"
 manual_assert = "allow"
 manual_is_variant_and = "allow"
@@ -112,6 +117,7 @@ no_effect_underscore_binding = "allow"
 option_option = "allow"
 range_plus_one = "allow"
 redundant_else = "allow"
+result_large_err = "allow"
 return_self_not_must_use = "allow"
 should_panic_without_expect = "allow"
 similar_names = "allow"

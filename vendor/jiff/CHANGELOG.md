@@ -1,8 +1,91 @@
 # CHANGELOG
 
-0.2.16 (TBD)
-============
-TODO
+0.2.18 (2026-01-05)
+===================
+This release ships a sizeable refactor to the RFC 2822, RFC 9110, RC
+3339, RFC 9557, ISO 8601 and friendly format printers. Specifically,
+they are now all monomorphic internally (instead of being generic over
+`jiff::fmt::Write`) and write to uninitialized buffers. This improves
+runtime performance (sometimes dramatically so), and to a more modest
+degree, decreases binary size and improves compile times.
+
+This release also includes a bug fix where `DateTime::MIN.to_zoned(..)`
+could panic.
+
+Enhancements:
+
+* [#460](https://github.com/BurntSushi/jiff/pull/460):
+Improve runtime performance and binary size of RFC 2822 printer.
+* [#461](https://github.com/BurntSushi/jiff/pull/461):
+Tweak behavior of printing min/max offsets in RFC 2822 and Temporal printers.
+* [#462](https://github.com/BurntSushi/jiff/pull/462):
+Export fallible constructors for `jiff::SignedDuration`.
+* [#465](https://github.com/BurntSushi/jiff/pull/465):
+Improve runtime performance and binary size of the "friendly" duration printer.
+* [#468](https://github.com/BurntSushi/jiff/pull/468):
+Improve runtime performance and binary size of the Temporal ISO 8601 duration
+printer.
+* [#470](https://github.com/BurntSushi/jiff/pull/470):
+Improve runtime performance and binary size of the Temporal ISO 8601 datetime
+printer.
+* [#474](https://github.com/BurntSushi/jiff/pull/474):
+Improve runtime performance and binary size of Jiff's `strftime`
+implementation.
+* [#477](https://github.com/BurntSushi/jiff/pull/477):
+Fix a bug where time zone lookups for `civil::DateTime::MIN` could panic.
+
+
+0.2.17 (2025-12-24)
+===================
+This release contains binary size improvements to Jiff, more succinct error
+messages and some new minor APIs.
+
+While Jiff 1.0 is overdue, I've been doing a lot of experimenting with
+improving Jiff's binary size and compile times. In particular, I want to spend
+time doing this before Jiff 1.0 so that we don't box ourselves into a corner.
+(For example, some binary size improvements may require minor API breaking
+changes.)
+
+In this release, Jiff has switched to structured error handling internally
+in an effort to provide error predicates and also hopefully improve binary
+sizes and compile times. Overall this didn't have as big of an impact on
+binary sizes or compile times as I was hoping. I did take this opportunity to
+make Jiff's error messages a bit more succinct. In many cases, this involved
+de-duplicating some aspects of error messages and omitting user provided input
+in the messages. If you feel like there is a significant decrease in error
+message quality that isn't easily amended by callers providing additional
+context themselves, please open an issue.
+
+This release also updates Jiff's bundled copy of the [IANA Time Zone Database]
+to `2025c`. See the [`2025c` release announcement] for more details.
+
+Enhancements:
+
+* [#412](https://github.com/BurntSushi/jiff/issues/412):
+Add `Display`, `FromStr`, `Serialize` and `Deserialize` trait implementations
+for `jiff::civil::ISOWeekDate`. These all use the ISO 8601 week date format.
+* [#418](https://github.com/BurntSushi/jiff/issues/418):
+Add some basic predicates to `jiff::Error` for basic error introspection.
+* [#453](https://github.com/BurntSushi/jiff/pull/453),
+  [#454](https://github.com/BurntSushi/jiff/pull/454):
+Switch to structured error handling internally.
+* [#456](https://github.com/BurntSushi/jiff/pull/456),
+  [#457](https://github.com/BurntSushi/jiff/pull/457),
+  [#458](https://github.com/BurntSushi/jiff/pull/458):
+Various improvements to binary size.
+
+[`2025c` release announcement]: https://lists.iana.org/hyperkitty/list/tz-announce@iana.org/thread/TAGXKYLMAQRZRFTERQ33CEKOW7KRJVAK/
+
+
+0.2.16 (2025-11-07)
+===================
+This release contains a number of enhancements and bug fixes that have accrued
+over the last few months. Most are small polishes. A couple of the bug fixes
+apply to panics that could occur when parsing invalid `TZ` strings or invalid
+`strptime` format strings.
+
+Also, parsing into a `Span` should now be much faster (for both the ISO 8601
+and "friendly" duration formats).
 
 Enhancements:
 

@@ -1,3 +1,38 @@
+# 0.4.0
+
+- Remove the `ryu` Cargo feature
+- Add `ser` and `de` Cargo features for serialization and deserialization
+  - Both are active by default
+  - You can disable either of them to reduce `serde_html_form`s dependencies
+
+# 0.3.2
+
+Update minimum supported Rust version to 1.63.
+
+Previously, it was declared as 1.56 but not tested, and was actually 1.81 as of
+version 0.3.0.
+
+# 0.3.1
+
+Small documentation fix in `README.md`.
+
+# 0.3.0
+
+- Change `deserialize_any` to forward to `deserialize_map` instead of `deserialize_seq`
+  - This was a deviation from `serde_urlencoded`, which is now reverted
+  - This means when deserializing to a catch-all type like `serde_json::Value`, you will now
+    get an `Object` instead of an `Array`
+- Change deserialization of optional values to treat empty values (like in `foo=&bar=`)
+  as `Some(_)` rather than `None`, _except_ for `Option<bool>` and `Option<{number}>` (for
+  specific number types that are either builtin or part of the standard library)
+  - This reverts the main change from v0.1.1 while still allowing simple optional number fields to
+    work
+  - To get the old behavior for specific fields, use `#[serde(deserialize_with)]` with the new
+    deserialization helper functions (see next changelog entry)
+- Add `serde_html_form::de::empty_as_none` and `serde_html_form::de::empty_as_none::seq`
+  - These allow treating empty values for a scalar field or sequence (list / set) field as `None`
+- Remove `de::from_reader`
+
 # 0.2.8
 
 Switch `serde` dependency to `serde_core`.

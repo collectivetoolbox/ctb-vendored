@@ -1,7 +1,11 @@
-use crate::bstr::{BStr, BString};
-use crate::{config, Repository};
-use gix_status::index_as_worktree::traits::{CompareBlobs, SubmoduleStatus};
 use std::sync::atomic::AtomicBool;
+
+use gix_status::index_as_worktree::traits::{CompareBlobs, SubmoduleStatus};
+
+use crate::{
+    bstr::{BStr, BString},
+    config, Repository,
+};
 
 /// The error returned by [Repository::index_worktree_status()].
 #[derive(Debug, thiserror::Error)]
@@ -200,11 +204,15 @@ pub struct BuiltinSubmoduleStatus {
 
 ///
 mod submodule_status {
-    use crate::bstr;
-    use crate::bstr::BStr;
-    use crate::status::index_worktree::BuiltinSubmoduleStatus;
-    use crate::status::Submodule;
     use std::borrow::Cow;
+
+    use crate::config::cache::util::ApplyLeniency;
+    use crate::{
+        bstr,
+        bstr::BStr,
+        config,
+        status::{index_worktree::BuiltinSubmoduleStatus, Submodule},
+    };
 
     impl BuiltinSubmoduleStatus {
         /// Create a new instance from a `repo` and a `mode` to control how the submodule status will be obtained.
@@ -220,13 +228,6 @@ mod submodule_status {
                     v
                 }
                 Ok(None) => Vec::new(),
-                Err(crate::submodule::modules::Error::FindHeadCommit(
-                    crate::reference::head_commit::Error::PeelToCommit(
-                        crate::head::peel::to_commit::Error::PeelToObject(
-                            crate::head::peel::to_object::Error::Unborn { .. },
-                        ),
-                    ),
-                )) => Vec::new(),
                 Err(err) => return Err(err),
             };
             Ok(Self {
@@ -248,6 +249,8 @@ mod submodule_status {
         SubmoduleStatus(#[from] crate::submodule::status::Error),
         #[error(transparent)]
         IgnoreConfig(#[from] crate::submodule::config::Error),
+        #[error(transparent)]
+        DiffSubmoduleIgnoreConfig(#[from] config::key::GenericErrorWithValue),
     }
 
     impl gix_status::index_as_worktree::traits::SubmoduleStatus for BuiltinSubmoduleStatus {
@@ -276,7 +279,22 @@ mod submodule_status {
                 return Ok(None);
             };
             let (ignore, check_dirty) = match self.mode {
-                Submodule::AsConfigured { check_dirty } => (sm.ignore()?.unwrap_or_default(), check_dirty),
+                Submodule::AsConfigured { check_dirty } => {
+                    // diff.ignoreSubmodules is the global setting, and if it exists, it overrides the submodule's own ignore setting.
+                    let global_ignore = repo
+                        .config_snapshot()
+                        .string(&config::tree::Diff::IGNORE_SUBMODULES)
+                        .map(|value| config::tree::Diff::IGNORE_SUBMODULES.try_into_ignore(value))
+                        .transpose()
+                        .with_leniency(repo.config.lenient_config)?;
+                    if let Some(ignore) = global_ignore {
+                        (ignore, check_dirty)
+                    } else {
+                        // If no global ignore is set, use the submodule's ignore setting.
+                        let ignore = sm.ignore()?.unwrap_or_default();
+                        (ignore, check_dirty)
+                    }
+                }
                 Submodule::Given { ignore, check_dirty } => (ignore, check_dirty),
             };
             let status = sm.status(ignore, check_dirty)?;
@@ -411,12 +429,14 @@ pub enum RewriteSource {
 
 ///
 pub mod iter {
-    use crate::bstr::{BStr, BString};
-    use crate::status::{index_worktree, Platform};
     use gix_status::index_as_worktree::{Change, EntryStatus};
+    pub use gix_status::index_as_worktree_with_renames::Summary;
 
     use super::{Item, RewriteSource};
-    pub use gix_status::index_as_worktree_with_renames::Summary;
+    use crate::{
+        bstr::{BStr, BString},
+        status::{index_worktree, Platform},
+    };
 
     /// Access
     impl RewriteSource {
@@ -469,7 +489,7 @@ pub mod iter {
             use gix_status::index_as_worktree_with_renames::Summary::*;
             Some(match self {
                 Item::Modification { status, .. } => match status {
-                    EntryStatus::Conflict(_) => Conflict,
+                    EntryStatus::Conflict { .. } => Conflict,
                     EntryStatus::Change(change) => match change {
                         Change::Removed => Removed,
                         Change::Type { .. } => TypeChange,

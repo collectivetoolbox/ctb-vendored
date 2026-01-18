@@ -80,7 +80,7 @@
 //!   well as obtaining the UTC offset from JavaScript.
 
 #![doc(html_playground_url = "https://play.rust-lang.org")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_notable_trait))]
+#![cfg_attr(docsrs, feature(doc_cfg, doc_notable_trait))]
 #![no_std]
 #![doc(html_favicon_url = "https://avatars0.githubusercontent.com/u/55999857")]
 #![doc(html_logo_url = "https://avatars0.githubusercontent.com/u/55999857")]
@@ -150,11 +150,11 @@ pub use crate::weekday::Weekday;
 /// An alias for [`std::result::Result`] with a generic error from the time crate.
 pub type Result<T> = core::result::Result<T, Error>;
 
-/// This is a separate function to reduce the code size of `expect_opt!`.
+/// This is a separate function to reduce the code size of explicit panics.
 #[inline(never)]
 #[cold]
 #[track_caller]
-const fn expect_failed(message: &str) -> ! {
+const fn panic(message: &str) -> ! {
     panic!("{}", message)
 }
 

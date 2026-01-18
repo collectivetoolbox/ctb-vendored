@@ -10,10 +10,10 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
-edition = "2021"
-rust-version = "1.81.0"
+edition = "2024"
+rust-version = "1.88.0"
 name = "vergen-lib"
-version = "0.1.6"
+version = "9.1.0"
 authors = ["Jason Ozias <jason.g.ozias@gmail.com>"]
 build = "build.rs"
 autolib = false
@@ -37,20 +37,21 @@ categories = [
 ]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/rustyhorde/vergen"
+resolver = "2"
 
 [[package.metadata.cargo-matrix.channel]]
-always_deny = ["unstable"]
 name = "default"
+always_deny = ["unstable"]
 
 [[package.metadata.cargo-matrix.channel]]
+name = "nightly"
 always_deny = []
 always_include = ["unstable"]
-name = "nightly"
 
 [[package.metadata.cargo-matrix.channel]]
+name = "llvm-cov"
 always_deny = ["emit_and_set"]
 always_include = ["unstable"]
-name = "llvm-cov"
 
 [package.metadata.docs.rs]
 features = [
@@ -80,16 +81,21 @@ name = "vergen_lib"
 path = "src/lib.rs"
 
 [dependencies.anyhow]
-version = "1.0.95"
+version = "1.0.100"
 
 [dependencies.derive_builder]
 version = "0.20.2"
 
 [dev-dependencies.serial_test]
-version = "3.2.0"
+version = "3.3.1"
 
 [dev-dependencies.temp-env]
 version = "0.3.6"
 
 [build-dependencies.rustversion]
-version = "1.0.19"
+version = "1.0.22"
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+priority = 0
+check-cfg = ["cfg(coverage,coverage_nightly)"]

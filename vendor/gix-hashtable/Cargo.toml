@@ -11,9 +11,9 @@
 
 [package]
 edition = "2021"
-rust-version = "1.70"
+rust-version = "1.82"
 name = "gix-hashtable"
-version = "0.8.1"
+version = "0.11.0"
 authors = ["Pascal Kuthe <pascal.kuthe@semimod.de>"]
 build = false
 include = [
@@ -36,18 +36,15 @@ path = "src/lib.rs"
 doctest = false
 
 [dependencies.gix-hash]
-version = "^0.18.0"
+version = "^0.21.0"
 
 [dependencies.hashbrown]
-version = "0.14.0"
-features = [
-    "inline-more",
-    "raw",
-]
+version = "0.16.0"
+features = ["inline-more"]
 default-features = false
 
 [dependencies.parking_lot]
-version = "0.12.1"
+version = "0.12.4"
 
 [lints.clippy]
 bool_to_int_with_if = "allow"

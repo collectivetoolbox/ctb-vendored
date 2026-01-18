@@ -5,6 +5,105 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 30.0.1 (2025-06-14)
+
+### Documentation
+
+ - <csr-id-b1e26fed9842300bdaf2d0fdae1b789580b91acb/> Don't describe `progress-tree-log` as a default feature
+   Since it is no longer a default feature as of version 30.0.0 (#39).
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 4 commits contributed to the release.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Merge pull request #42 from EliahKagan/update-doc-next ([`0f261de`](https://github.com/byron/prodash/commit/0f261de75dfcb9b1f865f5219cf8dc2a42c8e39b))
+    - Don't describe `progress-tree-log` as a default feature in readme ([`901359a`](https://github.com/byron/prodash/commit/901359a7d55c62d7dfce48b720b1349d75a0bd95))
+    - Merge pull request #41 from EliahKagan/update-doc ([`cf70e4a`](https://github.com/byron/prodash/commit/cf70e4a5092baa67f41caf6e2c3f6e0646b962f6))
+    - Don't describe `progress-tree-log` as a default feature ([`b1e26fe`](https://github.com/byron/prodash/commit/b1e26fed9842300bdaf2d0fdae1b789580b91acb))
+</details>
+
+## 30.0.0 (2025-06-12)
+
+<csr-id-25f8851b458838044550478e5aa5e44922e063f1/>
+
+**Breaking change**: the default feature `progress-tree-log` was removed. Those in need of
+progress-by-logging will have to add the feature themselves.
+
+### Documentation
+
+ - <csr-id-f59460ed80ee9ba5351824bdcb1862c34036fa74/> Update project URL and add security policy
+   - Update the project URL in `Cargo.toml`, as well as a badge URL in
+   the readme, to point to `GitoxideLabs/prodash`, since the repo
+   was moved (though the old URL will still work as a redirect).
+
+### Other
+
+ - <csr-id-25f8851b458838044550478e5aa5e44922e063f1/> bump actions/checkout in the github-actions group
+   Bumps the github-actions group with 1 update: [actions/checkout](https://github.com/actions/checkout).
+   
+   
+   Updates `actions/checkout` from 1 to 4
+   - [Release notes](https://github.com/actions/checkout/releases)
+   - [Changelog](https://github.com/actions/checkout/blob/main/CHANGELOG.md)
+   - [Commits](https://github.com/actions/checkout/compare/v1...v4)
+   
+   ---
+   updated-dependencies:
+   - dependency-name: actions/checkout
+     dependency-version: '4'
+     dependency-type: direct:production
+     update-type: version-update:semver-major
+     dependency-group: github-actions
+   ...
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 16 commits contributed to the release.
+ - 59 days passed between releases.
+ - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Release prodash v30.0.0 ([`85003b1`](https://github.com/byron/prodash/commit/85003b18cf7ddaf1f8f245015c082a8e7a5c4857))
+    - Merge pull request #39 from elijah629/patch-1 ([`427f168`](https://github.com/byron/prodash/commit/427f168684d2930445f1ec25fb873a251a42609d))
+    - Bump major version and write changelog to document breaking change. ([`1bea21c`](https://github.com/byron/prodash/commit/1bea21c5785e8463e035be29b15592c1549590d0))
+    - Progress-tree-log should not be default ([`8e5986d`](https://github.com/byron/prodash/commit/8e5986da4edbf06495469bc423ced62dea9e715f))
+    - Merge pull request #38 from atouchet/badge ([`5f2c06d`](https://github.com/byron/prodash/commit/5f2c06de047313e8f6fe01d5767ce2829a320730))
+    - Fix CI badge ([`3f0cce7`](https://github.com/byron/prodash/commit/3f0cce77cfe440c3dfdbfbe4a0e311038e399768))
+    - Merge pull request #37 from EliahKagan/doc ([`0a272f0`](https://github.com/byron/prodash/commit/0a272f05107ce0ee39e1f16a39e55dfd11d72dd8))
+    - Update project URL and add security policy ([`f59460e`](https://github.com/byron/prodash/commit/f59460ed80ee9ba5351824bdcb1862c34036fa74))
+    - Merge pull request #36 from EliahKagan/run-ci/workflow-permissions ([`cff2029`](https://github.com/byron/prodash/commit/cff2029ba2894549cd7506ec93aea367cccab777))
+    - Set explicit `contents: read` permissions in CI workflow ([`0ad0fa2`](https://github.com/byron/prodash/commit/0ad0fa284e21485c2b10ee02abf1e6ec46d44478))
+    - Merge pull request #35 from Byron/dependabot/github_actions/github-actions-8a9da2b879 ([`6c8261a`](https://github.com/byron/prodash/commit/6c8261af01951fc690c208da14e28d339fd522e5))
+    - Bump actions/checkout in the github-actions group ([`25f8851`](https://github.com/byron/prodash/commit/25f8851b458838044550478e5aa5e44922e063f1))
+    - Merge pull request #34 from EliahKagan/run-ci/gha ([`3b4998b`](https://github.com/byron/prodash/commit/3b4998b9935d5e6ecb0c4166ff0d0913f556d0dc))
+    - Keep action versions up to date with Dependabot ([`12addb4`](https://github.com/byron/prodash/commit/12addb4d992876eeb667a8b1e84f4a46203b86c8))
+    - Make CI easier to run in forks ([`fc6cce5`](https://github.com/byron/prodash/commit/fc6cce5ad3cd22f8d7fb39f7733470038cfdc6ed))
+    - Use more consistent indentation in CI workflow ([`db0f01e`](https://github.com/byron/prodash/commit/db0f01e50412e46b998ef24c8a68ba56e047d260))
+</details>
+
+<csr-unknown>
+Add a SECURITY.md file with the same wording as in gitoxideand cargo-smart-release, with a hyperlink to draft a prodashadvisory.<csr-unknown/>
+
 ## 29.0.2 (2025-04-13)
 
 Update `bytesize` from v1 to v2.
@@ -13,7 +112,7 @@ Update `bytesize` from v1 to v2.
 
 <csr-read-only-do-not-edit/>
 
- - 3 commits contributed to the release.
+ - 4 commits contributed to the release.
  - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -24,6 +123,7 @@ Update `bytesize` from v1 to v2.
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release prodash v29.0.2 ([`964a86b`](https://github.com/byron/prodash/commit/964a86b4a4b23f9cfdf6e3097eecd6ae7361ef04))
     - Update changelog prior to release ([`2216036`](https://github.com/byron/prodash/commit/221603660fbf5d5fa14fbc6674c6d460017b769f))
     - Merge pull request #33 from EliahKagan/bump-bytesize ([`4ff81bf`](https://github.com/byron/prodash/commit/4ff81bf9f61d161a50485c95fb7f3ed9386115c4))
     - Bump `bytesize` from major version 1 to 2 ([`61dfa7d`](https://github.com/byron/prodash/commit/61dfa7d779e26e4cbbb6e6fa7fdc14294224bfba))

@@ -194,22 +194,23 @@ impl Emitter {
     ///
     /// # Errors
     ///
-    pub fn add_instructions(&mut self, gen: &dyn AddEntries) -> Result<&mut Self> {
-        gen.add_map_entries(
-            self.idempotent,
-            &mut self.cargo_rustc_env_map,
-            &mut self.cargo_rerun_if_changed,
-            &mut self.cargo_warning,
-        )
-        .or_else(|e| {
-            let default_config = DefaultConfig::new(self.fail_on_error, e);
-            gen.add_default_entries(
-                &default_config,
+    pub fn add_instructions(&mut self, generator: &dyn AddEntries) -> Result<&mut Self> {
+        generator
+            .add_map_entries(
+                self.idempotent,
                 &mut self.cargo_rustc_env_map,
                 &mut self.cargo_rerun_if_changed,
                 &mut self.cargo_warning,
             )
-        })?;
+            .or_else(|e| {
+                let default_config = DefaultConfig::new(self.fail_on_error, e);
+                generator.add_default_entries(
+                    &default_config,
+                    &mut self.cargo_rustc_env_map,
+                    &mut self.cargo_rerun_if_changed,
+                    &mut self.cargo_warning,
+                )
+            })?;
         Ok(self)
     }
 
@@ -221,28 +222,29 @@ impl Emitter {
     ///
     pub fn add_custom_instructions<K, V>(
         &mut self,
-        gen: &impl AddCustomEntries<K, V>,
+        generator: &impl AddCustomEntries<K, V>,
     ) -> Result<&mut Self>
     where
         K: Into<String> + Ord,
         V: Into<String>,
     {
         let mut map = BTreeMap::default();
-        gen.add_calculated_entries(
-            self.idempotent,
-            &mut map,
-            &mut self.cargo_rerun_if_changed,
-            &mut self.cargo_warning,
-        )
-        .or_else(|e| {
-            let default_config = DefaultConfig::new(self.fail_on_error, e);
-            gen.add_default_entries(
-                &default_config,
+        generator
+            .add_calculated_entries(
+                self.idempotent,
                 &mut map,
                 &mut self.cargo_rerun_if_changed,
                 &mut self.cargo_warning,
             )
-        })?;
+            .or_else(|e| {
+                let default_config = DefaultConfig::new(self.fail_on_error, e);
+                generator.add_default_entries(
+                    &default_config,
+                    &mut map,
+                    &mut self.cargo_rerun_if_changed,
+                    &mut self.cargo_warning,
+                )
+            })?;
         self.cargo_rustc_env_map_custom.extend(Self::map_into(map));
         Ok(self)
     }
@@ -404,11 +406,14 @@ impl Emitter {
     ///
     #[cfg(feature = "emit_and_set")]
     #[cfg_attr(coverage_nightly, coverage(off))]
+    #[allow(unsafe_code)]
     pub fn emit_and_set(&self) -> Result<()> {
         self.emit_output(&mut io::stdout()).map(|()| {
             for (k, v) in &self.cargo_rustc_env_map {
                 if env::var(k.name()).is_err() {
-                    env::set_var(k.name(), v);
+                    unsafe {
+                        env::set_var(k.name(), v);
+                    }
                 }
             }
         })

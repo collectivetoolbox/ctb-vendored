@@ -1,15 +1,24 @@
-use bstr::{BStr, BString, ByteSlice};
-use std::borrow::Cow;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
-
-use crate::entry::{PathspecMatch, Status};
-use crate::walk::function::{can_recurse, emit_entry};
-use crate::walk::EmissionMode::CollapseDirectory;
-use crate::walk::{
-    classify, Action, CollapsedEntriesEmissionMode, Context, Delegate, Error, ForDeletionMode, Options, Outcome,
+use std::{
+    borrow::Cow,
+    path::{Path, PathBuf},
+    sync::atomic::Ordering,
 };
-use crate::{entry, walk, Entry, EntryRef};
+
+use bstr::{BStr, BString, ByteSlice};
+
+use crate::{
+    entry,
+    entry::{PathspecMatch, Status},
+    walk,
+    walk::{
+        classify,
+        function::{can_recurse, emit_entry},
+        Action, CollapsedEntriesEmissionMode, Context, Delegate,
+        EmissionMode::CollapseDirectory,
+        Error, ForDeletionMode, Options, Outcome,
+    },
+    Entry, EntryRef,
+};
 
 /// ### Deviation
 ///
@@ -180,7 +189,7 @@ impl State {
     pub(super) fn may_collapse(&self, directory_to_traverse: &Path) -> bool {
         self.worktree_relative_current_dir
             .as_ref()
-            .map_or(true, |cwd| cwd != directory_to_traverse)
+            .is_none_or(|cwd| cwd != directory_to_traverse)
     }
 
     pub(super) fn emit_remaining(

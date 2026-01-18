@@ -11,9 +11,9 @@
 
 [package]
 edition = "2021"
-rust-version = "1.81.0"
+rust-version = "1.83.0"
 name = "time-macros"
-version = "0.2.24"
+version = "0.2.25"
 authors = [
     "Jacob Pratt <open-source@jhpratt.dev>",
     "Time contributors",
@@ -40,6 +40,8 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/time-rs/time"
 
 [package.metadata.docs.rs]
+all-features = true
+targets = ["x86_64-unknown-linux-gnu"]
 rustdoc-args = ["--generate-link-to-definition"]
 
 [features]
@@ -57,7 +59,7 @@ proc-macro = true
 version = "0.1.0"
 
 [dependencies.time-core]
-version = "=0.1.6"
+version = "=0.1.7"
 
 [lints.clippy]
 alloc-instead-of-core = "deny"

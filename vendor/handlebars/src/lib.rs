@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/handlebars/6.3.2")]
+#![doc(html_root_url = "https://docs.rs/handlebars/6.4.0")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 //! # Handlebars
 //!
@@ -401,10 +401,10 @@ pub use self::helpers::{HelperDef, HelperResult};
 pub use self::json::path::{Path, PathSeg};
 pub use self::json::value::{to_json, JsonRender, JsonTruthy, PathAndJson, ScopedJson};
 pub use self::local_vars::LocalVars;
-pub use self::output::{Output, StringOutput};
-#[cfg(feature = "dir_source")]
-pub use self::registry::DirectorySourceOptions;
+pub use self::output::{Output, StringOutput, WriteOutput};
 pub use self::registry::{html_escape, no_escape, EscapeFn, Registry as Handlebars};
+#[cfg(feature = "dir_source")]
+pub use self::registry::{DirectorySourceOptions, DirectorySourceOptionsBuilder};
 pub use self::render::{Decorator, Evaluable, Helper, RenderContext, Renderable};
 pub use self::template::Template;
 

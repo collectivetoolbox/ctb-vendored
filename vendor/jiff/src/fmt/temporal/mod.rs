@@ -171,7 +171,7 @@ There is some more [background on Temporal's format] available.
 */
 
 use crate::{
-    civil,
+    civil::{self, ISOWeekDate},
     error::Error,
     fmt::Write,
     span::Span,
@@ -320,13 +320,12 @@ impl DateTimeParser {
     /// );
     /// assert_eq!(
     ///     result.unwrap_err().to_string(),
-    ///     "parsing \"2006-04-02T02:30-05[America/Indiana/Vevay]\" failed: \
-    ///      datetime 2006-04-02T02:30:00 could not resolve to timestamp \
-    ///      since 'reject' conflict resolution was chosen, and because \
-    ///      datetime has offset -05, but the time zone America/Indiana/Vevay \
-    ///      for the given datetime falls in a gap \
-    ///      (between offsets -05 and -04), \
-    ///      and all offsets for a gap are regarded as invalid",
+    ///     "datetime could not resolve to timestamp since `reject` \
+    ///      conflict resolution was chosen, and because datetime \
+    ///      has offset `-05`, but the time zone `America/Indiana/Vevay` \
+    ///      for the given datetime falls in a gap (between offsets \
+    ///      `-05` and `-04`), and all offsets for a gap are \
+    ///      regarded as invalid",
     /// );
     /// ```
     ///
@@ -410,11 +409,10 @@ impl DateTimeParser {
     /// );
     /// assert_eq!(
     ///     result.unwrap_err().to_string(),
-    ///     "parsing \"2025-06-20T17:30+00[America/New_York]\" failed: \
-    ///      datetime 2025-06-20T17:30:00 could not resolve to a timestamp \
-    ///      since 'reject' conflict resolution was chosen, and because \
-    ///      datetime has offset +00, but the time zone America/New_York \
-    ///      for the given datetime unambiguously has offset -04",
+    ///     "datetime could not resolve to a timestamp since `reject` \
+    ///      conflict resolution was chosen, and because datetime has \
+    ///      offset `+00`, but the time zone `America/New_York` \
+    ///      for the given datetime unambiguously has offset `-04`",
     /// );
     /// ```
     ///
@@ -1027,9 +1025,8 @@ impl DateTimeParser {
     /// // Normally this operation will fail.
     /// assert_eq!(
     ///     PARSER.parse_zoned(timestamp).unwrap_err().to_string(),
-    ///     "failed to find time zone in square brackets in \
-    ///      \"2025-01-02T15:13-05\", which is required for \
-    ///      parsing a zoned instant",
+    ///     "failed to find time zone annotation in square brackets, \
+    ///      which is required for parsing a zoned datetime",
     /// );
     ///
     /// // But you can work-around this with `Pieces`, which gives you direct
@@ -1073,8 +1070,8 @@ impl DateTimeParser {
     ///
     /// assert_eq!(
     ///     PARSER.parse_date("2024-03-10T00:00:00Z").unwrap_err().to_string(),
-    ///     "cannot parse civil date from string with a Zulu offset, \
-    ///      parse as a `Timestamp` and convert to a civil date instead",
+    ///     "cannot parse civil date/time from string with a Zulu offset, \
+    ///      parse as a `jiff::Timestamp` first and convert to a civil date/time instead",
     /// );
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -1109,6 +1106,22 @@ impl DateTimeParser {
         let parsed = self.p.parse_temporal_datetime(input)?.into_full()?;
         let pieces = parsed.to_pieces()?;
         Ok(pieces)
+    }
+
+    /// Parses an ISO 8601 week date.
+    ///
+    /// This isn't exported because it's not clear that it's worth it.
+    /// Moreover, this isn't part of the Temporal spec, so it's a little odd
+    /// to have it here. If this really needs to be exported, we probably need
+    /// a new module that wraps and re-uses this module's internal parser to
+    /// avoid too much code duplication.
+    pub(crate) fn parse_iso_week_date<I: AsRef<[u8]>>(
+        &self,
+        input: I,
+    ) -> Result<ISOWeekDate, Error> {
+        let input = input.as_ref();
+        let wd = self.p.parse_iso_week_date(input)?.into_full()?;
+        Ok(wd)
     }
 }
 
@@ -1337,7 +1350,7 @@ impl DateTimePrinter {
     /// ```
     #[cfg(feature = "alloc")]
     pub fn zoned_to_string(&self, zdt: &Zoned) -> alloc::string::String {
-        let mut buf = alloc::string::String::with_capacity(4);
+        let mut buf = alloc::string::String::new();
         // OK because writing to `String` never fails.
         self.print_zoned(zdt, &mut buf).unwrap();
         buf
@@ -1384,7 +1397,7 @@ impl DateTimePrinter {
         &self,
         timestamp: &Timestamp,
     ) -> alloc::string::String {
-        let mut buf = alloc::string::String::with_capacity(4);
+        let mut buf = alloc::string::String::new();
         // OK because writing to `String` never fails.
         self.print_timestamp(timestamp, &mut buf).unwrap();
         buf
@@ -1441,7 +1454,7 @@ impl DateTimePrinter {
         timestamp: &Timestamp,
         offset: Offset,
     ) -> alloc::string::String {
-        let mut buf = alloc::string::String::with_capacity(4);
+        let mut buf = alloc::string::String::new();
         // OK because writing to `String` never fails.
         self.print_timestamp_with_offset(timestamp, offset, &mut buf).unwrap();
         buf
@@ -1467,7 +1480,7 @@ impl DateTimePrinter {
         &self,
         dt: &civil::DateTime,
     ) -> alloc::string::String {
-        let mut buf = alloc::string::String::with_capacity(4);
+        let mut buf = alloc::string::String::new();
         // OK because writing to `String` never fails.
         self.print_datetime(dt, &mut buf).unwrap();
         buf
@@ -1490,7 +1503,7 @@ impl DateTimePrinter {
     /// ```
     #[cfg(feature = "alloc")]
     pub fn date_to_string(&self, date: &civil::Date) -> alloc::string::String {
-        let mut buf = alloc::string::String::with_capacity(4);
+        let mut buf = alloc::string::String::new();
         // OK because writing to `String` never fails.
         self.print_date(date, &mut buf).unwrap();
         buf
@@ -1513,7 +1526,7 @@ impl DateTimePrinter {
     /// ```
     #[cfg(feature = "alloc")]
     pub fn time_to_string(&self, time: &civil::Time) -> alloc::string::String {
-        let mut buf = alloc::string::String::with_capacity(4);
+        let mut buf = alloc::string::String::new();
         // OK because writing to `String` never fails.
         self.print_time(time, &mut buf).unwrap();
         buf
@@ -1550,7 +1563,7 @@ impl DateTimePrinter {
         &self,
         tz: &TimeZone,
     ) -> Result<alloc::string::String, Error> {
-        let mut buf = alloc::string::String::with_capacity(4);
+        let mut buf = alloc::string::String::new();
         // Writing to a `String` itself will never fail, but this could fail
         // as described above in the docs.
         self.print_time_zone(tz, &mut buf)?;
@@ -1595,7 +1608,7 @@ impl DateTimePrinter {
     /// ```
     #[cfg(feature = "alloc")]
     pub fn pieces_to_string(&self, pieces: &Pieces) -> alloc::string::String {
-        let mut buf = alloc::string::String::with_capacity(4);
+        let mut buf = alloc::string::String::new();
         // OK because writing to `String` never fails.
         self.print_pieces(pieces, &mut buf).unwrap();
         buf
@@ -1629,9 +1642,9 @@ impl DateTimePrinter {
     pub fn print_zoned<W: Write>(
         &self,
         zdt: &Zoned,
-        wtr: W,
+        mut wtr: W,
     ) -> Result<(), Error> {
-        self.p.print_zoned(zdt, wtr)
+        self.p.print_zoned(zdt, &mut wtr)
     }
 
     /// Print a `Timestamp` datetime to the given writer.
@@ -1680,9 +1693,9 @@ impl DateTimePrinter {
     pub fn print_timestamp<W: Write>(
         &self,
         timestamp: &Timestamp,
-        wtr: W,
+        mut wtr: W,
     ) -> Result<(), Error> {
-        self.p.print_timestamp(timestamp, None, wtr)
+        self.p.print_timestamp(timestamp, &mut wtr)
     }
 
     /// Print a `Timestamp` datetime to the given writer with the given offset.
@@ -1748,9 +1761,9 @@ impl DateTimePrinter {
         &self,
         timestamp: &Timestamp,
         offset: Offset,
-        wtr: W,
+        mut wtr: W,
     ) -> Result<(), Error> {
-        self.p.print_timestamp(timestamp, Some(offset), wtr)
+        self.p.print_timestamp_with_offset(timestamp, offset, &mut wtr)
     }
 
     /// Print a `civil::DateTime` to the given writer.
@@ -1781,9 +1794,9 @@ impl DateTimePrinter {
     pub fn print_datetime<W: Write>(
         &self,
         dt: &civil::DateTime,
-        wtr: W,
+        mut wtr: W,
     ) -> Result<(), Error> {
-        self.p.print_datetime(dt, wtr)
+        self.p.print_datetime(dt, &mut wtr)
     }
 
     /// Print a `civil::Date` to the given writer.
@@ -1814,9 +1827,9 @@ impl DateTimePrinter {
     pub fn print_date<W: Write>(
         &self,
         date: &civil::Date,
-        wtr: W,
+        mut wtr: W,
     ) -> Result<(), Error> {
-        self.p.print_date(date, wtr)
+        self.p.print_date(date, &mut wtr)
     }
 
     /// Print a `civil::Time` to the given writer.
@@ -1847,9 +1860,9 @@ impl DateTimePrinter {
     pub fn print_time<W: Write>(
         &self,
         time: &civil::Time,
-        wtr: W,
+        mut wtr: W,
     ) -> Result<(), Error> {
-        self.p.print_time(time, wtr)
+        self.p.print_time(time, &mut wtr)
     }
 
     /// Print a `TimeZone`.
@@ -1963,6 +1976,25 @@ impl DateTimePrinter {
         wtr: W,
     ) -> Result<(), Error> {
         self.p.print_pieces(pieces, wtr)
+    }
+
+    /// Prints an ISO 8601 week date.
+    ///
+    /// This isn't exported because it's not clear that it's worth it.
+    /// Moreover, this isn't part of the Temporal spec, so it's a little odd
+    /// to have it here. But it's very convenient to have the ISO 8601 week
+    /// date parser in this module, and so we stick the printer here along
+    /// with it.
+    ///
+    /// Note that this printer will use `w` when `lowercase` is enabled. (It
+    /// isn't possible to enable this using the current Jiff public API. But
+    /// it's probably fine.)
+    pub(crate) fn print_iso_week_date<W: Write>(
+        &self,
+        iso_week_date: &ISOWeekDate,
+        mut wtr: W,
+    ) -> Result<(), Error> {
+        self.p.print_iso_week_date(iso_week_date, &mut wtr)
     }
 }
 
@@ -2235,7 +2267,7 @@ impl SpanPrinter {
     /// ```
     #[cfg(feature = "alloc")]
     pub fn span_to_string(&self, span: &Span) -> alloc::string::String {
-        let mut buf = alloc::string::String::with_capacity(4);
+        let mut buf = alloc::string::String::new();
         // OK because writing to `String` never fails.
         self.print_span(span, &mut buf).unwrap();
         buf
@@ -2267,7 +2299,7 @@ impl SpanPrinter {
         &self,
         duration: &SignedDuration,
     ) -> alloc::string::String {
-        let mut buf = alloc::string::String::with_capacity(4);
+        let mut buf = alloc::string::String::new();
         // OK because writing to `String` never fails.
         self.print_duration(duration, &mut buf).unwrap();
         buf
@@ -2303,7 +2335,7 @@ impl SpanPrinter {
         &self,
         duration: &core::time::Duration,
     ) -> alloc::string::String {
-        let mut buf = alloc::string::String::with_capacity(4);
+        let mut buf = alloc::string::String::new();
         // OK because writing to `String` never fails.
         self.print_unsigned_duration(duration, &mut buf).unwrap();
         buf
@@ -2455,7 +2487,7 @@ mod tests {
         );
         insta::assert_snapshot!(
             DateTimeParser::new().parse_date("-000000-01-01").unwrap_err(),
-            @r###"failed to parse year in date "-000000-01-01": year zero must be written without a sign or a positive sign, but not a negative sign"###,
+            @"failed to parse year in date: year zero must be written without a sign or a positive sign, but not a negative sign",
         );
     }
 
@@ -2468,5 +2500,51 @@ mod tests {
             span1.total(Unit::Hour).unwrap(),
             span2.total(Unit::Hour).unwrap()
         );
+    }
+
+    #[test]
+    fn minimum_offset_roundtrip() {
+        let zdt = civil::date(2025, 12, 25)
+            .at(17, 0, 0, 0)
+            .to_zoned(TimeZone::fixed(Offset::MIN))
+            .unwrap();
+        let string = zdt.to_string();
+        assert_eq!(string, "2025-12-25T17:00:00-25:59[-25:59]");
+
+        let got: Zoned = string.parse().unwrap();
+        // Since we started with a zoned datetime with a minimal offset
+        // (to second precision) and RFC 9557 only supports minute precision
+        // in time zone offsets, printing the zoned datetime rounds the offset.
+        // But this would normally result in an offset beyond Jiff's limits,
+        // so in this case, the offset truncates to the minimum supported
+        // value by both Jiff and RFC 9557. That's what we test for here.
+        let expected = civil::date(2025, 12, 25)
+            .at(17, 0, 0, 0)
+            .to_zoned(TimeZone::fixed(-Offset::hms(25, 59, 0)))
+            .unwrap();
+        assert_eq!(expected, got);
+    }
+
+    #[test]
+    fn maximum_offset_roundtrip() {
+        let zdt = civil::date(2025, 12, 25)
+            .at(17, 0, 0, 0)
+            .to_zoned(TimeZone::fixed(Offset::MAX))
+            .unwrap();
+        let string = zdt.to_string();
+        assert_eq!(string, "2025-12-25T17:00:00+25:59[+25:59]");
+
+        let got: Zoned = string.parse().unwrap();
+        // Since we started with a zoned datetime with a maximal offset
+        // (to second precision) and RFC 9557 only supports minute precision
+        // in time zone offsets, printing the zoned datetime rounds the offset.
+        // But this would normally result in an offset beyond Jiff's limits,
+        // so in this case, the offset truncates to the maximum supported
+        // value by both Jiff and RFC 9557. That's what we test for here.
+        let expected = civil::date(2025, 12, 25)
+            .at(17, 0, 0, 0)
+            .to_zoned(TimeZone::fixed(Offset::hms(25, 59, 0)))
+            .unwrap();
+        assert_eq!(expected, got);
     }
 }

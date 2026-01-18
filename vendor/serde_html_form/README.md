@@ -2,19 +2,19 @@
 
 (De-)serialization support for the `application/x-www-form-urlencoded` format.
 
-This crate is a Rust library for serialising to and deserialising from
+This crate is a Rust library for serializing to and deserializing from
 the [`application/x-www-form-urlencoded`][urlencoded] format. It is built
-upon [Serde], a high performance generic serialization framework and [rust-url],
-a URL parser for Rust.
+upon [`serde`], a high performance generic serialization framework and
+[`form_urlencoded`], a urlencoded parser for Rust (part of Servo).
 
 It is a fork of [`serde_urlencoded`], with additional support for maps or
 structs with fields of sequence type (e.g. `Vec<String>`). It also supports
-`Option` in values, treating `foo=` as `foo: None`.
+`Option`al numerical values, treating `foo=` as `foo: None`.
 
-[rust-url]: https://github.com/servo/rust-url
-[Serde]: https://github.com/serde-rs/serde
+[`form_urlencoded`]: https://crates.io/crates/form_urlencoded
+[`serde`]: https://crates.io/crates/serde
 [urlencoded]: https://url.spec.whatwg.org/#application/x-www-form-urlencoded
-[`serde_urlencoded`]: https://github.com/nox/serde_urlencoded
+[`serde_urlencoded`]: https://crates.io/crates/serde_urlencoded
 
 ## Examples
 
@@ -99,7 +99,9 @@ assert_eq!(
     Ok(Form {
         single: Some(1),
         at_least_one: vec![
-            // Empty strings get deserialized as `None`.
+            // Empty strings get deserialized as `None` for fields of builtin
+            // numerical types. Use `serde_html_form::empty_as_none` if you want
+            // this behavior for fields of other types.
             None,
             // It's no problem that the `at_least_one` field repetitions are
             // not consecutive (single comes in between).
@@ -115,5 +117,4 @@ assert!(
 
 ## License
 
-This crate is licensed under the MIT license ([LICENSE](LICENSE) or
-<https://opensource.org/license/mit/>).
+This crate is licensed under the [MIT license](https://opensource.org/license/mit/).

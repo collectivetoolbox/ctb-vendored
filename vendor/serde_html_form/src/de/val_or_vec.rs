@@ -1,4 +1,5 @@
-use std::{hint::unreachable_unchecked, iter, mem, vec};
+use alloc::vec::{self, Vec};
+use core::{hint::unreachable_unchecked, iter, mem};
 
 use serde_core::de::{
     self,
@@ -237,9 +238,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::borrow::Cow;
-
-    use assert_matches2::assert_matches;
+    use alloc::{
+        borrow::{Cow, ToOwned as _},
+        vec,
+    };
 
     use super::ValOrVec;
 
@@ -248,8 +250,14 @@ mod tests {
         let mut x = ValOrVec::Val(Cow::Borrowed("a"));
         x.push(Cow::Borrowed("b"));
         x.push(Cow::Borrowed("c"));
-        assert_matches!(x, ValOrVec::Vec(v));
-        assert_eq!(v, vec!["a", "b", "c"]);
+        match x {
+            ValOrVec::Vec(v) => {
+                assert_eq!(v, vec!["a", "b", "c"]);
+            }
+            _ => {
+                panic!("unexpected variant!");
+            }
+        }
     }
 
     #[test]
@@ -257,7 +265,13 @@ mod tests {
         let mut x = ValOrVec::Val(Cow::from("a".to_owned()));
         x.push(Cow::from("b".to_owned()));
         x.push(Cow::from("c".to_owned()));
-        assert_matches!(x, ValOrVec::Vec(v));
-        assert_eq!(v, vec!["a".to_owned(), "b".to_owned(), "c".to_owned()]);
+        match x {
+            ValOrVec::Vec(v) => {
+                assert_eq!(v, vec!["a".to_owned(), "b".to_owned(), "c".to_owned()]);
+            }
+            _ => {
+                panic!("unexpected variant!");
+            }
+        }
     }
 }

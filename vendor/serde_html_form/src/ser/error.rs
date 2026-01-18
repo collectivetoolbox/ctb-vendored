@@ -1,8 +1,9 @@
-use std::{
-    borrow::Cow,
-    error, fmt,
+use alloc::{borrow::Cow, format};
+use core::{
+    fmt,
     str::{self, Utf8Error},
 };
+use std::error;
 
 use serde_core::ser;
 

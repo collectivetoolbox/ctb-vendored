@@ -11,9 +11,9 @@
 
 [package]
 edition = "2021"
-rust-version = "1.70"
+rust-version = "1.82"
 name = "gix-protocol"
-version = "0.49.0"
+version = "0.55.0"
 authors = ["Sebastian Thiel <sebastian.thiel@icloud.com>"]
 build = false
 include = [
@@ -43,7 +43,7 @@ async-client = [
     "gix-transport/async-client",
     "dep:async-trait",
     "dep:futures-io",
-    "dep:futures-lite",
+    "futures-lite",
     "handshake",
     "fetch",
 ]
@@ -80,7 +80,7 @@ version = "0.1.51"
 optional = true
 
 [dependencies.bstr]
-version = "1.3.0"
+version = "1.12.0"
 features = [
     "std",
     "unicode",
@@ -100,54 +100,54 @@ version = "2.1.0"
 optional = true
 
 [dependencies.gix-credentials]
-version = "^0.28.0"
+version = "^0.34.0"
 optional = true
 
 [dependencies.gix-date]
-version = "^0.9.4"
+version = "^0.12.0"
 
 [dependencies.gix-features]
-version = "^0.41.0"
+version = "^0.45.1"
 features = ["progress"]
 
 [dependencies.gix-hash]
-version = "^0.17.0"
+version = "^0.21.1"
 
 [dependencies.gix-lock]
-version = "^17.0.0"
+version = "^20.0.0"
 optional = true
 
 [dependencies.gix-negotiate]
-version = "^0.19.0"
+version = "^0.25.0"
 optional = true
 
 [dependencies.gix-object]
-version = "^0.48.0"
+version = "^0.54.0"
 optional = true
 
 [dependencies.gix-ref]
-version = "^0.51.0"
+version = "^0.57.0"
 
 [dependencies.gix-refspec]
-version = "^0.29.0"
+version = "^0.35.0"
 optional = true
 
 [dependencies.gix-revwalk]
-version = "^0.19.0"
+version = "^0.25.0"
 optional = true
 
 [dependencies.gix-shallow]
-version = "^0.3.0"
+version = "^0.7.0"
 
 [dependencies.gix-trace]
-version = "^0.1.12"
+version = "^0.1.16"
 optional = true
 
 [dependencies.gix-transport]
-version = "^0.46.0"
+version = "^0.52.0"
 
 [dependencies.gix-utils]
-version = "^0.2.0"
+version = "^0.3.1"
 
 [dependencies.maybe-async]
 version = "0.2.6"
@@ -159,10 +159,10 @@ optional = true
 default-features = false
 
 [dependencies.thiserror]
-version = "2.0.0"
+version = "2.0.17"
 
 [dependencies.winnow]
-version = "0.7.0"
+version = "0.7.14"
 features = ["simd"]
 
 [dev-dependencies.async-std]
@@ -170,7 +170,7 @@ version = "1.9.0"
 features = ["attributes"]
 
 [dev-dependencies.gix-packetline]
-version = "^0.18.4"
+version = "^0.20.0"
 
 [lints.clippy]
 bool_to_int_with_if = "allow"
@@ -201,6 +201,7 @@ inline_always = "allow"
 items_after_statements = "allow"
 iter_not_returning_iterator = "allow"
 iter_without_into_iter = "allow"
+large_enum_variant = "allow"
 large_stack_arrays = "allow"
 manual_assert = "allow"
 manual_is_variant_and = "allow"
@@ -225,6 +226,7 @@ no_effect_underscore_binding = "allow"
 option_option = "allow"
 range_plus_one = "allow"
 redundant_else = "allow"
+result_large_err = "allow"
 return_self_not_must_use = "allow"
 should_panic_without_expect = "allow"
 similar_names = "allow"

@@ -1,8 +1,9 @@
 use std::convert::Infallible;
 
-use crate::Scheme;
 use bstr::{BStr, BString, ByteSlice};
 use percent_encoding::percent_decode_str;
+
+use crate::Scheme;
 
 /// The error returned by [parse()](crate::parse()).
 #[derive(Debug, thiserror::Error)]
@@ -18,7 +19,7 @@ pub enum Error {
     Url {
         url: String,
         kind: UrlKind,
-        source: url::ParseError,
+        source: crate::simple_url::UrlParseError,
     },
 
     #[error("The host portion of the following URL is too long ({} bytes, {len} bytes total): {truncated_url:?}", truncated_url.len())]
@@ -69,7 +70,23 @@ pub(crate) fn find_scheme(input: &BStr) -> InputScheme {
         return InputScheme::Url { protocol_end };
     }
 
-    if let Some(colon) = input.find_byte(b':') {
+    // Find colon, but skip over IPv6 brackets if present
+    let colon = if input.starts_with(b"[") {
+        // IPv6 address, find the closing bracket first
+        if let Some(bracket_end) = input.find_byte(b']') {
+            // Look for colon after the bracket
+            input[bracket_end + 1..]
+                .find_byte(b':')
+                .map(|pos| bracket_end + 1 + pos)
+        } else {
+            // No closing bracket, treat as regular search
+            input.find_byte(b':')
+        }
+    } else {
+        input.find_byte(b':')
+    };
+
+    if let Some(colon) = colon {
         // allow user to select files containing a `:` by passing them as absolute or relative path
         // this is behavior explicitly mentioned by the scp and git manuals
         let explicitly_local = &input[..colon].contains(&b'/');
@@ -98,30 +115,67 @@ pub(crate) fn url(input: &BStr, protocol_end: usize) -> Result<crate::Url, Error
         });
     }
     let (input, url) = input_to_utf8_and_url(input, UrlKind::Url)?;
-    let scheme = url.scheme().into();
+    let scheme = Scheme::from(url.scheme.as_str());
 
-    if matches!(scheme, Scheme::Git | Scheme::Ssh) && url.path().is_empty() {
+    if matches!(scheme, Scheme::Git | Scheme::Ssh) && url.path.is_empty() {
         return Err(Error::MissingRepositoryPath {
             url: input.into(),
             kind: UrlKind::Url,
         });
     }
 
-    if url.cannot_be_a_base() {
-        return Err(Error::RelativeUrl { url: input.to_owned() });
-    }
+    // Normalize empty path to "/" for http/https URLs only
+    let path = if url.path.is_empty() && matches!(scheme, Scheme::Http | Scheme::Https) {
+        "/".into()
+    } else if matches!(scheme, Scheme::Ssh | Scheme::Git) && url.path.starts_with("/~") {
+        // For SSH and Git protocols, strip leading '/' from paths starting with '~'
+        // e.g., "ssh://host/~repo" -> path is "~repo", not "/~repo"
+        url.path[1..].into()
+    } else {
+        url.path.into()
+    };
 
+    let user = url_user(&url, UrlKind::Url)?;
+    let password = url
+        .password
+        .map(|s| percent_decoded_utf8(s, UrlKind::Url))
+        .transpose()?;
+    let port = url.port;
+
+    // For SSH URLs, strip brackets from IPv6 addresses
+    let host = if scheme == Scheme::Ssh {
+        url.host.map(|mut h| {
+            // Bracketed IPv6 forms
+            if let Some(h2) = h.strip_prefix('[') {
+                if let Some(inner) = h2.strip_suffix("]:") {
+                    // "[::1]:" → "::1"
+                    h = inner.to_string();
+                } else if let Some(inner) = h2.strip_suffix(']') {
+                    // "[::1]" → "::1"
+                    h = inner.to_string();
+                }
+            } else {
+                // Non-bracketed host: strip a single trailing colon
+                let colon_count = h.chars().filter(|&c| c == ':').take(2).count();
+                if colon_count == 1 {
+                    if let Some(inner) = h.strip_suffix(':') {
+                        h = inner.to_string();
+                    }
+                }
+            }
+            h
+        })
+    } else {
+        url.host
+    };
     Ok(crate::Url {
         serialize_alternative_form: false,
         scheme,
-        user: url_user(&url, UrlKind::Url)?,
-        password: url
-            .password()
-            .map(|s| percent_decoded_utf8(s, UrlKind::Url))
-            .transpose()?,
-        host: url.host_str().map(Into::into),
-        port: url.port(),
-        path: url.path().into(),
+        user,
+        password,
+        host,
+        port,
+        path,
     })
 }
 
@@ -155,31 +209,49 @@ pub(crate) fn scp(input: &BStr, colon: usize) -> Result<crate::Url, Error> {
     // should never differ in any other way (ssh URLs should not contain a query or fragment part).
     // To avoid the various off-by-one errors caused by the `/` characters, we keep using the path
     // determined above and can therefore skip parsing it here as well.
-    let url = url::Url::parse(&format!("ssh://{host}")).map_err(|source| Error::Url {
+    let url_string = format!("ssh://{host}");
+    let url = crate::simple_url::ParsedUrl::parse(&url_string).map_err(|source| Error::Url {
         url: input.to_owned(),
         kind: UrlKind::Scp,
         source,
     })?;
 
+    // For SCP-like SSH URLs, strip leading '/' from paths starting with '/~'
+    // e.g., "user@host:/~repo" -> path is "~repo", not "/~repo"
+    let path = if path.starts_with("/~") { &path[1..] } else { path };
+
+    let user = url_user(&url, UrlKind::Scp)?;
+    let password = url
+        .password
+        .map(|s| percent_decoded_utf8(s, UrlKind::Scp))
+        .transpose()?;
+    let port = url.port;
+
+    // For SCP-like SSH URLs, strip brackets from IPv6 addresses
+    let host = url.host.map(|h| {
+        if let Some(h) = h.strip_prefix("[").and_then(|h| h.strip_suffix("]")) {
+            h.to_string()
+        } else {
+            h
+        }
+    });
+
     Ok(crate::Url {
         serialize_alternative_form: true,
-        scheme: url.scheme().into(),
-        user: url_user(&url, UrlKind::Scp)?,
-        password: url
-            .password()
-            .map(|s| percent_decoded_utf8(s, UrlKind::Scp))
-            .transpose()?,
-        host: url.host_str().map(Into::into),
-        port: url.port(),
+        scheme: Scheme::from(url.scheme.as_str()),
+        user,
+        password,
+        host,
+        port,
         path: path.into(),
     })
 }
 
-fn url_user(url: &url::Url, kind: UrlKind) -> Result<Option<String>, Error> {
-    if url.username().is_empty() && url.password().is_none() {
+fn url_user(url: &crate::simple_url::ParsedUrl<'_>, kind: UrlKind) -> Result<Option<String>, Error> {
+    if url.username.is_empty() && url.password.is_none() {
         Ok(None)
     } else {
-        Ok(Some(percent_decoded_utf8(url.username(), kind)?))
+        Ok(Some(percent_decoded_utf8(url.username, kind)?))
     }
 }
 
@@ -268,13 +340,22 @@ fn input_to_utf8(input: &BStr, kind: UrlKind) -> Result<&str, Error> {
     })
 }
 
-fn input_to_utf8_and_url(input: &BStr, kind: UrlKind) -> Result<(&str, url::Url), Error> {
+fn input_to_utf8_and_url(input: &BStr, kind: UrlKind) -> Result<(&str, crate::simple_url::ParsedUrl<'_>), Error> {
     let input = input_to_utf8(input, kind)?;
-    url::Url::parse(input)
+    crate::simple_url::ParsedUrl::parse(input)
         .map(|url| (input, url))
-        .map_err(|source| Error::Url {
-            url: input.to_owned(),
-            kind,
-            source,
+        .map_err(|source| {
+            // If the parser rejected it as RelativeUrlWithoutBase, map to Error::RelativeUrl
+            // to match the expected error type for malformed URLs like "invalid:://"
+            match source {
+                crate::simple_url::UrlParseError::RelativeUrlWithoutBase => {
+                    Error::RelativeUrl { url: input.to_owned() }
+                }
+                _ => Error::Url {
+                    url: input.to_owned(),
+                    kind,
+                    source,
+                },
+            }
         })
 }

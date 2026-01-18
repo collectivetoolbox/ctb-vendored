@@ -70,12 +70,17 @@ async fn update_user(TypedMultipart(data): TypedMultipart<UpdateUserRequest>) ->
     StatusCode::OK
 }
 
-#[tokio::main]
-async fn main() {
+pub fn app() -> Router {
     let allowed_roles = ["admin", "editor", "viewer", "guest"];
     let state =
         State { allowed_values: allowed_roles.into_iter().map(ToString::to_string).collect() };
-    let app = Router::new().route("/user/update", post(update_user)).with_state(state);
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    Router::new().route("/user/update", post(update_user)).with_state(state)
+}
+
+#[tokio::main]
+async fn main() {
+    let port = std::env::var("PORT").unwrap_or("0".into());
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await.unwrap();
+    println!("Listening on http://{}", listener.local_addr().unwrap());
+    axum::serve(listener, app()).await.unwrap();
 }

@@ -12,7 +12,7 @@
 [package]
 edition = "2021"
 name = "axum_typed_multipart_macros"
-version = "0.16.4"
+version = "0.16.5"
 authors = ["Lorenzo Murarotto <lnzmrr@gmail.com>"]
 build = false
 autolib = false
@@ -77,7 +77,7 @@ name = "test_strict"
 path = "tests/test_strict.rs"
 
 [dependencies.darling]
-version = "0.20.3"
+version = "0.23.0"
 
 [dependencies.heck]
 version = "0.5.0"

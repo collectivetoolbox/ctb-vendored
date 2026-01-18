@@ -1,12 +1,10 @@
 #![allow(clippy::result_large_err)]
-use std::borrow::Cow;
-use std::ffi::OsStr;
+use std::{borrow::Cow, ffi::OsStr};
 
 use gix_features::threading::OwnShared;
 
-use crate::bstr::ByteSlice;
 use crate::{
-    bstr::{BStr, BString},
+    bstr::{BStr, BString, ByteSlice},
     config::{CommitAutoRollback, Snapshot, SnapshotMut},
 };
 
@@ -56,6 +54,12 @@ impl<'repo> Snapshot<'repo> {
     /// Return the trusted and fully interpolated path at `key`, or `None` if there is no such value
     /// or if no value was found in a trusted file.
     /// An error occurs if the path could not be interpolated to its final value.
+    ///
+    /// ### Optional paths
+    ///
+    /// The path can be prefixed with `:(optional)` which means it won't be returned if the interpolated
+    /// path couldn't be accessed. Note also that this is different from Git, which ignores it only if
+    /// it doesn't exist.
     pub fn trusted_path(
         &self,
         key: impl gix_config::AsKey,

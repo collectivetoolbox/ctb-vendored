@@ -12,7 +12,7 @@
 [package]
 edition = "2021"
 name = "axum_typed_multipart"
-version = "0.16.4"
+version = "0.16.5"
 authors = ["Lorenzo Murarotto <lnzmrr@gmail.com>"]
 build = false
 autolib = false
@@ -74,6 +74,10 @@ path = "examples/upload.rs"
 name = "utoipa"
 path = "examples/utoipa.rs"
 
+[[test]]
+name = "test_examples"
+path = "tests/test_examples.rs"
+
 [dependencies.anyhow]
 version = "1.0.72"
 
@@ -86,7 +90,7 @@ features = ["multipart"]
 default-features = false
 
 [dependencies.axum_typed_multipart_macros]
-version = "0.16.4"
+version = "0.16.5"
 
 [dependencies.bytes]
 version = "1.7.1"

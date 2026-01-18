@@ -1,11 +1,10 @@
 use std::{ffi::OsStr, io::ErrorKind};
 
 use bstr::{BString, ByteSlice, ByteVec};
-
 use gix_url::ArgumentSafety::*;
 
 use crate::{
-    client::{ssh, ssh::ProgramKind},
+    client::blocking_io::ssh::{self, ProgramKind},
     Protocol,
 };
 

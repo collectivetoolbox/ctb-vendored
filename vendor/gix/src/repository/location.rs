@@ -1,7 +1,9 @@
+use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
-use crate::bstr::BStr;
 use gix_path::realpath::MAX_SYMLINKS;
+
+use crate::bstr::BStr;
 
 impl crate::Repository {
     /// Return the path to the repository itself, containing objects, references, configuration, and more.
@@ -12,6 +14,7 @@ impl crate::Repository {
     }
 
     /// The trust we place in the git-dir, with lower amounts of trust causing access to configuration to be limited.
+    /// Note that if the git-dir is trusted but the worktree is not, the result is that the git-dir is also less trusted.
     pub fn git_dir_trust(&self) -> gix_sec::Trust {
         self.options.git_dir_trust.expect("definitely set by now")
     }
@@ -53,6 +56,36 @@ impl crate::Repository {
     #[doc(alias = "workdir", alias = "git2")]
     pub fn work_dir(&self) -> Option<&std::path::Path> {
         self.work_tree.as_deref()
+    }
+
+    /// Forcefully set the given `workdir` to be the worktree of this repository, *in memory*,
+    /// no matter if it had one or not, or unset it with `None`.
+    /// Return the previous working directory if one existed.
+    ///
+    /// Fail if the `workdir`, if not `None`, isn't accessible or isn't a directory.
+    /// No change is performed on error.
+    ///
+    /// ### About Worktrees
+    ///
+    /// * When setting a main worktree to a linked worktree directory, this repository instance
+    ///   will still claim that it is the [main worktree](crate::Worktree::is_main()) as that depends
+    ///   on the `git_dir`, not the worktree dir.
+    /// * When setting a linked worktree to a main worktree directory, this repository instance
+    ///   will still claim that it is *not* a [main worktree](crate::Worktree::is_main()) as that depends
+    ///   on the `git_dir`, not the worktree dir.
+    #[doc(alias = "git2")]
+    pub fn set_workdir(&mut self, workdir: impl Into<Option<PathBuf>>) -> Result<Option<PathBuf>, std::io::Error> {
+        let workdir = workdir.into();
+        Ok(match workdir {
+            None => self.work_tree.take(),
+            Some(new_workdir) => {
+                _ = std::fs::read_dir(&new_workdir)?;
+
+                let old = self.work_tree.take();
+                self.work_tree = Some(new_workdir);
+                old
+            }
+        })
     }
 
     /// Return the work tree containing all checked out files, if there is one.
@@ -105,5 +138,21 @@ impl crate::Repository {
             }
             None => crate::repository::Kind::Bare,
         }
+    }
+
+    /// Returns `Some(true)` if the reference database [is untouched](gix_ref::file::Store::is_pristine()).
+    /// This typically indicates that the repository is new and empty.
+    /// Return `None` if a defect in the database makes the answer uncertain.
+    #[doc(alias = "is_empty", alias = "git2")]
+    pub fn is_pristine(&self) -> Option<bool> {
+        let name = self
+            .config
+            .resolved
+            .string(crate::config::tree::Init::DEFAULT_BRANCH)
+            .unwrap_or(Cow::Borrowed("master".into()));
+        let default_branch_ref_name: gix_ref::FullName = format!("refs/heads/{name}")
+            .try_into()
+            .unwrap_or_else(|_| gix_ref::FullName::try_from("refs/heads/master").expect("known to be valid"));
+        self.refs.is_pristine(default_branch_ref_name.as_ref())
     }
 }

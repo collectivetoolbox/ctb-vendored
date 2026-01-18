@@ -1,4 +1,7 @@
-use std::str;
+use alloc::{
+    str,
+    string::{String, ToString as _},
+};
 
 use serde_core::ser::{self, Serializer as _};
 
@@ -87,19 +90,11 @@ impl<S: Sink> ser::Serializer for PartSerializer<S> {
     }
 
     fn serialize_f32(self, v: f32) -> Result<S::Ok, Error> {
-        #[cfg(feature = "ryu")]
-        return self.serialize_floating(v);
-
-        #[cfg(not(feature = "ryu"))]
-        return self.serialize_str(&v.to_string());
+        self.serialize_floating(v)
     }
 
     fn serialize_f64(self, v: f64) -> Result<S::Ok, Error> {
-        #[cfg(feature = "ryu")]
-        return self.serialize_floating(v);
-
-        #[cfg(not(feature = "ryu"))]
-        return self.serialize_str(&v.to_string());
+        self.serialize_floating(v)
     }
 
     fn serialize_char(self, v: char) -> Result<S::Ok, Error> {
@@ -218,7 +213,6 @@ impl<S: Sink> PartSerializer<S> {
         self.serialize_str(buf.format(value))
     }
 
-    #[cfg(feature = "ryu")]
     fn serialize_floating<F>(self, value: F) -> Result<S::Ok, Error>
     where
         F: ryu::Float,

@@ -69,6 +69,7 @@ pub struct Registry<'reg> {
     escape_fn: EscapeFn,
     strict_mode: bool,
     dev_mode: bool,
+    recursive_lookup: bool,
     prevent_indent: bool,
     #[cfg(feature = "script_helper")]
     pub(crate) engine: Arc<Engine>,
@@ -106,6 +107,7 @@ fn rhai_engine() -> Engine {
 /// Options for importing template files from a directory.
 #[non_exhaustive]
 #[derive(Builder)]
+#[builder(default)]
 #[cfg(feature = "dir_source")]
 pub struct DirectorySourceOptions {
     /// The name extension for template files
@@ -155,6 +157,7 @@ impl<'reg> Registry<'reg> {
             escape_fn: Arc::new(html_escape),
             strict_mode: false,
             dev_mode: false,
+            recursive_lookup: false,
             prevent_indent: false,
             #[cfg(feature = "script_helper")]
             engine: Arc::new(rhai_engine()),
@@ -174,15 +177,15 @@ impl<'reg> Registry<'reg> {
         self.register_helper("raw", Box::new(helpers::RAW_HELPER));
         self.register_helper("log", Box::new(helpers::LOG_HELPER));
 
-        self.register_helper("eq", Box::new(helpers::helper_extras::eq));
-        self.register_helper("ne", Box::new(helpers::helper_extras::ne));
-        self.register_helper("gt", Box::new(helpers::helper_extras::gt));
-        self.register_helper("gte", Box::new(helpers::helper_extras::gte));
-        self.register_helper("lt", Box::new(helpers::helper_extras::lt));
-        self.register_helper("lte", Box::new(helpers::helper_extras::lte));
-        self.register_helper("and", Box::new(helpers::helper_extras::and));
-        self.register_helper("or", Box::new(helpers::helper_extras::or));
-        self.register_helper("not", Box::new(helpers::helper_extras::not));
+        self.register_helper("eq", Box::new(helpers::helper_extras::EQ_HELPER));
+        self.register_helper("ne", Box::new(helpers::helper_extras::NEQ_HELPER));
+        self.register_helper("gt", Box::new(helpers::helper_extras::GT_HELPER));
+        self.register_helper("gte", Box::new(helpers::helper_extras::GTE_HELPER));
+        self.register_helper("lt", Box::new(helpers::helper_extras::LT_HELPER));
+        self.register_helper("lte", Box::new(helpers::helper_extras::LTE_HELPER));
+        self.register_helper("and", Box::new(helpers::helper_extras::AND_HELPER));
+        self.register_helper("or", Box::new(helpers::helper_extras::OR_HELPER));
+        self.register_helper("not", Box::new(helpers::helper_extras::NOT_HELPER));
         self.register_helper("len", Box::new(helpers::helper_extras::len));
 
         #[cfg(feature = "string_helpers")]
@@ -190,6 +193,23 @@ impl<'reg> Registry<'reg> {
 
         self.register_decorator("inline", Box::new(decorators::INLINE_DECORATOR));
         self
+    }
+
+    /// Enable or disable recursive variable resolution mode
+    ///
+    /// By default variable resolution is performed directly
+    /// within the current scope.
+    ///
+    /// For certain legacy use cases it may be desirable for variable
+    /// resolution to walk up through the enclosing scopes until
+    /// a matching variable is found.
+    pub fn set_recursive_lookup(&mut self, enabled: bool) {
+        self.recursive_lookup = enabled;
+    }
+
+    /// Return recursive lookup state, default is false.
+    pub fn recursive_lookup(&self) -> bool {
+        self.recursive_lookup
     }
 
     /// Enable or disable handlebars strict mode
@@ -325,9 +345,6 @@ impl<'reg> Registry<'reg> {
 
     /// Register templates from a directory
     ///
-    /// * `tpl_extension`: the template file extension
-    /// * `dir_path`: the path of directory
-    ///
     /// Hidden files and tempfile (starts with `#`) will be ignored by default.
     /// Set `DirectorySourceOptions` to something other than `DirectorySourceOptions::default()` to adjust this.
     /// All registered templates will use their relative path to determine their template name.
@@ -339,6 +356,19 @@ impl<'reg> Registry<'reg> {
     ///
     /// When dev_mode is enabled, like with `register_template_file`, templates are reloaded
     /// from the file system every time they're visited.
+    ///
+    /// ```rust
+    /// use handlebars::{Handlebars, DirectorySourceOptionsBuilder};
+    ///
+    /// let mut hbs = Handlebars::new();
+    /// hbs.register_templates_directory(
+    ///     "/path/to/templates",
+    ///     DirectorySourceOptionsBuilder::default()
+    ///         .tpl_extension("tmpl")
+    ///         .build()
+    ///         .unwrap(),
+    /// ).unwrap();
+    /// ```
     #[cfg(feature = "dir_source")]
     #[cfg_attr(docsrs, doc(cfg(feature = "dir_source")))]
     pub fn register_templates_directory<P>(
@@ -478,6 +508,11 @@ impl<'reg> Registry<'reg> {
     /// Register a helper
     pub fn register_helper(&mut self, name: &str, def: Box<dyn HelperDef + Send + Sync + 'reg>) {
         self.helpers.insert(name.to_string(), def.into());
+    }
+
+    /// Unregister a helper
+    pub fn unregister_helper(&mut self, name: &str) {
+        self.helpers.remove(name);
     }
 
     /// Register a [rhai](https://docs.rs/rhai/) script as handlebars helper
@@ -703,6 +738,7 @@ impl<'reg> Registry<'reg> {
     ) -> Result<(), RenderError> {
         if !self.dev_mode {
             let mut render_context = RenderContext::new(template.name.as_ref());
+            render_context.set_recursive_lookup(self.recursive_lookup);
             return template.render(self, ctx, &mut render_context, output);
         }
 
@@ -718,6 +754,7 @@ impl<'reg> Registry<'reg> {
         let mut render_context = RenderContext::new(template.name.as_ref());
 
         render_context.set_dev_mode_templates(Some(&dev_mode_templates));
+        render_context.set_recursive_lookup(self.recursive_lookup);
 
         template.render(self, ctx, &mut render_context, output)
     }
@@ -909,6 +946,27 @@ mod test {
     }
 
     static DUMMY_HELPER: DummyHelper = DummyHelper;
+
+    #[test]
+    fn test_unregister_helper() {
+        let mut r = Registry::new();
+
+        assert!(r
+            .register_template_string("dumber", "{{#dumb}}\ndummy helper exists\n{{/dumb}}")
+            .is_ok());
+
+        r.register_helper("dumb", Box::new(DUMMY_HELPER));
+
+        assert!(r.render("dumber", &()).is_ok());
+
+        r.unregister_helper("dumb");
+
+        assert!(r.render("dumber", &()).is_err());
+        assert!(matches!(
+            r.render("dumber", &()).unwrap_err().reason(),
+            RenderErrorReason::HelperNotFound(..)
+        ));
+    }
 
     #[test]
     fn test_registry_operations() {

@@ -4,7 +4,7 @@
     all(doc, feature = "document-features"),
     doc = ::document_features::document_features!()
 )]
-#![cfg_attr(all(doc, feature = "document-features"), feature(doc_cfg, doc_auto_cfg))]
+#![cfg_attr(all(doc, feature = "document-features"), feature(doc_cfg))]
 #![deny(rust_2018_idioms, missing_docs)]
 #![forbid(unsafe_code)]
 
@@ -21,6 +21,9 @@ mod impls;
 
 ///
 pub mod parse;
+
+/// Minimal URL parser to replace the `url` crate dependency
+mod simple_url;
 
 /// Parse the given `bytes` as a [git url](Url).
 ///
@@ -76,7 +79,24 @@ pub enum ArgumentSafety<'a> {
 
 /// A URL with support for specialized git related capabilities.
 ///
-/// Additionally there is support for [deserialization](Url::from_bytes()) and [serialization](Url::to_bstring()).
+/// Additionally, there is support for [deserialization](Url::from_bytes()) and [serialization](Url::to_bstring()).
+///
+/// # Mutability Warning
+///
+/// Due to the mutability of this type, it's possible that the URL serializes to something invalid
+/// when fields are modified directly. URLs should always be parsed to this type from string or byte
+/// parameters, but never be accepted as an instance of this type and then reconstructed, to maintain
+/// validity guarantees.
+///
+/// # Serialization
+///
+/// This type does not implement `Into<String>`, `From<Url> for String` because URLs
+/// can contain non-UTF-8 sequences in the path component when parsed from raw bytes.
+/// Use [to_bstring()](Url::to_bstring()) for lossless serialization, or use the [`Display`](std::fmt::Display)
+/// trait for a UTF-8 representation that redacts passwords for safe logging.
+///
+/// When the `serde` feature is enabled, this type implements `serde::Serialize` and `serde::Deserialize`,
+/// which will serialize *all* fields, including the password.
 ///
 /// # Security Warning
 ///
@@ -93,16 +113,38 @@ pub struct Url {
     /// The URL scheme.
     pub scheme: Scheme,
     /// The user to impersonate on the remote.
-    user: Option<String>,
+    ///
+    /// Stored in decoded form: percent-encoded characters are decoded during parsing.
+    /// Re-encoded during canonical serialization, but written as-is in alternative form.
+    pub user: Option<String>,
     /// The password associated with a user.
-    password: Option<String>,
+    ///
+    /// Stored in decoded form: percent-encoded characters are decoded during parsing.
+    /// Re-encoded during canonical serialization. Cannot be serialized in alternative form (will panic in debug builds).
+    pub password: Option<String>,
     /// The host to which to connect. Localhost is implied if `None`.
-    host: Option<String>,
+    ///
+    /// IPv6 addresses are stored *without* brackets for SSH schemes, but *with* brackets for other schemes.
+    /// Brackets are automatically added during serialization when needed (e.g., when a port is specified with an IPv6 host).
+    pub host: Option<String>,
     /// When serializing, use the alternative forms as it was parsed as such.
-    serialize_alternative_form: bool,
+    ///
+    /// Alternative forms include SCP-like syntax (`user@host:path`) and bare file paths.
+    /// When `true`, password and port cannot be serialized (will panic in debug builds).
+    pub serialize_alternative_form: bool,
     /// The port to use when connecting to a host. If `None`, standard ports depending on `scheme` will be used.
     pub port: Option<u16>,
     /// The path portion of the URL, usually the location of the git repository.
+    ///
+    /// Unlike `user` and `password`, paths are stored and serialized in their original form
+    /// without percent-decoding or re-encoding (e.g., `%20` remains `%20`, not converted to space).
+    ///
+    /// Path normalization during parsing:
+    /// - SSH/Git schemes: Leading `/~` is stripped (e.g., `/~repo` becomes `~repo`)
+    /// - SSH/Git schemes: Empty paths are rejected as errors
+    /// - HTTP/HTTPS schemes: Empty paths are normalized to `/`
+    ///
+    /// During serialization, SSH/Git URLs prepend `/` to paths not starting with `/`.
     ///
     /// # Security Warning
     ///
@@ -308,18 +350,61 @@ impl Url {
     }
 }
 
-fn percent_encode(s: &str) -> Cow<'_, str> {
-    percent_encoding::utf8_percent_encode(s, percent_encoding::NON_ALPHANUMERIC).into()
-}
-
 /// Serialization
 impl Url {
     /// Write this URL losslessly to `out`, ready to be parsed again.
-    pub fn write_to(&self, mut out: &mut dyn std::io::Write) -> std::io::Result<()> {
-        if !(self.serialize_alternative_form && (self.scheme == Scheme::File || self.scheme == Scheme::Ssh)) {
-            out.write_all(self.scheme.as_str().as_bytes())?;
-            out.write_all(b"://")?;
+    pub fn write_to(&self, out: &mut dyn std::io::Write) -> std::io::Result<()> {
+        // Since alternative form doesn't employ any escape syntax, password and
+        // port number cannot be encoded.
+        if self.serialize_alternative_form
+            && (self.scheme == Scheme::File || self.scheme == Scheme::Ssh)
+            && self.password.is_none()
+            && self.port.is_none()
+        {
+            self.write_alternative_form_to(out)
+        } else {
+            self.write_canonical_form_to(out)
         }
+    }
+
+    fn write_canonical_form_to(&self, out: &mut dyn std::io::Write) -> std::io::Result<()> {
+        fn percent_encode(s: &str) -> Cow<'_, str> {
+            /// Characters that must be percent-encoded in the userinfo component of a URL.
+            ///
+            /// According to RFC 3986, userinfo can contain:
+            /// - unreserved characters: `A-Z a-z 0-9 - . _ ~`
+            /// - percent-encoded characters
+            /// - sub-delims: `! $ & ' ( ) * + , ; =`
+            /// - `:`
+            ///
+            /// This encode-set encodes everything else, particularly `@` (userinfo delimiter),
+            /// `/` `?` `#` (path/query/fragment delimiters), and various other special characters.
+            const USERINFO_ENCODE_SET: &percent_encoding::AsciiSet = &percent_encoding::CONTROLS
+                .add(b' ')
+                .add(b'"')
+                .add(b'#')
+                .add(b'%')
+                .add(b'/')
+                .add(b'<')
+                .add(b'>')
+                .add(b'?')
+                .add(b'@')
+                .add(b'[')
+                .add(b'\\')
+                .add(b']')
+                .add(b'^')
+                .add(b'`')
+                .add(b'{')
+                .add(b'|')
+                .add(b'}');
+            percent_encoding::utf8_percent_encode(s, USERINFO_ENCODE_SET).into()
+        }
+
+        out.write_all(self.scheme.as_str().as_bytes())?;
+        out.write_all(b"://")?;
+
+        let needs_brackets = self.port.is_some() && self.host_needs_brackets();
+
         match (&self.user, &self.host) {
             (Some(user), Some(host)) => {
                 out.write_all(percent_encode(user).as_bytes())?;
@@ -328,18 +413,81 @@ impl Url {
                     out.write_all(percent_encode(password).as_bytes())?;
                 }
                 out.write_all(b"@")?;
+                if needs_brackets {
+                    out.write_all(b"[")?;
+                }
                 out.write_all(host.as_bytes())?;
+                if needs_brackets {
+                    out.write_all(b"]")?;
+                }
             }
             (None, Some(host)) => {
+                if needs_brackets {
+                    out.write_all(b"[")?;
+                }
                 out.write_all(host.as_bytes())?;
+                if needs_brackets {
+                    out.write_all(b"]")?;
+                }
             }
             (None, None) => {}
-            (Some(_user), None) => unreachable!("BUG: should not be possible to have a user but no host"),
+            (Some(_user), None) => {
+                return Err(std::io::Error::other(
+                    "Invalid URL structure: user specified without host",
+                ));
+            }
         }
         if let Some(port) = &self.port {
-            write!(&mut out, ":{port}")?;
+            write!(out, ":{port}")?;
         }
-        if self.serialize_alternative_form && self.scheme == Scheme::Ssh {
+        // For SSH and Git URLs, add leading '/' if path doesn't start with '/'
+        // This handles paths like "~repo" which serialize as "/~repo" in URL form
+        if matches!(self.scheme, Scheme::Ssh | Scheme::Git) && !self.path.starts_with(b"/") {
+            out.write_all(b"/")?;
+        }
+        out.write_all(&self.path)?;
+        Ok(())
+    }
+
+    fn host_needs_brackets(&self) -> bool {
+        fn is_ipv6(h: &str) -> bool {
+            h.contains(':') && !h.starts_with('[')
+        }
+        self.host.as_ref().is_some_and(|h| is_ipv6(h))
+    }
+
+    fn write_alternative_form_to(&self, out: &mut dyn std::io::Write) -> std::io::Result<()> {
+        let needs_brackets = self.host_needs_brackets();
+
+        match (&self.user, &self.host) {
+            (Some(user), Some(host)) => {
+                out.write_all(user.as_bytes())?;
+                out.write_all(b"@")?;
+                if needs_brackets {
+                    out.write_all(b"[")?;
+                }
+                out.write_all(host.as_bytes())?;
+                if needs_brackets {
+                    out.write_all(b"]")?;
+                }
+            }
+            (None, Some(host)) => {
+                if needs_brackets {
+                    out.write_all(b"[")?;
+                }
+                out.write_all(host.as_bytes())?;
+                if needs_brackets {
+                    out.write_all(b"]")?;
+                }
+            }
+            (None, None) => {}
+            (Some(_user), None) => {
+                return Err(std::io::Error::other(
+                    "Invalid URL structure: user specified without host",
+                ));
+            }
+        }
+        if self.scheme == Scheme::Ssh {
             out.write_all(b":")?;
         }
         out.write_all(&self.path)?;
@@ -370,11 +518,10 @@ impl Url {
 }
 
 /// This module contains extensions to the [Url] struct which are only intended to be used
-/// for testing code. Do not use this module in production! For all intends and purposes the APIs of
+/// for testing code. Do not use this module in production! For all intents and purposes, the APIs of
 /// all functions and types exposed by this module are considered unstable and are allowed to break
 /// even in patch releases!
 #[doc(hidden)]
-#[cfg(debug_assertions)]
 pub mod testing {
     use bstr::BString;
 

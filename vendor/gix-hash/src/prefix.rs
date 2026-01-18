@@ -52,7 +52,7 @@ impl Prefix {
         } else {
             let mut prefix = ObjectId::null(id.kind());
             let b = prefix.as_mut_slice();
-            let copy_len = (hex_len + 1) / 2;
+            let copy_len = hex_len.div_ceil(2);
             b[..copy_len].copy_from_slice(&id.as_bytes()[..copy_len]);
             if hex_len % 2 == 1 {
                 b[hex_len / 2] &= 0xf0;
@@ -93,17 +93,28 @@ impl Prefix {
     }
 
     /// Create an instance from the given hexadecimal prefix `value`, e.g. `35e77c16` would yield a `Prefix` with `hex_len()` = 8.
+    /// Note that the minimum hex length is `4` - use [`Self::from_hex_nonempty()`].
     pub fn from_hex(value: &str) -> Result<Self, from_hex::Error> {
+        let hex_len = value.len();
+        if hex_len < Self::MIN_HEX_LEN {
+            return Err(from_hex::Error::TooShort { hex_len });
+        }
+        Self::from_hex_nonempty(value)
+    }
+
+    /// Create an instance from the given hexadecimal prefix `value`, e.g. `35e` would yield a `Prefix` with `hex_len()` = 3.
+    /// Note that this function supports all non-empty hex input - for a more typical implementation, use [`Self::from_hex()`].
+    pub fn from_hex_nonempty(value: &str) -> Result<Self, from_hex::Error> {
         let hex_len = value.len();
 
         if hex_len > crate::Kind::longest().len_in_hex() {
             return Err(from_hex::Error::TooLong { hex_len });
-        } else if hex_len < Self::MIN_HEX_LEN {
+        } else if hex_len == 0 {
             return Err(from_hex::Error::TooShort { hex_len });
         }
 
         let src = if value.len() % 2 == 0 {
-            let mut out = Vec::from_iter(std::iter::repeat(0).take(value.len() / 2));
+            let mut out = Vec::from_iter(std::iter::repeat_n(0, value.len() / 2));
             faster_hex::hex_decode(value.as_bytes(), &mut out).map(move |_| out)
         } else {
             // TODO(perf): do without heap allocation here.
@@ -111,7 +122,7 @@ impl Prefix {
             buf[..value.len()].copy_from_slice(value.as_bytes());
             buf[value.len()] = b'0';
             let src = &buf[..=value.len()];
-            let mut out = Vec::from_iter(std::iter::repeat(0).take(src.len() / 2));
+            let mut out = Vec::from_iter(std::iter::repeat_n(0, src.len() / 2));
             faster_hex::hex_decode(src, &mut out).map(move |_| out)
         }
         .map_err(|e| match e {

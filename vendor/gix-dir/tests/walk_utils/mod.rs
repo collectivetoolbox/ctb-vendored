@@ -1,8 +1,11 @@
+use std::{
+    path::{Path, PathBuf},
+    sync::atomic::AtomicBool,
+};
+
 use bstr::BStr;
 use gix_dir::{entry, walk, Entry};
 use gix_testtools::scripted_fixture_read_only;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicBool;
 
 pub fn fixture_in(filename: &str, name: &str) -> PathBuf {
     let root = scripted_fixture_read_only(format!("{filename}.sh")).expect("script works");
@@ -327,6 +330,7 @@ pub fn try_collect_filtered_opts(
             Default::default(),
             None,
             gix_worktree::stack::state::ignore::Source::WorktreeThenIdMappingIfNotSkipped,
+            gix_ignore::search::Ignore { support_precious: true },
         )),
         &index,
         index.path_backing(),

@@ -11,9 +11,9 @@
 
 [package]
 edition = "2021"
-rust-version = "1.70"
+rust-version = "1.82"
 name = "gix-sec"
-version = "0.10.12"
+version = "0.12.2"
 authors = ["Sebastian Thiel <sebastian.thiel@icloud.com>"]
 build = false
 include = [
@@ -62,16 +62,16 @@ optional = true
 default-features = false
 
 [dev-dependencies.tempfile]
-version = "3.3.0"
+version = "3.23.0"
 
 [target."cfg(not(windows))".dependencies.libc]
-version = "0.2.123"
+version = "0.2.176"
 
 [target."cfg(windows)".dependencies.gix-path]
-version = "^0.10.15"
+version = "^0.10.21"
 
 [target."cfg(windows)".dependencies.windows-sys]
-version = "0.52.0"
+version = "0.61.1"
 features = [
     "Win32_Foundation",
     "Win32_Security_Authorization",
@@ -109,6 +109,7 @@ inline_always = "allow"
 items_after_statements = "allow"
 iter_not_returning_iterator = "allow"
 iter_without_into_iter = "allow"
+large_enum_variant = "allow"
 large_stack_arrays = "allow"
 manual_assert = "allow"
 manual_is_variant_and = "allow"
@@ -133,6 +134,7 @@ no_effect_underscore_binding = "allow"
 option_option = "allow"
 range_plus_one = "allow"
 redundant_else = "allow"
+result_large_err = "allow"
 return_self_not_must_use = "allow"
 should_panic_without_expect = "allow"
 similar_names = "allow"

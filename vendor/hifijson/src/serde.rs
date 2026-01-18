@@ -9,12 +9,11 @@
 //! assert_eq!(vec![0, 1], value);
 //! ~~~
 
-use crate::{Expect, Lex, LexAlloc, Token};
+use crate::{Expect, Lex, LexAlloc};
 
 use alloc::string::{String, ToString};
 use core::fmt;
-use serde::de::{self, DeserializeSeed, Visitor};
-use serde::Deserialize;
+use serde::de::{self, Deserialize, DeserializeSeed, Visitor};
 
 /// Deserialisation error.
 #[derive(Debug)]
@@ -40,8 +39,7 @@ impl fmt::Display for Error {
 
 impl_from!(crate::Error, Error, Error::Parse);
 impl_from!(Expect, Error, |e| Error::Parse(crate::Error::Token(e)));
-
-impl std::error::Error for Error {}
+impl_error!(Error);
 
 type Result<T> = core::result::Result<T, Error>;
 
@@ -52,7 +50,7 @@ impl de::Error for Error {
 }
 
 struct TokenLexer<L> {
-    token: Token,
+    next: u8,
     lexer: L,
 }
 
@@ -63,8 +61,9 @@ fn parse_number<T: core::str::FromStr>(n: &str) -> Result<T> {
 macro_rules! deserialize_number {
     ($deserialize:ident, $visit:ident) => {
         fn $deserialize<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-            let (n, _parts) = self.lexer.num_string().map_err(crate::Error::Num)?;
-            visitor.$visit(parse_number(&n)?)
+            use crate::Error::Num;
+            let (n, _parts) = self.lexer.num_string().validated().map_err(Num)?;
+            visitor.$visit(parse_number(n.as_ref())?)
         }
     };
 }
@@ -76,26 +75,26 @@ impl<'de, 'a, L: LexAlloc + 'de> de::Deserializer<'de> for TokenLexer<&'a mut L>
     where
         V: Visitor<'de>,
     {
-        use crate::Error::{Num, Str};
-        match self.token {
-            Token::Null => visitor.visit_unit(),
-            Token::True => visitor.visit_bool(true),
-            Token::False => visitor.visit_bool(false),
-            Token::Quote => visitor.visit_str(&self.lexer.str_string().map_err(Str)?),
-            Token::DigitOrMinus => {
-                let (n, parts) = self.lexer.num_string().map_err(Num)?;
-                if parts.is_int() {
-                    if n.starts_with('-') {
-                        visitor.visit_i64(parse_number(&n)?)
-                    } else {
-                        visitor.visit_u64(parse_number(&n)?)
-                    }
-                } else {
-                    visitor.visit_f64(parse_number(&n)?)
-                }
+        let num = |lexer: &mut L, visitor: V| {
+            let (n, parts) = lexer.num_string().validated().map_err(Num)?;
+            let n: &str = n.as_ref();
+            match (n.starts_with("-"), parts.is_int()) {
+                (true, true) => visitor.visit_i64(parse_number(n)?),
+                (false, true) => visitor.visit_u64(parse_number(n)?),
+                (_, false) => visitor.visit_f64(parse_number(n)?),
             }
-            Token::LSquare => visitor.visit_seq(CommaSeparated::new(self.lexer)),
-            Token::LCurly => visitor.visit_map(CommaSeparated::new(self.lexer)),
+        };
+
+        use crate::Error::{Num, Str};
+        match self.next {
+            b'a'..=b'z' => match self.lexer.null_or_bool().ok_or(Expect::Value)? {
+                None => visitor.visit_unit(),
+                Some(b) => visitor.visit_bool(b),
+            },
+            b'0'..=b'9' | b'-' => num(self.lexer, visitor),
+            b'"' => visitor.visit_str(self.lexer.discarded().str_string().map_err(Str)?.as_ref()),
+            b'[' => visitor.visit_seq(CommaSeparated::new(self.lexer.discarded())),
+            b'{' => visitor.visit_map(CommaSeparated::new(self.lexer.discarded())),
             _ => Err(Expect::Value)?,
         }
     }
@@ -135,13 +134,12 @@ impl<'a, L> CommaSeparated<'a, L> {
 
 impl<'a, L: Lex> CommaSeparated<'a, L> {
     // Comma is required before every element except the first.
-    fn comma(&mut self, token: &mut Token) -> Result<()> {
+    fn comma(&mut self, next: &mut u8) -> Result<()> {
         if !core::mem::take(&mut self.first) {
-            if *token != Token::Comma {
-                Err(Expect::CommaOrEnd)?
-            } else {
-                *token = self.lexer.ws_token().ok_or(Expect::Value)?;
-            }
+            self.lexer
+                .expect(|_| Some(*next), b',')
+                .ok_or(Expect::CommaOrEnd)?;
+            *next = self.lexer.ws_peek().ok_or(Expect::Value)?
         }
         Ok(())
     }
@@ -154,15 +152,15 @@ impl<'de, 'a, L: LexAlloc + 'de> de::SeqAccess<'de> for CommaSeparated<'a, L> {
     where
         T: DeserializeSeed<'de>,
     {
-        let token = self.lexer.ws_token();
-        let mut token = token.ok_or(Expect::ValueOrEnd)?;
-        if token == Token::RSquare {
+        let mut next = self.lexer.ws_peek().ok_or(Expect::ValueOrEnd)?;
+        if next == b']' {
+            self.lexer.take_next();
             return Ok(None);
         };
-        self.comma(&mut token)?;
+        self.comma(&mut next)?;
 
         let lexer = &mut *self.lexer;
-        seed.deserialize(TokenLexer { token, lexer }).map(Some)
+        seed.deserialize(TokenLexer { next, lexer }).map(Some)
     }
 }
 
@@ -173,19 +171,19 @@ impl<'de, 'a, L: LexAlloc + 'de> de::MapAccess<'de> for CommaSeparated<'a, L> {
     where
         K: DeserializeSeed<'de>,
     {
-        let token = self.lexer.ws_token();
-        let mut token = token.ok_or(Expect::ValueOrEnd)?;
-        if token == Token::RCurly {
+        let mut next = self.lexer.ws_peek().ok_or(Expect::ValueOrEnd)?;
+        if next == b'}' {
+            self.lexer.take_next();
             return Ok(None);
         };
-        self.comma(&mut token)?;
+        self.comma(&mut next)?;
 
-        if token != Token::Quote {
+        if next != b'"' {
             Err(Expect::String)?
         }
 
         let lexer = &mut *self.lexer;
-        seed.deserialize(TokenLexer { token, lexer }).map(Some)
+        seed.deserialize(TokenLexer { next, lexer }).map(Some)
     }
 
     fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value>
@@ -193,15 +191,15 @@ impl<'de, 'a, L: LexAlloc + 'de> de::MapAccess<'de> for CommaSeparated<'a, L> {
         V: DeserializeSeed<'de>,
     {
         let lexer = &mut *self.lexer;
-        let colon = lexer.ws_token().filter(|t| *t == Token::Colon);
-        colon.ok_or(Expect::Colon)?;
-
-        let token = lexer.ws_token().ok_or(Expect::Value)?;
-        seed.deserialize(TokenLexer { token, lexer })
+        lexer.expect(L::ws_peek, b':').ok_or(Expect::Colon)?;
+        let next = lexer.ws_peek().ok_or(Expect::Value)?;
+        seed.deserialize(TokenLexer { next, lexer })
     }
 }
 
 /// Deserialise a single value.
 pub fn exactly_one<'a, T: Deserialize<'a>, L: LexAlloc + 'a>(lexer: &mut L) -> Result<T> {
-    lexer.exactly_one(|token, lexer| T::deserialize(TokenLexer { token, lexer }))
+    lexer.exactly_one(L::ws_peek, |next, lexer| {
+        T::deserialize(TokenLexer { next, lexer })
+    })
 }

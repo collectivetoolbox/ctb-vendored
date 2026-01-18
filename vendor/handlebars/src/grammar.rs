@@ -185,6 +185,7 @@ mod test {
             "{{exp key=(sub)}}",
             "{{exp key=(sub 0)}}",
             "{{exp key=(sub 0 key=1)}}",
+            "{{exp ns:key=0}}",
         ];
         for i in &s {
             assert_rule!(Rule::expression, i);
@@ -354,7 +355,11 @@ mod test {
 
     #[test]
     fn test_partial_block() {
-        let s = ["{{#> hello}}nice{{/hello}}"];
+        let s = [
+            "{{#> hello}}nice{{/hello}}",
+            "{{#> hello}}nice{{/}}",
+            "{{#> (hello)}}nice{{/}}",
+        ];
         for i in &s {
             assert_rule!(Rule::partial_block, i);
         }

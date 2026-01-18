@@ -4,11 +4,11 @@ lints.workspace = true
 name = "gix-features"
 description = "A crate to integrate various capabilities using compile-time feature flags"
 repository = "https://github.com/GitoxideLabs/gitoxide"
-version = "0.42.1"
+version = "0.45.2"
 authors = ["Sebastian Thiel <sebastian.thiel@icloud.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
-rust-version = "1.70"
+rust-version = "1.82"
 include = ["src/**/*", "LICENSE-*"]
 
 [lib]
@@ -45,6 +45,7 @@ tracing-detail = ["gix-trace/tracing-detail"]
 ## This way, single-threaded applications don't have to pay for threaded primitives.
 parallel = ["dep:crossbeam-channel", "dep:parking_lot"]
 ## If enabled, OnceCell will be made available for interior mutability either in sync or unsync forms.
+## Note: This still uses once_cell because std::sync::OnceLock::get_or_try_init() is not yet stable.
 once_cell = ["dep:once_cell"]
 ## Makes facilities of the `walkdir` crate partially available.
 ## In conjunction with the **parallel** feature, directory walking will be parallel instead behind a compatible interface.
@@ -55,22 +56,8 @@ io-pipe = ["dep:bytes"]
 crc32 = ["dep:crc32fast"]
 
 ## Enable the usage of zlib-related utilities to compress or decompress data.
-## This enables the `flate2` crate, and always uses the high-performance `zlib-rs` backend.
-## Note that the various past features for selecting zlib backends are now deprecated and do nothing.
-zlib = ["dep:flate2", "dep:thiserror"]
-## Deprecated: gix always uses zlib-rs.
-zlib-ng = ["zlib"]
-## Deprecated: gix always uses zlib-rs now. As of zlib-rs 0.5.0 (used by flate2
-## 1.1.1), this no longer exports C symbols # by default, so it doesn't
-## conflict with any other zlib library that might be loaded into the same
-## address space.
-zlib-rs = ["zlib"]
-## Deprecated: gix always uses zlib-rs.
-zlib-ng-compat = ["zlib"]
-## Deprecated: gix always uses zlib-rs.
-zlib-stock = ["zlib"]
-## Deprecated: gix always uses zlib-rs.
-zlib-rust-backend = ["zlib"]
+## This enables and uses the high-performance `zlib-rs` backend.
+zlib = ["dep:zlib-rs", "dep:thiserror"]
 
 #! ### Other
 
@@ -98,38 +85,40 @@ path = "tests/pipe.rs"
 required-features = ["io-pipe"]
 
 [dependencies]
-gix-trace = { version = "^0.1.12", path = "../gix-trace" }
+gix-trace = { version = "^0.1.17", path = "../gix-trace" }
 
 # for walkdir
-gix-path = { version = "^0.10.17", path = "../gix-path", optional = true }
-gix-utils = { version = "^0.3.0", path = "../gix-utils", optional = true }
+gix-path = { version = "^0.10.21", path = "../gix-path", optional = true }
+gix-utils = { version = "^0.3.1", path = "../gix-utils", optional = true }
 
 # 'parallel' feature
 crossbeam-channel = { version = "0.5.15", optional = true }
-parking_lot = { version = "0.12.0", default-features = false, optional = true }
+parking_lot = { version = "0.12.4", default-features = false, optional = true }
 
 walkdir = { version = "2.3.2", optional = true } # used when parallel is off
 
 # hashing
-crc32fast = { version = "1.2.1", optional = true }
+crc32fast = { version = "1.5.0", optional = true }
 
 # progress
-prodash = { version = "29.0.2", optional = true }
-bytesize = { version = "2.0.1", optional = true }
+prodash = { version = "30.0.1", optional = true }
+bytesize = { version = "2.3.1", optional = true }
 
 # pipe
 bytes = { version = "1.0.0", optional = true }
 
 # zlib module
-flate2 = { version = "1.1.1", optional = true, default-features = false, features = ["zlib-rs"] }
-thiserror = { version = "2.0.0", optional = true }
+zlib-rs = { version = "0.5.5", optional = true }
+thiserror = { version = "2.0.17", optional = true }
 
+# Note: once_cell is kept for OnceCell type because std::sync::OnceLock::get_or_try_init() is not yet stable.
+# Once it's stabilized (tracking issue #109737), we can remove this dependency.
 once_cell = { version = "1.21.3", optional = true }
 
 document-features = { version = "0.2.0", optional = true }
 
 [target.'cfg(unix)'.dependencies]
-libc = { version = "0.2.172" }
+libc = { version = "0.2.178" }
 
 [dev-dependencies]
 bstr = { version = "1.12.0", default-features = false }

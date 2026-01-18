@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.74"
 name = "prodash"
-version = "29.0.2"
+version = "30.0.1"
 authors = ["Sebastian Thiel <sebastian.thiel@icloud.com>"]
 build = false
 include = [
@@ -30,16 +30,13 @@ autobenches = false
 description = "A dashboard for visualizing progress of asynchronous and possibly blocking tasks"
 readme = "README.md"
 license = "MIT"
-repository = "https://github.com/Byron/prodash"
+repository = "https://github.com/GitoxideLabs/prodash"
 
 [package.metadata.docs.rs]
 all-features = true
 
 [features]
-default = [
-    "progress-tree",
-    "progress-tree-log",
-]
+default = ["progress-tree"]
 local-time = ["jiff"]
 progress-log = ["log"]
 progress-tree = ["parking_lot"]

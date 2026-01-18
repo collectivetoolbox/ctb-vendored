@@ -76,6 +76,7 @@ pub(crate) fn update(
     let mut updates = Vec::new();
     let mut edit_indices_to_validate = Vec::new();
 
+    let mut checked_out_branches = worktree_branches(repo)?;
     let implicit_tag_refspec = fetch_tags
         .to_refspec()
         .filter(|_| matches!(fetch_tags, crate::remote::fetch::Tags::Included));
@@ -97,7 +98,7 @@ pub(crate) fn update(
     ) {
         // `None` only if unborn.
         let remote_id = remote.as_id();
-        if matches!(dry_run, fetch::DryRun::No) && !remote_id.map_or(true, |id| repo.objects.exists(id)) {
+        if matches!(dry_run, fetch::DryRun::No) && !remote_id.is_none_or(|id| repo.objects.exists(id)) {
             if let Some(remote_id) = remote_id.filter(|id| !repo.objects.exists(id)) {
                 let update = if is_implicit_tag {
                     Mode::ImplicitTagNotSentByRemote.into()
@@ -110,7 +111,6 @@ pub(crate) fn update(
                 continue;
             }
         }
-        let mut checked_out_branches = worktree_branches(repo)?;
         let (mode, edit_index, type_change) = match local {
             Some(name) => {
                 let (mode, reflog_message, name, previous_value) = match repo.try_find_reference(name)? {
@@ -127,7 +127,7 @@ pub(crate) fn update(
 
                         match existing
                             .try_id()
-                            .map_or_else(|| existing.clone().peel_to_id_in_place(), Ok)
+                            .map_or_else(|| existing.clone().peel_to_id(), Ok)
                             .map(crate::Id::detach)
                         {
                             Ok(local_id) => {
@@ -157,7 +157,7 @@ pub(crate) fn update(
                                                 .find_object(local_id)?
                                                 .try_into_commit()
                                                 .map_err(|_| ())
-                                                .and_then(|c| c.committer().map(|a| a.time.seconds).map_err(|_| ()))
+                                                .and_then(|c| c.committer().map(|a| a.seconds()).map_err(|_| ()))
                                                 .and_then(|local_commit_time| {
                                                     remote_id
                                                         .to_owned()

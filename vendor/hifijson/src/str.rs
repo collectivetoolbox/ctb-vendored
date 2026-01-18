@@ -26,10 +26,9 @@
 //!
 //! When in doubt, go for `LexAlloc`.
 
-use crate::escape::{self, Escape};
+use crate::escape;
 use crate::{Read, Write};
-use core::fmt;
-use core::ops::Deref;
+use core::{convert::AsRef, fmt};
 
 /// Wrapper type to facilitate printing strings as JSON.
 pub struct Display<Str>(Str);
@@ -41,10 +40,10 @@ impl<Str> Display<Str> {
     }
 }
 
-impl<Str: Deref<Target = str>> fmt::Display for Display<Str> {
+impl<Str: AsRef<str>> fmt::Display for Display<Str> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         '"'.fmt(f)?;
-        for c in self.0.chars() {
+        for c in self.0.as_ref().chars() {
             match c {
                 '\\' | '"' | '\n' | '\r' | '\t' => c.escape_default().try_for_each(|c| c.fmt(f)),
                 c if (c as u32) < 20 => write!(f, "\\u{:04x}", c as u16),
@@ -118,19 +117,21 @@ impl State {
             // are we in a Unicode escape sequence (started by "\u")?
             if let Some(hex_pos) = unicode {
                 if escape::decode_hex(c).is_none() {
-                    self.error = Some(escape::Error::InvalidHex.into());
+                    self.error = Some(escape::Error::InvalidHex(c).into())
                 } else if *hex_pos < 3 {
                     *hex_pos += 1
                 } else {
-                    self.escape = None;
+                    self.escape = None
                 }
             } else {
-                // we are in a non-Unicode escape sequence,
+                // we are about to enter a new escape sequence,
                 // let us see which kind of sequence ...
-                match Escape::try_from(c) {
-                    Some(Escape::Unicode(_)) => *unicode = Some(0),
-                    Some(_) => self.escape = None,
-                    None => self.error = Some(escape::Error::UnknownKind.into()),
+                if c == b'u' {
+                    *unicode = Some(0)
+                } else if escape::Lit::try_from(c).is_some() {
+                    self.escape = None
+                } else {
+                    self.error = Some(escape::Error::InvalidKind(c).into())
                 }
             }
         } else {
@@ -187,7 +188,7 @@ pub trait LexWrite: escape::Lex + Read + Write {
         &mut self,
         mut out: T,
         on_string: impl Fn(&mut Self::Bytes, &mut T) -> Result<(), E>,
-        on_escape: impl Fn(&mut Self, Escape, &mut T) -> Result<(), E>,
+        on_escape: impl Fn(&mut Self, &mut T) -> Result<(), E>,
     ) -> Result<T, E> {
         fn string_end(c: u8) -> bool {
             matches!(c, b'\\' | b'"' | 0..=0x1F)
@@ -203,8 +204,7 @@ pub trait LexWrite: escape::Lex + Read + Write {
             _ => unreachable!(),
         }
         loop {
-            let escape = self.escape().map_err(Error::Escape)?;
-            on_escape(self, escape, &mut out)?;
+            on_escape(self, &mut out)?;
             self.write_until(&mut bytes, string_end);
             on_string(&mut bytes, &mut out)?;
             match self.take_next().ok_or(Error::Eof)? {
@@ -223,7 +223,7 @@ impl<T> LexWrite for T where T: Read + Write {}
 /// allocates when lexing from slices that contain escape sequences.
 pub trait LexAlloc: LexWrite {
     /// The type of string that we are lexing into.
-    type Str: Deref<Target = str>;
+    type Str: AsRef<str>;
 
     /// Lex a JSON string to a Rust string.
     fn str_string(&mut self) -> Result<Self::Str, Error>;
@@ -238,15 +238,17 @@ impl<'a> LexAlloc for crate::SliceLexer<'a> {
 
         let on_string = |bytes: &mut Self::Bytes, out: &mut Self::Str| {
             match core::str::from_utf8(bytes).map_err(Error::Utf8)? {
-                s if s.is_empty() => (),
+                "" => (),
                 s if out.is_empty() => *out = Cow::Borrowed(s),
                 s => out.to_mut().push_str(s),
             };
             Ok::<_, Error>(())
         };
         use crate::escape::Lex;
-        self.str_fold(Cow::Borrowed(""), on_string, |lexer, escape, out| {
-            out.to_mut().push(lexer.escape_char(escape)?);
+        self.str_fold(Cow::Borrowed(""), on_string, |lexer, out| {
+            let next = lexer.take_next().ok_or(escape::Error::Eof)?;
+            out.to_mut()
+                .push(lexer.escape(next).map_err(Error::Escape)?);
             Ok(())
         })
     }
@@ -271,8 +273,9 @@ impl<E, I: Iterator<Item = Result<u8, E>>> LexAlloc for crate::IterLexer<E, I> {
             Ok::<_, Error>(())
         };
         use crate::escape::Lex;
-        self.str_fold(Self::Str::new(), on_string, |lexer, escape, out| {
-            out.push(lexer.escape_char(escape)?);
+        self.str_fold(Self::Str::new(), on_string, |lexer, out| {
+            let next = lexer.take_next().ok_or(escape::Error::Eof)?;
+            out.push(lexer.escape(next).map_err(Error::Escape)?);
             Ok(())
         })
     }

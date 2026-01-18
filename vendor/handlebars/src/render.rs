@@ -1,4 +1,4 @@
-use std::borrow::{Borrow, Cow};
+use std::borrow::Cow;
 use std::collections::{BTreeMap, VecDeque};
 use std::fmt;
 use std::rc::Rc;
@@ -43,8 +43,11 @@ pub struct RenderContext<'reg: 'rc, 'rc> {
     modified_context: Option<Rc<Context>>,
 
     partials: BTreeMap<String, &'rc Template>,
-    partial_block_stack: VecDeque<&'rc Template>,
-    partial_block_depth: isize,
+    // when rendering partials, store rendered string into partial_block_stack
+    // for `@partial-block` referencing. If it's a `{{> partial}}`, push `None`
+    // to stack and report error when child partial try to referencing
+    // `@partial-block`.
+    partial_block_stack: VecDeque<Option<String>>,
     local_helpers: BTreeMap<String, Rc<dyn HelperDef + Send + Sync + 'rc>>,
     /// current template name
     current_template: Option<&'rc String>,
@@ -63,6 +66,10 @@ pub struct RenderContext<'reg: 'rc, 'rc> {
     // The next text that we render should indent itself.
     indent_before_write: bool,
     indent_string: Option<Cow<'rc, str>>,
+
+    // Threads the recursive_lookup state from the registry down
+    // through to the context navigation layer
+    recursive_lookup: bool,
 }
 
 impl<'reg: 'rc, 'rc> RenderContext<'reg, 'rc> {
@@ -75,7 +82,6 @@ impl<'reg: 'rc, 'rc> RenderContext<'reg, 'rc> {
         RenderContext {
             partials: BTreeMap::new(),
             partial_block_stack: VecDeque::new(),
-            partial_block_depth: 0,
             local_helpers: BTreeMap::new(),
             current_template: None,
             root_template,
@@ -87,6 +93,7 @@ impl<'reg: 'rc, 'rc> RenderContext<'reg, 'rc> {
             blocks,
             modified_context,
             dev_mode_templates: None,
+            recursive_lookup: false,
         }
     }
 
@@ -161,18 +168,14 @@ impl<'reg: 'rc, 'rc> RenderContext<'reg, 'rc> {
             Path::Local((level, name, _)) => Ok(self
                 .get_local_var(*level, name)
                 .map_or_else(|| ScopedJson::Missing, |v| ScopedJson::Derived(v.clone()))),
-            Path::Relative((segs, _)) => context.navigate(segs, &self.blocks),
+            Path::Relative((segs, _)) => {
+                context.navigate(segs, &self.blocks, self.recursive_lookup)
+            }
         }
     }
 
     /// Get registered partial in this render context
     pub fn get_partial(&self, name: &str) -> Option<&'rc Template> {
-        if name == partial::PARTIAL_BLOCK {
-            return self
-                .partial_block_stack
-                .get(self.partial_block_depth as usize)
-                .copied();
-        }
         self.partials.get(name).copied()
     }
 
@@ -181,23 +184,16 @@ impl<'reg: 'rc, 'rc> RenderContext<'reg, 'rc> {
         self.partials.insert(name, partial);
     }
 
-    pub(crate) fn push_partial_block(&mut self, partial: &'rc Template) {
-        self.partial_block_stack.push_front(partial);
+    pub(crate) fn push_partial_block(&mut self, partial_block: Option<String>) {
+        self.partial_block_stack.push_front(partial_block);
     }
 
     pub(crate) fn pop_partial_block(&mut self) {
         self.partial_block_stack.pop_front();
     }
 
-    pub(crate) fn inc_partial_block_depth(&mut self) {
-        self.partial_block_depth += 1;
-    }
-
-    pub(crate) fn dec_partial_block_depth(&mut self) {
-        let depth = &mut self.partial_block_depth;
-        if *depth > 0 {
-            *depth -= 1;
-        }
+    pub(crate) fn peek_partial_block(&self) -> Option<&Option<String>> {
+        self.partial_block_stack.front()
     }
 
     pub(crate) fn set_indent_string(&mut self, indent: Option<Cow<'rc, str>>) {
@@ -321,6 +317,10 @@ impl<'reg: 'rc, 'rc> RenderContext<'reg, 'rc> {
     pub fn get_indent_before_write(&self) -> bool {
         self.indent_before_write
     }
+
+    pub fn set_recursive_lookup(&mut self, enabled: bool) {
+        self.recursive_lookup = enabled;
+    }
 }
 
 impl fmt::Debug for RenderContext<'_, '_> {
@@ -331,7 +331,6 @@ impl fmt::Debug for RenderContext<'_, '_> {
             .field("modified_context", &self.modified_context)
             .field("partials", &self.partials)
             .field("partial_block_stack", &self.partial_block_stack)
-            .field("partial_block_depth", &self.partial_block_depth)
             .field("root_template", &self.root_template)
             .field("current_template", &self.current_template)
             .field("disable_escape", &self.disable_escape)
@@ -672,7 +671,7 @@ impl Parameter {
             }
             Parameter::Path(ref path) => {
                 if let Some(rc_context) = rc.context() {
-                    let result = rc.evaluate2(rc_context.borrow(), path)?;
+                    let result = rc.evaluate2(&rc_context, path)?;
                     Ok(PathAndJson::new(
                         Some(path.raw().to_owned()),
                         ScopedJson::Derived(result.as_json().clone()),
@@ -1299,5 +1298,24 @@ mod test {
         assert!(r.render("r4", &()).is_err());
         assert!(r.render("r5", &()).is_err());
         assert!(r.render("r6", &()).is_err());
+    }
+
+    #[test]
+    fn test_recursive_path_resolution() {
+        let mut r = Registry::new();
+        const TEMPLATE: &str = "{{#each children}}outer={{{outer}}} inner={{{inner}}}{{/each}}";
+
+        let data = json!({
+          "children": [{"inner": "inner"}],
+          "outer": "outer"
+        });
+
+        let r1 = r.render_template(TEMPLATE, &data).unwrap();
+        assert_eq!(r1, "outer= inner=inner");
+
+        r.set_recursive_lookup(true);
+
+        let r2 = r.render_template(TEMPLATE, &data).unwrap();
+        assert_eq!(r2, "outer=outer inner=inner");
     }
 }

@@ -48,11 +48,21 @@ impl crate::Repository {
         self.config.big_file_threshold()
     }
 
+    /// Create a low-level parser for ignore patterns, for instance for use in [`excludes()`](crate::Repository::excludes()).
+    ///
+    /// Depending on the configuration, precious-file parsing in `.gitignore-files` is supported.
+    /// This means that `$` prefixed files will be interpreted as precious, which is a backwards-incompatible change.
+    #[cfg(feature = "excludes")]
+    pub fn ignore_pattern_parser(&self) -> Result<gix_ignore::search::Ignore, config::boolean::Error> {
+        self.config.ignore_pattern_parser()
+    }
+
     /// Obtain options for use when connecting via `ssh`.
     #[cfg(feature = "blocking-network-client")]
     pub fn ssh_connect_options(
         &self,
-    ) -> Result<gix_protocol::transport::client::ssh::connect::Options, config::ssh_connect_options::Error> {
+    ) -> Result<gix_protocol::transport::client::blocking_io::ssh::connect::Options, config::ssh_connect_options::Error>
+    {
         use crate::config::{
             cache::util::ApplyLeniency,
             tree::{gitoxide, Core, Ssh},
@@ -68,7 +78,7 @@ impl crate::Repository {
                 config.string_filter(gitoxide::Ssh::COMMAND_WITHOUT_SHELL_FALLBACK, &mut trusted)
             })
             .map(|cmd| gix_path::from_bstr(cmd).into_owned().into());
-        let opts = gix_protocol::transport::client::ssh::connect::Options {
+        let opts = gix_protocol::transport::client::blocking_io::ssh::connect::Options {
             disallow_shell: fallback_active,
             command: ssh_command,
             kind: config

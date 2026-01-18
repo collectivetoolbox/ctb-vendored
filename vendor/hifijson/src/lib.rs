@@ -39,36 +39,13 @@
 //! you can use [`value::parse_unbounded`].
 //! The choice is yours.
 //!
-//! In summary, hifijson aims to give you the tools to interpret JSON data
+//! In summary, hifijson aims to give you the tools to interpret JSON-like data
 //! flexibly and performantly.
 //!
 //! ## Lexers
 //!
-//! A *lexer* is a program that breaks up input into small units, and
-//! a parser combines these small units to transform them into the desired shape.
-//! For example, consider the JSON input `[null, {}]`.
-//! A lexer could break these into the units `[`, `null`, `,`, `{`, `}`, and `]`.
-//!
-//! JSON parsing consists of about three mostly independent lexing tasks:
-//! strings, numbers, and everything else (in decreasing order of difficulty).
-//! The "everything else" part is what I call a [token](Token).
-//! That includes:
-//! * `[`, `]` (start and end of an array)
-//! * `{`, `}` (start and end of an object)
-//! * `,`
-//! * `:`
-//! * `null`
-//! * `true`
-//! * `false`
-//! * `"` (start of a string)
-//! * `-` and any digit from 0 to 9 (start of a number)
-//!
-//! So every token has a maximal length (namely length 5).
-//!
-//! What about strings and numbers?
-//! The token lexer is not responsible for lexing them, but it
-//! returns special tokens to indicate that it has encountered the *start* of a string or number.
-//! Once that we get such a token, we can use one of the many string/number lexers,
+//! The hardest part of lexing JSON are strings and numbers.
+//! hifijson offers many different string/number lexers,
 //! which differ most prominently in their memory allocation behaviour.
 //! For example,
 //! * [`str::Lex::str_ignore`] discards a string,
@@ -116,7 +93,7 @@
 //! // now we are going -- we try to
 //! // obtain exactly one JSON value from the lexer and
 //! // parse it to a value, allowing for arbitrarily deep (unbounded) nesting
-//! let value = lexer.exactly_one(|token, lexer| hifijson::value::parse_unbounded(token, lexer));
+//! let value = lexer.exactly_one(Lex::ws_peek, hifijson::value::parse_unbounded);
 //! let value = value.expect("parse");
 //!
 //! // yay, we got an array!
@@ -137,8 +114,8 @@
 //! /// Parse a single JSON value and print it.
 //! ///
 //! /// Note that the `LexAlloc` trait indicates that this lexer allocates memory.
-//! fn process(mut lexer: impl hifijson::LexAlloc) {
-//!     let value = lexer.exactly_one(|token, lexer| hifijson::value::parse_unbounded(token, lexer));
+//! fn process<L: hifijson::LexAlloc>(mut lexer: L) {
+//!     let value = lexer.exactly_one(L::ws_peek, hifijson::value::parse_unbounded);
 //!     let value = value.expect("parse");
 //!     println!("{}", value);
 //! }
@@ -157,59 +134,59 @@
 //!
 //! ## Operating on the lexer
 //!
-//! Often, it is better for performance to operate directly on the tokens that the lexer yields
+//! Often, it is better for performance to operate directly on the non-whitespace characters that the lexer yields
 //! rather than parsing everything into a value and then processing the value.
 //! For example, the following example counts the number of values in the input JSON.
 //! Unlike the previous examples, it requires only constant memory!
 //!
 //! ~~~
-//! use hifijson::{Token, Error};
+//! use hifijson::{Error, Expect, Lex};
 //!
-//! /// Recursively count the number of values in the value starting with `token`.
+//! /// Recursively count the number of values in the value starting with the `next` character.
 //! ///
 //! /// The `Lex` trait indicates that this lexer does *not* allocate memory.
-//! fn count(token: Token, lexer: &mut impl hifijson::Lex) -> Result<usize, Error> {
-//!     match token {
+//! fn count<L: Lex>(next: u8, lexer: &mut L) -> Result<usize, Error> {
+//!     match next {
 //!         // the JSON values "null", "true", and "false"
-//!         Token::Null | Token::True | Token::False => Ok(1),
+//!         b'a'..=b'z' => Ok(lexer.null_or_bool().map(|_| 1).ok_or(Expect::Value)?),
+//!         b'0'..=b'9' | b'-' => Ok(lexer.num_ignore().validate().map(|_| 1)?),
+//!         b'"' => Ok(lexer.discarded().str_ignore().map(|_| 1)?),
 //!
-//!         // the lexer reads only the first character of numbers and strings,
-//!         // therefore, we have to consume the rest ourselves
-//!         Token::DigitOrMinus => Ok(lexer.num_ignore().map(|_| 1)?),
-//!         Token::Quote => Ok(lexer.str_ignore().map(|_| 1)?),
-//!
-//!         // start of array ('[')
-//!         Token::LSquare => {
+//!         // start of array
+//!         b'[' => {
 //!             // an array is a value itself, so start with 1
 //!             let mut sum = 1;
 //!             // perform the following for every item of the array
-//!             lexer.seq(Token::RSquare, |token, lexer| {
-//!                 sum += count(token, lexer)?;
+//!             lexer.discarded().seq(b']', L::ws_peek, |next, lexer| {
+//!                 sum += count(next, lexer)?;
 //!                 Ok::<_, Error>(())
 //!             })?;
 //!             Ok(sum)
 //!         }
 //!
-//!         // start of object ('{')
-//!         Token::LCurly => {
+//!         // start of object
+//!         b'{' => {
 //!             let mut sum = 1;
 //!             // perform the following for every key-value pair of the object
-//!             lexer.seq(Token::RCurly, |token, lexer| {
+//!             lexer.discarded().seq(b'}', L::ws_peek, |next, lexer| {
 //!                 /// read the key, ignoring it, and then the ':' after it
-//!                 lexer.str_colon(token, |lexer| lexer.str_ignore().map_err(Error::Str))?;
-//!                 /// now read the token after ':'
-//!                 let token = lexer.ws_token().ok_or(hifijson::Expect::Value)?;
-//!                 sum += count(token, lexer)?;
+//!                 lexer.expect(|_| Some(next), b'"').ok_or(Expect::String)?;
+//!                 lexer.str_ignore().map_err(Error::Str)?;
+//!                 lexer.expect(L::ws_peek, b':').ok_or(Expect::Colon)?;
+//!
+//!                 /// peek the next non-whitespace character
+//!                 let next = lexer.ws_peek().ok_or(Expect::Value)?;
+//!                 sum += count(next, lexer)?;
 //!                 Ok::<_, Error>(())
 //!             })?;
 //!             Ok(sum)
 //!         }
-//!         _ => Err(hifijson::Expect::Value)?,
+//!         _ => Err(Expect::Value)?,
 //!     }
 //! }
 //!
-//! fn process(mut lexer: impl hifijson::Lex) -> Result<usize, hifijson::Error> {
-//!     lexer.exactly_one(|token, lexer| count(token, lexer))
+//! fn process<L: Lex>(mut lexer: L) -> Result<usize, Error> {
+//!     lexer.exactly_one(L::ws_peek, count)
 //! }
 //!
 //! let json = br#"[null, true, false, "hello", 0, 3.1415, [1, 2], {"x": 1, "y": 2}]"#;
@@ -239,23 +216,32 @@ macro_rules! impl_from {
     };
 }
 
+macro_rules! impl_error {
+    ($ty:ty) => {
+        #[cfg(feature = "std")]
+        impl std::error::Error for $ty {}
+    };
+}
+
 #[cfg(feature = "alloc")]
 extern crate alloc;
 #[cfg(feature = "std")]
 extern crate std;
 
+use core::fmt::{self, Display};
+
 mod read;
 mod write;
 
-use read::Read;
-use write::Write;
+pub use read::Read;
+pub use write::Write;
 
 pub mod escape;
 pub mod num;
 pub mod str;
 pub mod token;
 
-pub use token::{Expect, Token};
+pub use token::Expect;
 
 pub mod ignore;
 #[cfg(feature = "serde")]
@@ -292,7 +278,20 @@ impl<'a> SliceLexer<'a> {
 
     /// Return remaining input as a subslice of the original data.
     ///
-    /// This can be used to find the place where an error occurred.
+    /// This can be used to obtain the number of bytes consumed, e.g.
+    /// to find the place where an error occurred:
+    ///
+    /// ~~~
+    /// use hifijson::{token::Lex, value, Read};
+    /// let input = b"true false";
+    /// let mut lexer = hifijson::SliceLexer::new(input);
+    /// let parse = || Some(value::parse_unbounded(lexer.ws_peek()?, &mut lexer));
+    /// let mut vals = core::iter::from_fn(parse);
+    ///
+    /// assert_eq!(vals.next(), Some(Ok(value::Value::Bool(true))));
+    /// let offset = lexer.as_slice().as_ptr() as usize - input.as_ptr() as usize;
+    /// assert_eq!(offset, 4);
+    /// ~~~
     pub fn as_slice(&self) -> &'a [u8] {
         self.slice
     }
@@ -342,19 +341,19 @@ impl_from!(num::Error, Error, Error::Num);
 impl_from!(str::Error, Error, Error::Str);
 impl_from!(token::Expect, Error, Error::Token);
 
-use core::fmt::{self, Display};
+impl_error!(Error);
+impl_error!(num::Error);
+impl_error!(escape::Error);
+impl_error!(str::Error);
 
 impl Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use Error::*;
         match self {
             Depth => "maximal depth exceeded".fmt(f),
-            Num(num::Error::ExpectedDigit) => "expected digit".fmt(f),
+            Num(e) => e.fmt(f),
             Str(e) => e.fmt(f),
             Token(e) => write!(f, "{} expected", e),
         }
     }
 }
-
-#[cfg(feature = "std")]
-impl std::error::Error for Error {}

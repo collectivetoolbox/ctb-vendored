@@ -6,14 +6,14 @@
 // option. All files in the project carrying such notice may not be copied,
 // modified, or distributed except according to those terms.
 
-use anyhow::{anyhow, Error, Result};
+use anyhow::{Error, Result, anyhow};
 use derive_builder::Builder as DeriveBuilder;
 use gix::{
+    Commit, Head, Id, Repository,
     commit::describe::SelectRef,
     dir::{entry::Status, walk::EmissionMode},
     discover,
     head::Kind,
-    Commit, Head, Id, Repository,
 };
 use std::{
     env::{self, VarError},
@@ -21,17 +21,17 @@ use std::{
     str::FromStr,
 };
 use time::{
-    format_description::{self, well_known::Iso8601},
     OffsetDateTime, UtcOffset,
+    format_description::{self, well_known::Iso8601},
 };
 use vergen_lib::{
+    AddEntries, CargoRerunIfChanged, CargoRustcEnvMap, CargoWarning, DefaultConfig, VergenKey,
     add_default_map_entry, add_map_entry,
     constants::{
         GIT_BRANCH_NAME, GIT_COMMIT_AUTHOR_EMAIL, GIT_COMMIT_AUTHOR_NAME, GIT_COMMIT_COUNT,
         GIT_COMMIT_DATE_NAME, GIT_COMMIT_MESSAGE, GIT_COMMIT_TIMESTAMP_NAME, GIT_DESCRIBE_NAME,
         GIT_DIRTY_NAME, GIT_SHA_NAME,
     },
-    AddEntries, CargoRerunIfChanged, CargoRustcEnvMap, CargoWarning, DefaultConfig, VergenKey,
 };
 
 /// The `VERGEN_GIT_*` configuration features
@@ -426,17 +426,17 @@ impl Gix {
                     SelectRef::AnnotatedTags
                 };
 
-                let describe =
-                    if let Some(res) = commit.describe().names(describe_refs).try_resolve()? {
+                let describe = match commit.describe().names(describe_refs).try_resolve()? {
+                    Some(res) => {
                         if self.describe_dirty {
                             let fmt = res.format_with_dirty_suffix(Some("dirty".to_string()))?;
                             fmt.to_string()
                         } else {
                             res.format()?.to_string()
                         }
-                    } else {
-                        String::new()
-                    };
+                    }
+                    _ => String::new(),
+                };
                 add_map_entry(VergenKey::GitDescribe, describe, cargo_rustc_env);
             }
         }
@@ -486,12 +486,12 @@ impl Gix {
             let object = id.try_object()?.ok_or_else(|| anyhow!("Not an Object"))?;
             object.try_into_commit()?
         } else {
-            head.peel_to_commit_in_place()?
+            head.peel_to_commit()?
         })
     }
 
     fn get_id<'a>(head: &mut Head<'a>) -> Result<Option<Id<'a>>> {
-        head.try_peel_to_id_in_place().map_err(Into::into)
+        head.try_peel_to_id().map_err(Into::into)
     }
 
     fn add_rerun_if_changed(
@@ -710,9 +710,9 @@ mod test {
     #[cfg(unix)]
     use std::io::stdout;
     use std::{env::temp_dir, io::Write};
-    use test_util::TestRepos;
     #[cfg(unix)]
     use test_util::TEST_MTIME;
+    use test_util::TestRepos;
     use vergen::Emitter;
     use vergen_lib::count_idempotent;
 
@@ -935,10 +935,12 @@ mod test {
     fn git_error_fails() -> Result<()> {
         let mut gix = GixBuilder::all_git()?;
         let _ = gix.at_path(temp_dir());
-        assert!(Emitter::default()
-            .fail_on_error()
-            .add_instructions(&gix)
-            .is_err());
+        assert!(
+            Emitter::default()
+                .fail_on_error()
+                .add_instructions(&gix)
+                .is_err()
+        );
         Ok(())
     }
 

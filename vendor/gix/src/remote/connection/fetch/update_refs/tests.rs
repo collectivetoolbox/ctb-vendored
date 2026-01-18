@@ -56,9 +56,7 @@ mod update {
         remote::{
             fetch,
             fetch::{
-                refmap::Mapping,
-                refmap::Source,
-                refmap::SpecIndex,
+                refmap::{Mapping, Source, SpecIndex},
                 refs::{tests::restricted, update::TypeChange},
                 RefLogMessage,
             },
@@ -947,7 +945,7 @@ mod update {
             },
             TargetRef::Symbolic(name) => {
                 let target = name.as_bstr().into();
-                match r.peel_to_id_in_place() {
+                match r.peel_to_id() {
                     Ok(id) => gix_protocol::handshake::Ref::Symbolic {
                         full_ref_name,
                         target,
