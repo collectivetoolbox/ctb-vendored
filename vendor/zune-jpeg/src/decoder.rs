@@ -13,7 +13,7 @@ use alloc::string::ToString;
 use alloc::vec::Vec;
 use alloc::{format, vec};
 
-use zune_core::bytestream::{ZByteReader, ZReaderTrait};
+use zune_core::bytestream::{ZByteReaderTrait, ZReader};
 use zune_core::colorspace::ColorSpace;
 use zune_core::log::{error, trace, warn};
 use zune_core::options::DecoderOptions;
@@ -26,7 +26,7 @@ use crate::headers::{
     parse_start_of_frame
 };
 use crate::huffman::HuffmanTable;
-use crate::idct::choose_idct_func;
+use crate::idct::{choose_idct_func, choose_idct_1x1_func, choose_idct_4x4_func};
 use crate::marker::Marker;
 use crate::misc::SOFMarkers;
 use crate::upsampler::{
@@ -79,7 +79,7 @@ pub(crate) struct ICCChunk {
 
 /// A JPEG Decoder Instance.
 #[allow(clippy::upper_case_acronyms, clippy::struct_excessive_bools)]
-pub struct JpegDecoder<T: ZReaderTrait> {
+pub struct JpegDecoder<T> {
     /// Struct to hold image information from SOI
     pub(crate) info:              ImageInfo,
     ///  Quantization tables, will be set to none and the tables will
@@ -124,6 +124,8 @@ pub struct JpegDecoder<T: ZReaderTrait> {
     pub(crate) succ_low:         u8,
     /// Number of components.
     pub(crate) num_scans:        u8,
+    /// For a scan, check if any component has vertical/horizontal sampling.
+    pub(crate) scan_subsampled:  bool,
     // Function pointers, for pointy stuff.
     /// Dequantize and idct function
     // This is determined at runtime which function to run, statically it's
@@ -131,6 +133,11 @@ pub struct JpegDecoder<T: ZReaderTrait> {
     // of this struct, we check if we can switch to a faster one which
     // depend on certain CPU extensions.
     pub(crate) idct_func: IDCTPtr,
+    /// Specialized IDCT when we can guarantee only few coefficients are non-zero.
+    ///
+    /// **The callee must uphold a contract**. See [`choose_idct_4x4_func`].
+    pub(crate) idct_4x4_func: IDCTPtr,
+    pub(crate) idct_1x1_func: IDCTPtr,
     // Color convert function which acts on 16 YCbCr values
     pub(crate) color_convert_16: ColorConvert16Ptr,
     pub(crate) z_order:          [usize; MAX_COMPONENTS],
@@ -140,13 +147,12 @@ pub struct JpegDecoder<T: ZReaderTrait> {
     // decoder options
     pub(crate) options:          DecoderOptions,
     // byte-stream
-    pub(crate) stream:           ZByteReader<T>,
+    pub(crate) stream:           ZReader<T>,
     // Indicate whether headers have been decoded
     pub(crate) headers_decoded:  bool,
     pub(crate) seen_sof:         bool,
-    // exif data, lifted from app2
-    pub(crate) exif_data:        Option<Vec<u8>>,
 
+    // exif data, lifted from app2
     pub(crate) icc_data: Vec<ICCChunk>,
     pub(crate) is_mjpeg: bool,
     pub(crate) coeff:    usize // Solves some weird bug :)
@@ -154,7 +160,7 @@ pub struct JpegDecoder<T: ZReaderTrait> {
 
 impl<T> JpegDecoder<T>
 where
-    T: ZReaderTrait
+    T: ZByteReaderTrait
 {
     #[allow(clippy::redundant_field_names)]
     fn default(options: DecoderOptions, buffer: T) -> Self {
@@ -180,17 +186,19 @@ where
             succ_high:         0,
             succ_low:          0,
             num_scans:         0,
+            scan_subsampled:   false, 
             idct_func:         choose_idct_func(&options),
+            idct_4x4_func:     choose_idct_4x4_func(&options),
+            idct_1x1_func:     choose_idct_1x1_func(&options),
             color_convert_16:  color_convert,
             input_colorspace:  ColorSpace::YCbCr,
             z_order:           [0; MAX_COMPONENTS],
             restart_interval:  0,
             todo:              0x7fff_ffff,
             options:           options,
-            stream:            ZByteReader::new(buffer),
+            stream:            ZReader::new(buffer),
             headers_decoded:   false,
             seen_sof:          false,
-            exif_data:         None,
             icc_data:          vec![],
             is_mjpeg:          false,
             coeff:             1
@@ -265,7 +273,7 @@ where
         };
     }
 
-    /// Get a mutable reference to the decoder options
+    /// Get an immutable reference to the decoder options
     /// for the decoder instance
     ///
     /// This can be used to modify options before actual decoding
@@ -273,11 +281,12 @@ where
     ///
     /// # Example
     /// ```no_run
+    /// use zune_core::bytestream::ZCursor;
     /// use zune_jpeg::JpegDecoder;
     ///
-    /// let mut decoder = JpegDecoder::new(&[]);
+    /// let mut decoder = JpegDecoder::new(ZCursor::new(&[]));
     /// // get current options
-    /// let mut options = decoder.get_options();
+    /// let mut options = decoder.options();
     /// // modify it
     ///  let new_options = options.set_max_width(10);
     /// // set it back
@@ -285,7 +294,7 @@ where
     ///
     /// ```
     #[must_use]
-    pub const fn get_options(&self) -> &DecoderOptions {
+    pub const fn options(&self) -> &DecoderOptions {
         &self.options
     }
     /// Return the input colorspace of the image
@@ -298,7 +307,7 @@ where
     /// -`Some(Colorspace)`: Input colorspace
     /// - None : Indicates the headers weren't decoded
     #[must_use]
-    pub fn get_input_colorspace(&self) -> Option<ColorSpace> {
+    pub fn input_colorspace(&self) -> Option<ColorSpace> {
         return if self.headers_decoded { Some(self.input_colorspace) } else { None };
     }
     /// Set decoder options
@@ -315,10 +324,11 @@ where
     /// Set maximum jpeg progressive passes to be 4
     ///
     /// ```no_run
+    /// use zune_core::bytestream::ZCursor;
     /// use zune_jpeg::JpegDecoder;
-    /// let mut decoder =JpegDecoder::new(&[]);
+    /// let mut decoder =JpegDecoder::new(ZCursor::new(&[]));
     /// // this works also because DecoderOptions implements `Copy`
-    /// let options = decoder.get_options().jpeg_set_max_scans(4);
+    /// let options = decoder.options().jpeg_set_max_scans(4);
     /// // set the new options
     /// decoder.set_options(options);
     /// // now decode
@@ -347,6 +357,7 @@ where
             trace!("Headers decoded!");
             return Ok(());
         }
+
         // match output colorspace here
         // we know this will only be called once per image
         // so makes sense
@@ -377,7 +388,7 @@ where
 
         loop {
             // read a byte
-            let mut m = self.stream.get_u8_err()?;
+            let mut m = self.stream.read_u8_err()?;
 
             // AND OF COURSE some images will have fill bytes in their marker
             // bitstreams because why not.
@@ -396,7 +407,7 @@ where
                 // so this is for you (with love)
                 while m == 0xFF || m == 0x0 {
                     last_byte = m;
-                    m = self.stream.get_u8_err()?;
+                    m = self.stream.read_u8_err()?;
                 }
             }
             // Last byte should be 0xFF to confirm existence of a marker since markers look
@@ -405,7 +416,7 @@ where
                 let marker = Marker::from_u8(m);
                 if let Some(n) = marker {
                     if bytes_before_marker > 3 {
-                        if self.options.get_strict_mode()
+                        if self.options.strict_mode()
                         /*No reason to use this*/
                         {
                             return Err(DecodeErrors::FormatStatic(
@@ -424,9 +435,35 @@ where
 
                     self.parse_marker_inner(n)?;
 
+                    // break after reading the start of scan.
+                    // what follows is the image data
                     if n == Marker::SOS {
                         self.headers_decoded = true;
                         trace!("Input colorspace {:?}", self.input_colorspace);
+
+                        // Check if image is RGB
+                        // The check is weird, we need to check if ID
+                        // represents R, G and B in ascii,
+                        //
+                        // I am not sure if this is even specified in any standard,
+                        // but jpegli https://github.com/google/jpegli does encode
+                        // its images that way, so this will check for that. and handle it appropriately
+                        // It is spefified here so that on a successful header decode,we can at least
+                        // try to attribute image colorspace  correctly.
+                        //
+                        // It was first the issue in https://github.com/etemesi254/zune-image/issues/291
+                        // that brought it to light
+                        //
+                        let mut is_rgb = self.components.len() == 3;
+                        let chars = ['R', 'G', 'B'];
+                        for (comp, single_char) in self.components.iter().zip(chars.iter()) {
+                            is_rgb &= comp.id == (*single_char) as u8
+                        }
+                        // Image is RGB, change colorspace
+                        if is_rgb {
+                            self.input_colorspace = ColorSpace::RGB;
+                        }
+
                         return Ok(());
                     }
                 } else {
@@ -443,12 +480,13 @@ where
                     }
 
                     warn!("Skipping {} bytes", length - 2);
-                    self.stream.skip((length - 2) as usize);
+                    self.stream.skip((length - 2) as usize)?;
                 }
             }
             last_byte = m;
             bytes_before_marker += 1;
         }
+        // Check if image is RGB
     }
     #[allow(clippy::too_many_lines)]
     pub(crate) fn parse_marker_inner(&mut self, m: Marker) -> Result<(), DecodeErrors> {
@@ -488,15 +526,16 @@ where
                     )));
                 }
                 // skip for now
-                if length > 5 && self.stream.has(5) {
+                if length > 5 {
                     let mut buffer = [0u8; 5];
-                    self.stream.read_exact(&mut buffer).unwrap();
+                    self.stream.read_exact_bytes(&mut buffer)?;
                     if &buffer == b"AVI1\0" {
                         self.is_mjpeg = true;
                     }
                     length -= 5;
                 }
-                self.stream.skip(length.saturating_sub(2) as usize);
+
+                self.stream.skip(length.saturating_sub(2) as usize)?;
 
                 //parse_app(buf, m, &mut self.info)?;
             }
@@ -518,10 +557,6 @@ where
             // Start of Scan Data
             Marker::SOS => {
                 parse_sos(self)?;
-
-                // break after reading the start of scan.
-                // what follows is the image data
-                return Ok(());
             }
             Marker::EOI => return Err(DecodeErrors::FormatStatic("Premature End of image")),
 
@@ -532,8 +567,6 @@ where
                 )));
             }
             Marker::DRI => {
-                trace!("DRI marker present");
-
                 if self.stream.get_u16_be_err()? != 4 {
                     return Err(DecodeErrors::Format(
                         "Bad DRI length, Corrupt JPEG".to_string()
@@ -541,13 +574,15 @@ where
                 }
 
                 self.restart_interval = usize::from(self.stream.get_u16_be_err()?);
+                trace!("DRI marker present ({})", self.restart_interval);
+
                 self.todo = self.restart_interval;
-            }
-            Marker::APP(13) => {
-                parse_app13(self)?;
             }
             Marker::APP(14) => {
                 parse_app14(self)?;
+            }
+            Marker::APP(13) => {
+                parse_app13(self)?;
             }
             _ => {
                 warn!(
@@ -563,7 +598,7 @@ where
                     )));
                 }
                 warn!("Skipping {} bytes", length - 2);
-                self.stream.skip((length - 2) as usize);
+                self.stream.skip((length - 2) as usize)?;
             }
         }
         Ok(())
@@ -637,7 +672,52 @@ where
     ///    2. The image headers haven't been decoded
     #[must_use]
     pub fn exif(&self) -> Option<&Vec<u8>> {
-        return self.exif_data.as_ref();
+        return self.info.exif_data.as_ref();
+    }
+    /// Return the XMP data for the file
+    ///
+    /// This returns raw XMP data starting at the XML header
+    /// One needs an XML/XMP decoder to extract valuable metadata
+    ///
+    ///
+    /// # Returns
+    ///  - `Some(data)`: Raw xmp data
+    ///  - `None`: May indicate the following
+    ///     1. The image does not have xmp data
+    ///     2. The image headers have not been decoded
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use zune_core::bytestream::ZCursor;
+    /// use zune_jpeg::JpegDecoder;
+    /// let mut decoder = JpegDecoder::new(ZCursor::new(&[]));
+    /// // decode headers to extract xmp metadata if present
+    /// decoder.decode_headers().unwrap();
+    /// if let Some(data) = decoder.xmp(){
+    ///     let stringified = String::from_utf8_lossy(data);
+    ///     println!("XMP")
+    /// } else{
+    ///     println!("No XMP Found")
+    /// }
+    ///
+    /// ```
+    pub fn xmp(&self) -> Option<&Vec<u8>> {
+        return self.info.xmp_data.as_ref();
+    }
+    /// Return the IPTC data for the file
+    ///
+    /// This returns the raw IPTC data.
+    ///
+    /// # Returns
+    /// -`Some(data)`: The raw IPTC data, if present in the image
+    /// - None: May indicate the following
+    ///
+    ///    1. The image doesn't have IPTC data
+    ///    2. The image headers haven't been decoded
+    #[must_use]
+    pub fn iptc(&self) -> Option<&Vec<u8>> {
+        return self.info.iptc_data.as_ref();
     }
     /// Get the output colorspace the image pixels will be decoded into
     ///
@@ -660,7 +740,7 @@ where
     ///output array will be in
     ///- `None
     #[must_use]
-    pub fn get_output_colorspace(&self) -> Option<ColorSpace> {
+    pub fn output_colorspace(&self) -> Option<ColorSpace> {
         return if self.headers_decoded {
             Some(self.options.jpeg_get_out_colorspace())
         } else {
@@ -680,8 +760,9 @@ where
     /// - Read  headers and then alloc a buffer big enough to hold the image
     ///
     /// ```no_run
+    /// use zune_core::bytestream::ZCursor;
     /// use zune_jpeg::JpegDecoder;
-    /// let mut decoder = JpegDecoder::new(&[]);
+    /// let mut decoder = JpegDecoder::new(ZCursor::new(&[]));
     /// // before we get output, we must decode the headers to get width
     /// // height, and input colorspace
     /// decoder.decode_headers().unwrap();
@@ -720,10 +801,11 @@ where
     ///
     /// # Examples
     /// ```no_run
+    /// use zune_core::bytestream::ZCursor;
     /// use zune_jpeg::{JpegDecoder};
     ///
     /// let img_data = std::fs::read("a_valid.jpeg").unwrap();
-    /// let mut decoder = JpegDecoder::new(&img_data);
+    /// let mut decoder = JpegDecoder::new(ZCursor::new(&img_data));
     /// decoder.decode_headers().unwrap();
     ///
     /// println!("Total decoder dimensions are : {:?} pixels",decoder.dimensions());
@@ -774,7 +856,7 @@ where
             }
         }
 
-        for comp in self.components.iter_mut() {
+        for comp in &mut self.components {
             let hs = self.h_max / comp.horizontal_sample;
             let vs = self.v_max / comp.vertical_sample;
 
@@ -785,15 +867,15 @@ where
                 }
                 (2, 1) => {
                     comp.sample_ratio = SampleRatios::H;
-                    choose_horizontal_samp_function(self.options.get_use_unsafe())
+                    choose_horizontal_samp_function(&self.options)
                 }
                 (1, 2) => {
                     comp.sample_ratio = SampleRatios::V;
-                    choose_v_samp_function(self.options.get_use_unsafe())
+                    choose_v_samp_function(&self.options)
                 }
                 (2, 2) => {
                     comp.sample_ratio = SampleRatios::HV;
-                    choose_hv_samp_function(self.options.get_use_unsafe())
+                    choose_hv_samp_function(&self.options)
                 }
                 (hs, vs) => {
                     comp.sample_ratio = SampleRatios::Generic(hs, vs);
@@ -838,25 +920,40 @@ where
     }
 }
 
+#[derive(Default, Clone, Eq, PartialEq, Debug)]
+pub struct GainMapInfo {
+    pub data: Vec<u8>
+}
 /// A struct representing Image Information
 #[derive(Default, Clone, Eq, PartialEq)]
 #[allow(clippy::module_name_repetitions)]
 pub struct ImageInfo {
     /// Width of the image
-    pub width:         u16,
+    pub width: u16,
     /// Height of image
-    pub height:        u16,
+    pub height: u16,
     /// PixelDensity
     pub pixel_density: u8,
     /// Start of frame markers
-    pub sof:           SOFMarkers,
+    pub sof: SOFMarkers,
     /// Horizontal sample
-    pub x_density:     u16,
+    pub x_density: u16,
     /// Vertical sample
-    pub y_density:     u16,
+    pub y_density: u16,
     /// Number of components
-    pub components:    u8,
-    pub iptc_data:     Option<Vec<u8>>
+    pub components: u8,
+    /// Gain Map information, useful for
+    /// UHDR images
+    pub gain_map_info: Vec<GainMapInfo>,
+    /// Multi picture information, useful for
+    /// UHDR images
+    pub multi_picture_information: Option<Vec<u8>>,
+    /// Exif Data
+    pub exif_data: Option<Vec<u8>>,
+    /// XMP Data
+    pub xmp_data: Option<Vec<u8>>,
+    /// IPTC Data
+    pub iptc_data: Option<Vec<u8>>
 }
 
 impl ImageInfo {

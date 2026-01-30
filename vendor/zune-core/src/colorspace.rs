@@ -43,7 +43,18 @@ pub enum ColorSpace {
     ///
     /// Conversion from RGB to HSV and back matches that of Python [colorsys](https://docs.python.org/3/library/colorsys.html) module
     /// Color type is expected to be in floating point
-    HSV
+    HSV,
+    /// Multiple arbitrary image channels.
+    ///
+    /// This introduces **limited** support for multi-band/multichannel images
+    /// that can have n channels.
+    ///
+    /// The library contains optimized and well-supported routines for up to 4 image channels as is
+    /// more common out there, but some pipelines may require multi-band image support.
+    ///
+    /// For operations, multi-band images are assumed to be n-channel images with no alpha
+    /// to allow for generic processing, without necessarily caring for the underlying interpretation
+    MultiBand(core::num::NonZeroU32)
 }
 
 impl ColorSpace {
@@ -56,7 +67,8 @@ impl ColorSpace {
             Self::RGBA | Self::YCCK | Self::CMYK | Self::BGRA | Self::ARGB => 4,
             Self::Luma => 1,
             Self::LumaA => 2,
-            Self::Unknown => 0
+            Self::Unknown => 0,
+            Self::MultiBand(n) => n.get() as usize
         }
     }
 
@@ -91,6 +103,8 @@ impl ColorSpace {
 
 /// Encapsulates all colorspaces supported by
 /// the library
+///
+/// This explicitly leaves out multi-band images
 pub static ALL_COLORSPACES: [ColorSpace; 12] = [
     ColorSpace::RGB,
     ColorSpace::RGBA,
@@ -113,14 +127,61 @@ pub static ALL_COLORSPACES: [ColorSpace; 12] = [
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ColorCharacteristics {
-    /// Normal default gamma setting
-    /// The float contains gamma present
-    ///
-    /// The default gamma value is 2.2 but for
-    /// decoders that allow specifying gamma values,e.g PNG,
-    /// the gamma value becomes the specified value by the decoder
+    /// sRGB Transfer function
     sRGB,
-    /// Linear transfer characteristics
-    /// The image is in linear colorspace
+    /// Rec.709 Transfer function
+    Rec709,
+    /// Pure gamma 2.2 Transfer function, ITU-R 470M
+    Gamma2p2,
+    /// Pure gamma 2.8 Transfer function, ITU-R 470BG
+    Gamma2p8,
+    /// Smpte 428 Transfer function
+    Smpte428,
+    /// Log100 Transfer function
+    Log100,
+    /// Log100Sqrt10 Transfer function
+    Log100Sqrt10,
+    /// Bt1361 Transfer function
+    Bt1361,
+    /// Smpte 240 Transfer function
+    Smpte240,
+    /// IEC 61966 Transfer function
+    Iec61966,
+    /// Linear transfer function
     Linear
+}
+/// Represents a single channel color primary.
+///
+/// This can be viewed as a 3D coordinate of the color primary
+/// for a given colorspace
+#[derive(Default, Debug, Copy, Clone)]
+pub struct SingleColorPrimary {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64
+}
+/// A collection of red,green and blue color primaries placed
+/// in one struct for easy manipulation
+#[derive(Default, Debug, Copy, Clone)]
+pub struct ColorPrimaries {
+    /// Red color primaries
+    pub red:   SingleColorPrimary,
+    /// Green color primaries
+    pub green: SingleColorPrimary,
+    /// Blue color primaries
+    pub blue:  SingleColorPrimary
+}
+
+/// Rendering intents indicate what one may want to do with colors outside of it's gamut
+///
+///
+/// Further reading
+///  - [IBM Rendering Intent](https://www.ibm.com/docs/en/i/7.5?topic=management-rendering-intents)
+///  - [ColorGate Blog](https://blog.colorgate.com/en/rendering-intent-explained)   
+#[derive(Eq, PartialEq, Clone, Copy, Debug)]
+pub enum RenderingIntent {
+    AbsoluteColorimetric,
+    Saturation,
+    RelativeColorimetric,
+    Perceptual
 }

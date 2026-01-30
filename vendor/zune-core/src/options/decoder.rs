@@ -12,26 +12,11 @@
 use crate::bit_depth::ByteEndian;
 use crate::colorspace::ColorSpace;
 
-fn decoder_strict_mode() -> DecoderFlags {
-    DecoderFlags {
-        inflate_confirm_adler:        true,
-        png_confirm_crc:              true,
-        jpg_error_on_non_conformance: true,
-
-        zune_use_unsafe:           true,
-        zune_use_neon:             true,
-        zune_use_avx:              true,
-        zune_use_avx2:             true,
-        zune_use_sse2:             true,
-        zune_use_sse3:             true,
-        zune_use_sse41:            true,
-        png_add_alpha_channel:     false,
-        png_strip_16_bit_to_8_bit: false,
-        png_decode_animated:       true,
-        jxl_decode_animated:       true
-    }
+/// A decoder that can handle errors
+fn decoder_error_tolerance_mode() -> DecoderFlags {
+    // similar to fast options currently, so no need to write a new one
+    fast_options()
 }
-
 /// Fast decoder options
 ///
 /// Enables all intrinsics + unsafe routines
@@ -213,26 +198,26 @@ impl DecoderOptions {
 impl DecoderOptions {
     /// Get maximum width configured for which the decoder
     /// should not try to decode images greater than this width
-    pub const fn get_max_width(&self) -> usize {
+    pub const fn max_width(&self) -> usize {
         self.max_width
     }
 
     /// Get maximum height configured for which the decoder should
     /// not try to decode images greater than this height
-    pub const fn get_max_height(&self) -> usize {
+    pub const fn max_height(&self) -> usize {
         self.max_height
     }
 
     /// Return true whether the decoder should be in strict mode
     /// And reject most errors
-    pub fn get_strict_mode(&self) -> bool {
+    pub fn strict_mode(&self) -> bool {
         self.flags.jpg_error_on_non_conformance
             | self.flags.png_confirm_crc
             | self.flags.inflate_confirm_adler
     }
     /// Return true if the decoder should use unsafe
     /// routines where possible
-    pub const fn get_use_unsafe(&self) -> bool {
+    pub const fn use_unsafe(&self) -> bool {
         self.flags.zune_use_unsafe
     }
 
@@ -324,7 +309,7 @@ impl DecoderOptions {
 
     /// Get the byte endian for which samples that span more than one byte will
     /// be treated
-    pub const fn get_byte_endian(&self) -> ByteEndian {
+    pub const fn byte_endian(&self) -> ByteEndian {
         self.endianness
     }
 }
@@ -643,6 +628,30 @@ impl DecoderOptions {
     }
 }
 impl Default for DecoderOptions {
+    /// Create a default and sane option for decoders
+    ///
+    /// The following are the defaults
+    ///
+    /// - All decoders
+    ///     - max_width: 16536
+    ///     - max_height: 16535
+    ///     - use_unsafe: Use unsafe intrinsics where possible.
+    ///
+    /// - JPEG
+    ///     - max_scans: 100 (progressive images only, artificial cap to prevent a specific DOS)
+    ///     - error_on_non_conformance: False (slightly corrupt images will be allowed)
+    /// - DEFLATE
+    ///     - deflate_limit: 1GB (will not continue decoding deflate archives larger than this)
+    /// - PNG
+    ///   - endianness: Default endianess is Big Endian when decoding 16 bit images to be viewed as 8 byte images
+    ///   - confirm_crc: False (CRC will not be confirmed to be safe)
+    ///   - strip_16_bit_to_8: False, 16 bit images are handled as 16 bit images
+    ///   - add alpha: False, alpha channel is not added where it isn't present
+    ///   - decode_animated: True: All frames in an animated image are decoded
+    ///
+    ///  - JXL
+    ///    - decode_animated: True: All frames in an animated image are decoded
+    ///
     fn default() -> Self {
         Self {
             out_colorspace: ColorSpace::RGB,
@@ -650,7 +659,7 @@ impl Default for DecoderOptions {
             max_height:     1 << 14,
             max_scans:      100,
             deflate_limit:  1 << 30,
-            flags:          decoder_strict_mode(),
+            flags:          decoder_error_tolerance_mode(),
             endianness:     ByteEndian::BE
         }
     }

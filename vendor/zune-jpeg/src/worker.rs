@@ -8,6 +8,7 @@
 
 use alloc::format;
 use core::convert::TryInto;
+use core::cmp::min;
 
 use zune_core::colorspace::ColorSpace;
 
@@ -31,10 +32,7 @@ pub(crate) fn color_convert(
     unprocessed: &[&[i16]; MAX_COMPONENTS], color_convert_16: ColorConvert16Ptr,
     input_colorspace: ColorSpace, output_colorspace: ColorSpace, output: &mut [u8], width: usize,
     padded_width: usize
-) -> Result<(), DecodeErrors> // so many parameters..
-{
-    // maximum sampling factors are in Y-channel, no need to pass them.
-
+) -> Result<(), DecodeErrors> {
     if input_colorspace.num_components() == 3 && input_colorspace == output_colorspace {
         // sort things like RGB to RGB conversion
         copy_removing_padding(unprocessed, width, padded_width, output);
@@ -89,6 +87,40 @@ pub(crate) fn color_convert(
         (ColorSpace::CMYK, ColorSpace::RGBA) => {
             color_convert_cymk_to_rgb::<4>(unprocessed, width, padded_width, output);
         }
+        (ColorSpace::MultiBand(n), _) => {
+            if n.get() != 2 {
+                return Err(DecodeErrors::Format(format!(
+                    "Unknown multiband sample ({n}), please share sample"
+                )));
+            }
+            copy_removing_padding_generic(
+                unprocessed,
+                width,
+                padded_width,
+                output,
+                n.get() as usize
+            );
+        }
+        (ColorSpace::Luma, ColorSpace::RGB) => {
+            // duplicate the luma channel  three times to form RGB
+            // Note, this may assume the direct conversion
+            // from luma to RGB is by duplicating
+            //
+            // There may be a bit more complex ways
+            // of doing it but won't get onto it
+            convert_luma_to_rgb(unprocessed, width, padded_width, output)
+        }
+        (ColorSpace::Luma, ColorSpace::RGBA) => {
+            // duplicate the luma channel  three times to form RGB
+            // add 255 as alpha
+            // Note, this may assume the direct conversion
+            // from luma to RGB is by duplicating
+            //
+            // There may be a bit more complex ways
+            // of doing it but won't get onto it
+            convert_luma_to_rgba(unprocessed, width, padded_width, output)
+        }
+
         // For the other components we do nothing(currently)
         _ => {
             let msg = format!(
@@ -100,6 +132,35 @@ pub(crate) fn color_convert(
     Ok(())
 }
 
+fn convert_luma_to_rgb(
+    mcu_block: &[&[i16]; MAX_COMPONENTS], width: usize, padded_width: usize, output: &mut [u8]
+) {
+    for (pix_w, y_w) in output
+        .chunks_exact_mut(width * 3)
+        .zip(mcu_block[0].chunks_exact(padded_width))
+    {
+        for (pix, c) in pix_w.chunks_exact_mut(3).zip(y_w) {
+            pix[0] = *c as u8;
+            pix[1] = *c as u8;
+            pix[2] = *c as u8;
+        }
+    }
+}
+fn convert_luma_to_rgba(
+    mcu_block: &[&[i16]; MAX_COMPONENTS], width: usize, padded_width: usize, output: &mut [u8]
+) {
+    for (pix_w, y_w) in output
+        .chunks_exact_mut(width * 4)
+        .zip(mcu_block[0].chunks_exact(padded_width))
+    {
+        for (pix, c) in pix_w.chunks_exact_mut(4).zip(y_w) {
+            pix[0] = *c as u8;
+            pix[1] = *c as u8;
+            pix[2] = *c as u8;
+            pix[3] = 255;
+        }
+    }
+}
 /// Copy a block to output removing padding bytes from input
 /// if necessary
 #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
@@ -119,6 +180,7 @@ fn copy_removing_padding(
         }
     }
 }
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn copy_removing_padding_4x(
     mcu_block: &[&[i16]; MAX_COMPONENTS], width: usize, padded_width: usize, output: &mut [u8]
 ) {
@@ -141,6 +203,28 @@ fn copy_removing_padding_4x(
             pix[2] = *m as u8;
             pix[3] = *k as u8;
         }
+    }
+}
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn copy_removing_padding_generic(
+    mcu_block: &[&[i16]; MAX_COMPONENTS], width: usize, padded_width: usize, output: &mut [u8],
+    channels: usize
+) {
+    match channels {
+        // just do 2 for now
+        2 => {
+            for ((pix_w, y_w), k_w) in output
+                .chunks_exact_mut(width * channels)
+                .zip(mcu_block[0].chunks_exact(padded_width))
+                .zip(mcu_block[1].chunks_exact(padded_width))
+            {
+                for ((pix, c), k) in pix_w.chunks_exact_mut(2).zip(y_w).zip(k_w) {
+                    pix[0] = *c as u8;
+                    pix[1] = *k as u8;
+                }
+            }
+        }
+        _ => unreachable!()
     }
 }
 /// Convert YCCK image to rgb
@@ -230,9 +314,12 @@ fn color_convert_ycbcr(
             let mut cb_out = [0; 16];
             let mut cr_out = [0; 16];
             // copy those small widths to that buffer
-            y_out[0..y_width.len()].copy_from_slice(y_width);
-            cb_out[0..cb_width.len()].copy_from_slice(cb_width);
-            cr_out[0..cr_width.len()].copy_from_slice(cr_width);
+            // Use a min with 16 to prevent some panics, see https://github.com/etemesi254/zune-image/issues/331
+            y_out[0..min(y_width.len(), 16)].copy_from_slice(&y_width[0..min(y_width.len(), 16)]);
+            cb_out[0..min(cb_width.len(), 16)]
+                .copy_from_slice(&cb_width[0..min(cb_width.len(), 16)]);
+            cr_out[0..min(cr_width.len(), 16)]
+                .copy_from_slice(&cr_width[0..min(cr_width.len(), 16)]);
             // we handle widths less than 16 a bit differently, allocating a temporary
             // buffer and writing to that and then flushing to the out buffer
             // because of the optimizations applied below,
@@ -288,7 +375,7 @@ fn color_convert_ycbcr(
 pub(crate) fn upsample(
     component: &mut Components, mcu_height: usize, i: usize, upsampler_scratch_space: &mut [i16],
     has_vertical_sample: bool
-) {
+) -> Result<(), DecodeErrors> {
     match component.sample_ratio {
         SampleRatios::V | SampleRatios::HV => {
             /*
@@ -344,6 +431,13 @@ pub(crate) fn upsample(
 
             let stride = component.width_stride * component.vertical_sample;
             let stop_offset = component.raw_coeff.len() / component.width_stride;
+
+            if component.raw_coeff.len() != stop_offset * stride {
+                // slice would panic below
+                return Err(DecodeErrors::FormatStatic(
+                    "Invalid component dimensions, would panic"
+                ));
+            }
             for (pos, curr_row) in component
                 .raw_coeff
                 .chunks_exact(component.width_stride)
@@ -409,7 +503,12 @@ pub(crate) fn upsample(
             }
         }
         SampleRatios::H => {
-            assert_eq!(component.raw_coeff.len() * 2, component.upsample_dest.len());
+            //assert_eq!(component.raw_coeff.len() * 2, component.upsample_dest.len());
+            // Before it was an assert, but numerous and numerous and numerous
+            // bug fixes and ad hoc solutions later, I have now just decided  to keep it as a resize
+            component
+                .upsample_dest
+                .resize(component.raw_coeff.len() * 2, 0);
 
             let raw_coeff = &component.raw_coeff;
             let dest_coeff = &mut component.upsample_dest;
@@ -454,16 +553,25 @@ pub(crate) fn upsample(
             let raw_coeff = &component.raw_coeff;
             let dest_coeff = &mut component.upsample_dest;
 
+            //let size =  component.width_stride.div_ceil(v);
 
+            // for (single_row, output_stride) in raw_coeff
+            //     .chunks_exact(size)
+            //     .zip(dest_coeff.chunks_exact_mut(component.width_stride * h))
+            // {
+            //     (component.up_sampler)(single_row, &[], &[], &mut [], output_stride);
+            //
+            // }
             for (single_row, output_stride) in raw_coeff
                 .chunks_exact(component.width_stride)
-                .zip(dest_coeff.chunks_exact_mut(component.width_stride * h*v))
+                .zip(dest_coeff.chunks_exact_mut(component.width_stride * h * v))
             {
-                // upsample using the fn pointer, should only be H, so no need for
-                // row up and row down
-                (component.up_sampler)(single_row, &[], &[], &mut [], output_stride);
+                for row in output_stride.chunks_exact_mut(component.width_stride * h) {
+                    (component.up_sampler)(single_row, &[], &[], &mut [], row);
+                }
             }
         }
         SampleRatios::None => {}
     };
+    Ok(())
 }

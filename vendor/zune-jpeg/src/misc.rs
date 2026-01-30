@@ -12,8 +12,9 @@
 use alloc::format;
 use core::cmp::max;
 use core::fmt;
+use core::num::NonZeroU32;
 
-use zune_core::bytestream::{ZByteReader, ZReaderTrait};
+use zune_core::bytestream::ZByteReaderTrait;
 use zune_core::colorspace::ColorSpace;
 use zune_core::log::{trace, warn};
 
@@ -51,6 +52,8 @@ pub const START_OF_FRAME_PROG_DCT_AR: u16 = 0xffca;
 pub const START_OF_FRAME_LOS_SEQ_AR: u16 = 0xffcb;
 
 /// Undo run length encoding of coefficients by placing them in natural order
+///
+/// This is an index from position-in-bitstream to position-in-row-major-order.
 #[rustfmt::skip]
 pub const UN_ZIGZAG: [usize; 64 + 16] = [
      0,  1,  8, 16,  9,  2,  3, 10,
@@ -184,29 +187,11 @@ impl fmt::Debug for SOFMarkers {
     }
 }
 
-/// Read `buf.len()*2` data from the underlying `u8` buffer and convert it into
-/// u16, and store it into `buf`
-///
-/// # Arguments
-/// - reader: A mutable reference to the underlying reader.
-/// - buf: A mutable reference to a slice containing u16's
-#[inline]
-pub fn read_u16_into<T>(reader: &mut ZByteReader<T>, buf: &mut [u16]) -> Result<(), DecodeErrors>
-where
-    T: ZReaderTrait
-{
-    for i in buf {
-        *i = reader.get_u16_be_err()?;
-    }
-
-    Ok(())
-}
-
 /// Set up component parameters.
 ///
 /// This modifies the components in place setting up details needed by other
 /// parts fo the decoder.
-pub(crate) fn setup_component_params<T: ZReaderTrait>(
+pub(crate) fn setup_component_params<T: ZByteReaderTrait>(
     img: &mut JpegDecoder<T>
 ) -> Result<(), DecodeErrors> {
     let img_width = img.width();
@@ -234,9 +219,9 @@ pub(crate) fn setup_component_params<T: ZReaderTrait>(
         img.mcu_width = img.h_max * 8;
         img.mcu_height = img.v_max * 8;
         // Number of MCU's per width
-        img.mcu_x = (usize::from(img.info.width) + img.mcu_width - 1) / img.mcu_width;
+        img.mcu_x = usize::from(img.info.width).div_ceil(img.mcu_width);
         // Number of MCU's per height
-        img.mcu_y = (usize::from(img.info.height) + img.mcu_height - 1) / img.mcu_height;
+        img.mcu_y = usize::from(img.info.height).div_ceil(img.mcu_height);
 
         if img.h_max != 1 || img.v_max != 1 {
             // interleaved images have horizontal and vertical sampling factors
@@ -323,13 +308,39 @@ pub(crate) fn setup_component_params<T: ZReaderTrait>(
             warn!("Treating YCCK colorspace as YCbCr as component length does not match");
             img.input_colorspace = ColorSpace::YCbCr
         } else {
-            let msg = format!(
-                " Expected {} number of components but found {}",
-                img.input_colorspace.num_components(),
-                img.components.len()
-            );
+            // Note, translated this to a warning to handle valid images of the sort
+            // See https://github.com/etemesi254/zune-image/issues/288 where there
+            // was a CMYK image with two components which would be decoded to 4 components
+            // by the decoder.
+            // So with a warning that becomes supported.
+            //
+            // djpeg fails to render an image from that also probably because it does not
+            // understand the expected format.
+            if !img.options.strict_mode() {
+                warn!(
+                    "Expected {} number of components but found {}",
+                    img.input_colorspace.num_components(),
+                    img.components.len()
+                );
+                warn!("Defaulting to multisample to decode");
 
-            return Err(DecodeErrors::Format(msg));
+                // N/B: We do not post process the color of such, treating it as multiband
+                // is the best option since I am not aware of grayscale+alpha which is the most common
+                // two band format in jpeg.
+                if img.components.len() > 0 {
+                    img.input_colorspace = ColorSpace::MultiBand(
+                        NonZeroU32::new(img.components.len() as u32).unwrap()
+                    );
+                }
+            } else {
+                let msg = format!(
+                    "Expected {} number of components but found {}",
+                    img.input_colorspace.num_components(),
+                    img.components.len()
+                );
+
+                return Err(DecodeErrors::Format(msg));
+            }
         }
     }
     Ok(())

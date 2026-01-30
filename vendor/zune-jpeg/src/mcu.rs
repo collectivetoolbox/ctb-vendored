@@ -6,10 +6,11 @@
  * You can redistribute it or modify it under terms of the MIT, Apache License or Zlib license
  */
 
+use alloc::vec::Vec;
 use alloc::{format, vec};
 use core::cmp::min;
-use alloc::vec::Vec;
-use zune_core::bytestream::ZReaderTrait;
+
+use zune_core::bytestream::ZByteReaderTrait;
 use zune_core::colorspace::ColorSpace;
 use zune_core::colorspace::ColorSpace::Luma;
 use zune_core::log::{error, trace, warn};
@@ -28,7 +29,7 @@ use crate::JpegDecoder;
 
 pub const DCT_BLOCK: usize = 64;
 
-impl<T: ZReaderTrait> JpegDecoder<T> {
+impl<T: ZByteReaderTrait> JpegDecoder<T> {
     /// Check for existence of DC and AC Huffman Tables
     pub(crate) fn check_tables(&self) -> Result<(), DecodeErrors> {
         // check that dc and AC tables exist outside the hot path
@@ -194,16 +195,13 @@ impl<T: ZReaderTrait> JpegDecoder<T> {
                 "Baseline decoding of components: {:?}",
                 &self.z_order[..usize::from(self.num_scans)]
             );
+
             trace!("Decoding MCU width: {mcu_width}, height: {mcu_height}");
 
             for i in 0..mcu_height {
-                // Report if we have no more bytes
-                // This may generate false negatives since we over-read bytes
-                // hence that why 37 is chosen(we assume if we over-read more than 37 bytes, we have a problem)
-                if stream.overread_by > 37
-                // favourite number :)
-                {
-                    if self.options.get_strict_mode() {
+                if stream.overread_by > 0 {
+                    pixels.get_mut(pixels_written..).map(|v| v.fill(128));
+                    if self.options.strict_mode() {
                         return Err(DecodeErrors::FormatStatic("Premature end of buffer"));
                     };
 
@@ -219,15 +217,32 @@ impl<T: ZReaderTrait> JpegDecoder<T> {
                         i,
                         &mut tmp,
                         &mut stream,
-                        &mut progressive_mcus,
+                        &mut progressive_mcus
                     )?
                 } else {
+                    /* NB: (cae). This code was added due to the issue at https://github.com/etemesi254/zune-image/issues/277
+                    *
+                    * There is a particular set of images that interleave the start of scan (SOS) with the MCU,
+                    * E.g if it's a three component image, we have SOS->MCU ->SOS->MCU ->SOS->MCU
+                    * which presents a problem on decoding, we need to buffer the whole image before continuing since
+                    * we won't have a row containing all the component data which will be needed e.g for color conversion.
+                    *
+                    * The mechanisms is that we decode the whole image upfront, which goes against the normal
+                    * routine of decoding MCU width , so this requires more memory upfront than initial routines
+                    * but it is a single image out of the many corpuses that exist, so its fine.
+                    * (image in test-images/jpeg/sos_news.jpeg)
+
+                    * Code contributed by  Aurelia Molzer (https://github.com/197g)
+
+                    *
+                    */
+
                     self.decode_mcu_width::<true>(
                         mcu_width,
                         i,
                         &mut tmp,
                         &mut stream,
-                        &mut progressive_mcus,
+                        &mut progressive_mcus
                     )?
                 };
 
@@ -241,7 +256,7 @@ impl<T: ZReaderTrait> JpegDecoder<T> {
                         width,
                         padded_width,
                         &mut pixels_written,
-                        &mut upsampler_scratch_space,
+                        &mut upsampler_scratch_space
                     )?;
                 }
 
@@ -252,8 +267,19 @@ impl<T: ZReaderTrait> JpegDecoder<T> {
                         return Ok(());
                     }
                     McuContinuation::AnotherSos => continue 'sos,
+                    McuContinuation::InterScanMarker(marker) => {
+                        // Handle inter-scan markers (DHT/DQT/etc) uniformly here.
+                        // This keeps all marker handling in the outer loop.
+                        if self.advance_to_next_sos(marker, &mut stream)? {
+                            continue 'sos;
+                        } else {
+                            // Hit EOI
+                            break;
+                        }
+                    }
                     McuContinuation::Terminate => {
                         warn!("Got terminate signal, will not process further");
+                        pixels.get_mut(pixels_written..).map(|v| v.fill(128));
                         return Ok(());
                     }
                 }
@@ -299,7 +325,7 @@ impl<T: ZReaderTrait> JpegDecoder<T> {
     #[allow(clippy::too_many_lines)]
     #[allow(clippy::cast_sign_loss)]
     pub(crate) fn finish_baseline_decoding(
-        &mut self, block: &[Vec<i16>; MAX_COMPONENTS], _mcu_width: usize, pixels: &mut [u8],
+        &mut self, block: &[Vec<i16>; MAX_COMPONENTS], _mcu_width: usize, pixels: &mut [u8]
     ) -> Result<(), DecodeErrors> {
         let mcu_height = self.mcu_y;
 
@@ -315,7 +341,7 @@ impl<T: ZReaderTrait> JpegDecoder<T> {
             // Mark only needed components for computing output colors.
             if min(
                 self.options.jpeg_get_out_colorspace().num_components() - 1,
-                pos,
+                pos
             ) == pos
                 || self.input_colorspace == ColorSpace::YCCK
                 || self.input_colorspace == ColorSpace::CMYK
@@ -361,7 +387,7 @@ impl<T: ZReaderTrait> JpegDecoder<T> {
                 width,
                 padded_width,
                 &mut pixels_written,
-                &mut upsampler_scratch_space,
+                &mut upsampler_scratch_space
             )?;
         }
 
@@ -370,22 +396,87 @@ impl<T: ZReaderTrait> JpegDecoder<T> {
 
     fn decode_mcu_width<const PROGRESSIVE: bool>(
         &mut self, mcu_width: usize, mcu_height: usize, tmp: &mut [i32; 64],
-        stream: &mut BitStream, progressive: &mut [Vec<i16>; 4],
+        stream: &mut BitStream, progressive: &mut [Vec<i16>; 4]
+    ) -> Result<McuContinuation, DecodeErrors> {
+        let is_one_by_one = !self.scan_subsampled;
+
+        // The definition of MCU depends on the sampling factor of involved scans. When components
+        // have different factors then each Minimal-Coding-Unit is the least common multiple such
+        // that we have an integer number of blocks from each component. But the decoding of these
+        // components differs from it otherwise, we need an inner loop with a dynamic amount of
+        // coefficients per component, whereas otherwise we have exactly one block of coefficients
+        // encoded for each component in the bitstream order.
+        //
+        // We statically specialize on this to improve code generation of the common case a little
+        // bit. We could also special case common sub-sampling cases but be mindful of code bloat.
+        if is_one_by_one {
+            self.inner_decode_mcu_width::<PROGRESSIVE, false>(
+                mcu_width,
+                mcu_height,
+                tmp,
+                stream,
+                progressive
+            )
+        } else {
+            self.inner_decode_mcu_width::<PROGRESSIVE, true>(
+                mcu_width,
+                mcu_height,
+                tmp,
+                stream,
+                progressive
+            )
+        }
+    }
+
+    // Inline-never ensures we do get this function optimize on its own, into two different
+    // versions, without the optimizer tripping up over the complexity that comes with the
+    // constant folding. And constant folding is quite important for performance here as
+    // when `not SAMPLED` then the inner loop has exactly one iteration per component in
+    // the scan. The difference was ~1% or a bit more.
+    fn inner_decode_mcu_width<const PROGRESSIVE: bool, const SAMPLED: bool>(
+        &mut self, mcu_width: usize, mcu_height: usize, tmp: &mut [i32; 64],
+        stream: &mut BitStream, progressive: &mut [Vec<i16>; 4]
     ) -> Result<McuContinuation, DecodeErrors> {
         let z_order = self.z_order;
+        let z_scans = &z_order[..usize::from(self.num_scans)];
 
-        for j in 0..mcu_width {
+        // How much of the head of `tmp` was written by the last MCU decoding? We only check for
+        // two different cases and not all possible outcomes as this is only used to optimize the
+        // bytes written in `fill`. Since the clobber happens in UNZIGZAG order we'd be straddling
+        // most cache lines anyways even if we did a partial write with the exact length of the
+        // coefficient data which was written into `tmp`.
+        let mut clobber_more_than_4x4 = true;
+
+        // For non-interleaved scans (PROGRESSIVE=true), each scan contains a single component
+        // and we iterate over that component's actual data unit count, not the interleaved MCU
+        // width multiplied by sampling factor.
+        let scan_du_width = if PROGRESSIVE {
+            let k = z_scans[0];
+            let comp = &self.components[k];
+            // Calculate actual data units for this component: ceil(width / (8 * subsampling_ratio))
+            (self.info.width as usize * comp.horizontal_sample + self.h_max * 8 - 1)
+                / (self.h_max * 8)
+        } else {
+            mcu_width
+        };
+
+        for j in 0..scan_du_width {
             // iterate over components
-            for &k in &z_order[..usize::from(self.num_scans)] {
+            for &k in z_scans {
+                // we made this loop body massive due to several different paths that depend on
+                // static conditions. Note we (potentially) call into other functions so the
+                // compiler will not unroll anything here anyways. The gains from separating
+                // differently optimized loop bodies are much greater than a single additional jump
+                // here.
                 let component = &mut self.components[k];
 
                 let dc_table = self.dc_huffman_tables[component.dc_huff_table % MAX_COMPONENTS]
                     .as_ref()
-                    .unwrap();
+                    .ok_or(DecodeErrors::FormatStatic("DC table not found"))?;
 
                 let ac_table = self.ac_huffman_tables[component.ac_huff_table % MAX_COMPONENTS]
                     .as_ref()
-                    .unwrap();
+                    .ok_or(DecodeErrors::FormatStatic("AC table not found"))?;
 
                 let qt_table = &component.quantization_table;
                 let channel = if PROGRESSIVE {
@@ -396,26 +487,78 @@ impl<T: ZReaderTrait> JpegDecoder<T> {
                     &mut component.raw_coeff
                 };
 
+                let component_samples_needed = component.needed;
+
                 // If image is interleaved iterate over scan components,
                 // otherwise if it-s non-interleaved, these routines iterate in
                 // trivial scanline order(Y,Cb,Cr)
-                for v_samp in 0..component.vertical_sample {
-                    for h_samp in 0..component.horizontal_sample {
-                        // Fill the array with zeroes, decode_mcu_block expects
-                        // a zero based array.
-                        tmp.fill(0);
+                //
+                // Turn the bounds into a compile time constant for a common special case. This
+                // allows the compiler to unroll the loop and then do a bunch of interleaving.
+                //
+                // For PROGRESSIVE (non-interleaved), we iterate data units directly so
+                // h_samp/v_samp loops run exactly once.
+                let v_step =
+                    if SAMPLED && !PROGRESSIVE { 0..component.vertical_sample } else { 0..1 };
 
-                        stream.decode_mcu_block(
-                            &mut self.stream,
-                            dc_table,
-                            ac_table,
-                            qt_table,
-                            tmp,
-                            &mut component.dc_pred,
-                        )?;
+                for v_samp in v_step {
+                    let h_step =
+                        if SAMPLED && !PROGRESSIVE { 0..component.horizontal_sample } else { 0..1 };
 
-                        if component.needed {
-                            let idct_position = {
+                    for h_samp in h_step {
+                        let result = if component_samples_needed {
+                            // Fill the array with zeroes, decode_mcu_block expects
+                            // a zero based array. Clobber is in zig-zag order though.
+                            // Writing consecutive entries is basically free in terms
+                            // of memory throughput so we opt for a larger power of
+                            // two which lets the compiler turn this into a repeated
+                            // write of a zeroed vector register, which does not have
+                            // any branches, instead of a more difficult pattern where
+                            // we attempt to overwrite exactly one coefficient.
+                            let clobber_len = if !clobber_more_than_4x4 { 32 } else { 64 };
+
+                            tmp[..clobber_len].fill(0);
+
+                            stream.decode_mcu_block(
+                                &mut self.stream,
+                                dc_table,
+                                ac_table,
+                                qt_table,
+                                tmp,
+                                &mut component.dc_pred
+                            )
+                        } else {
+                            // We do not touch tmp so there is no need to reset it.
+                            stream.discard_mcu_block(&mut self.stream, dc_table, ac_table)
+                        };
+
+                        // If an error occurs we can either propagate it
+                        // as an error or print it and call terminate.
+                        //
+                        // This allows even corrupt images to render something,
+                        // even if its bad, matching browsers.
+                        //
+                        // See example in https://github.com/etemesi254/zune-image/issues/293
+                        let len = if let Ok(len) = result {
+                            len
+                        } else {
+                            // result.is_err()
+                            return if self.options.strict_mode() {
+                                Err(result.err().unwrap())
+                            } else {
+                                error!("{}", result.err().unwrap());
+                                Ok(McuContinuation::Terminate)
+                            };
+                        };
+
+                        if component_samples_needed {
+                            // tmp was only written partially, note that len is in ZigZag order.
+                            clobber_more_than_4x4 = len > 10;
+
+                            let idct_position = if PROGRESSIVE {
+                                // For non-interleaved, j indexes data units directly
+                                j * 8
+                            } else {
                                 // derived from stb and rewritten for my tastes
                                 let c2 = v_samp * 8;
                                 let c3 = ((j * component.horizontal_sample) + h_samp) * 8;
@@ -424,8 +567,15 @@ impl<T: ZReaderTrait> JpegDecoder<T> {
                             };
 
                             let idct_pos = channel.get_mut(idct_position..).unwrap();
-                            //  call idct.
-                            (self.idct_func)(tmp, idct_pos, component.width_stride);
+
+                            if len <= 1 {
+                                (self.idct_1x1_func)(tmp, idct_pos, component.width_stride);
+                            } else if len <= 10 {
+                                (self.idct_4x4_func)(tmp, idct_pos, component.width_stride);
+                            } else {
+                                //  call idct.
+                                (self.idct_func)(tmp, idct_pos, component.width_stride);
+                            }
                         }
                     }
                 }
@@ -443,6 +593,12 @@ impl<T: ZReaderTrait> JpegDecoder<T> {
             }
         }
 
+        self.check_stream_marker_after_mcu_width(stream)
+    }
+
+    fn check_stream_marker_after_mcu_width(
+        &mut self, stream: &mut BitStream
+    ) -> Result<McuContinuation, DecodeErrors> {
         // After all interleaved components, that's an MCU
         // handle stream markers
         //
@@ -476,8 +632,17 @@ impl<T: ZReaderTrait> JpegDecoder<T> {
                 stream.reset();
                 trace!("Found SOS marker");
                 return Ok(McuContinuation::AnotherSos);
+            } else if matches!(m, Marker::DHT | Marker::DQT | Marker::DRI | Marker::COM)
+                || matches!(m, Marker::APP(_))
+            {
+                // For non-interleaved images, setup markers can appear between scans.
+                // Signal the caller to handle this marker and find the next SOS.
+                // This keeps all marker parsing in the caller's loop.
+                stream.marker.take();
+                trace!("Found inter-scan marker {:?}", m);
+                return Ok(McuContinuation::InterScanMarker(m));
             } else {
-                if self.options.get_strict_mode() {
+                if self.options.strict_mode() {
                     return Err(DecodeErrors::Format(format!(
                         "Marker {m:?} found where not expected"
                     )));
@@ -496,6 +661,78 @@ impl<T: ZReaderTrait> JpegDecoder<T> {
 
         Ok(McuContinuation::Ok)
     }
+
+    /// Scan for the next SOS marker, parsing setup markers along the way.
+    ///
+    /// This is the unified marker scanning function used after encountering an
+    /// inter-scan marker. It handles DHT, DQT, DRI, COM, and APP markers that
+    /// can appear between scans in non-interleaved images.
+    ///
+    /// # Arguments
+    /// * `first_marker` - The first marker that was already detected (not yet parsed)
+    /// * `stream` - The bitstream state
+    ///
+    /// # Returns
+    /// * `Ok(true)` - Found SOS, ready to continue decoding
+    /// * `Ok(false)` - Found EOI, decoding complete
+    /// * `Err(_)` - Error (too many markers, unexpected marker in strict mode, etc.)
+    fn advance_to_next_sos(
+        &mut self,
+        first_marker: Marker,
+        stream: &mut BitStream
+    ) -> Result<bool, DecodeErrors> {
+        // Limit iterations to prevent DoS from malicious files.
+        const MAX_INTER_SCAN_MARKERS: usize = 64;
+
+        // Parse the first marker that triggered this call
+        self.parse_marker_inner(first_marker)?;
+        stream.reset();
+
+        for _ in 0..MAX_INTER_SCAN_MARKERS {
+            let marker = get_marker(&mut self.stream, stream)?;
+
+            match marker {
+                Marker::SOS => {
+                    self.parse_marker_inner(Marker::SOS)?;
+                    stream.reset();
+                    trace!("Found SOS marker, continuing decode");
+                    return Ok(true);
+                }
+                Marker::EOI => {
+                    stream.seen_eoi = true;
+                    trace!("Found EOI marker");
+                    return Ok(false);
+                }
+                Marker::DHT | Marker::DQT | Marker::DRI | Marker::COM => {
+                    trace!("Parsing inter-scan marker {:?}", marker);
+                    self.parse_marker_inner(marker)?;
+                }
+                Marker::APP(_) => {
+                    trace!("Parsing inter-scan APP marker {:?}", marker);
+                    self.parse_marker_inner(marker)?;
+                }
+                other => {
+                    if self.options.strict_mode() {
+                        return Err(DecodeErrors::Format(format!(
+                            "Unexpected marker {:?} while scanning for SOS between scans",
+                            other
+                        )));
+                    }
+                    // Non-strict: skip unknown marker
+                    warn!("Skipping unexpected marker {:?} between scans", other);
+                    let length = self.stream.get_u16_be_err()?;
+                    if length >= 2 {
+                        self.stream.skip((length - 2) as usize)?;
+                    }
+                }
+            }
+        }
+
+        Err(DecodeErrors::FormatStatic(
+            "Too many markers between scans (exceeded limit of 64)"
+        ))
+    }
+
     // handle RST markers.
     // No-op if not using restarts
     // this routine is shared with mcu_prog
@@ -561,7 +798,11 @@ impl<T: ZReaderTrait> JpegDecoder<T> {
                     // iterate over each line, since color-convert needs only
                     // one line
                     for (j, samp) in raw_samples.iter_mut().enumerate().take(comp_len) {
-                        *samp = &samples[j][pos * padded_width..(pos + 1) * padded_width];
+                        let temp = &samples[j].get(pos * padded_width..(pos + 1) * padded_width);
+                        if temp.is_none() {
+                            return Err(DecodeErrors::FormatStatic("Missing samples"));
+                        }
+                        *samp = temp.unwrap();
                     }
                     color_convert(
                         &raw_samples,
@@ -580,19 +821,6 @@ impl<T: ZReaderTrait> JpegDecoder<T> {
         let comps = &mut self.components[..];
 
         if self.is_interleaved && self.options.jpeg_get_out_colorspace() != ColorSpace::Luma {
-            {
-                // duplicated so that we can check that samples match
-                // Fixes bug https://github.com/etemesi254/zune-image/issues/151
-                let mut samples: [&[i16]; 4] = [&[], &[], &[], &[]];
-
-                for (samp, component) in samples.iter_mut().zip(comps.iter()) {
-                    *samp = if component.sample_ratio == SampleRatios::None {
-                        &component.raw_coeff
-                    } else {
-                        &component.upsample_dest
-                    };
-                }
-            }
             for comp in comps.iter_mut() {
                 upsample(
                     comp,
@@ -600,7 +828,7 @@ impl<T: ZReaderTrait> JpegDecoder<T> {
                     i,
                     upsampler_scratch_space,
                     is_vertically_sampled
-                );
+                )?;
             }
 
             if is_vertically_sampled {
@@ -701,5 +929,8 @@ impl<T: ZReaderTrait> JpegDecoder<T> {
 enum McuContinuation {
     Ok,
     AnotherSos,
-    Terminate,
+    /// Found an inter-scan marker (DHT/DQT/DRI/COM/APP) that needs handling.
+    /// The caller should parse it and scan for the next SOS.
+    InterScanMarker(Marker),
+    Terminate
 }
