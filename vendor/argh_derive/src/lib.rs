@@ -3,6 +3,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+use parse_attrs::has_argh_attrs;
 use syn::ext::IdentExt as _;
 
 /// Implementation of the `FromArgs` and `argh(...)` derive attributes.
@@ -34,6 +35,14 @@ pub fn argh_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     gen.into()
 }
 
+/// Entrypoint for `#[derive(FromArgValue)]`.
+#[proc_macro_derive(FromArgValue, attributes(argh))]
+pub fn argh_value_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let ast = syn::parse_macro_input!(input as syn::DeriveInput);
+    let gen = impl_from_arg_value(&ast);
+    gen.into()
+}
+
 /// Entrypoint for `#[derive(ArgsInfo)]`.
 #[proc_macro_derive(ArgsInfo, attributes(argh))]
 pub fn args_info_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -59,6 +68,25 @@ fn impl_from_args(input: &syn::DeriveInput) -> TokenStream {
             TokenStream::new()
         }
     };
+    errors.to_tokens(&mut output_tokens);
+    output_tokens
+}
+
+fn impl_from_arg_value(input: &syn::DeriveInput) -> TokenStream {
+    let errors = &Errors::default();
+    let mut output_tokens = match &input.data {
+        syn::Data::Enum(de) => impl_from_arg_value_enum(errors, &input.ident, &input.generics, de),
+        _ => {
+            errors.err(input, "`#[derive(FromArgValue)]` can only be applied to `enum`s");
+            TokenStream::new()
+        }
+    };
+    if has_argh_attrs(&input.attrs) {
+        errors.err(
+            &input.ident,
+            "`#[derive(FromArgValue)]` `enum`s do not support `#[argh(...)]` attributes",
+        );
+    }
     errors.to_tokens(&mut output_tokens);
     output_tokens
 }
@@ -364,7 +392,7 @@ fn impl_from_args_struct_from_args<'a>(
                 dynamic_subcommands: &<#ty as argh::SubCommands>::dynamic_commands(),
                 parse_func: &mut |__command, __remaining_args| {
                     #name = Some(<#ty as argh::FromArgs>::from_args(__command, __remaining_args)?);
-                    Ok(())
+                    ::core::result::Result::Ok(())
                 },
             })
         }
@@ -384,7 +412,7 @@ fn impl_from_args_struct_from_args<'a>(
 
     let method_impl = quote_spanned! { impl_span =>
         fn from_args(__cmd_name: &[&str], __args: &[&str])
-            -> std::result::Result<Self, argh::EarlyExit>
+            -> ::core::result::Result<Self, argh::EarlyExit>
         {
             #![allow(clippy::unwrap_in_result)]
 
@@ -420,7 +448,7 @@ fn impl_from_args_struct_from_args<'a>(
             )*
             #missing_requirements_ident.err_on_any()?;
 
-            Ok(Self {
+            ::core::result::Result::Ok(Self {
                 #( #unwrap_fields, )*
             })
         }
@@ -508,7 +536,7 @@ fn impl_from_args_struct_redact_arg_values<'a>(
                 dynamic_subcommands: &<#ty as argh::SubCommands>::dynamic_commands(),
                 parse_func: &mut |__command, __remaining_args| {
                     #name = Some(<#ty as argh::FromArgs>::redact_arg_values(__command, __remaining_args)?);
-                    Ok(())
+                    ::core::result::Result::Ok(())
                 },
             })
         }
@@ -570,13 +598,13 @@ fn impl_from_args_struct_redact_arg_values<'a>(
                 if let Some(cmd_name) = __cmd_name.last() {
                     (*cmd_name).to_owned()
                 } else {
-                    return Err(argh::EarlyExit::from(#unwrap_cmd_name_err_string.to_owned()));
+                    return ::core::result::Result::Err(argh::EarlyExit::from(#unwrap_cmd_name_err_string.to_owned()));
                 }
             ];
 
             #( #unwrap_fields )*
 
-            Ok(__redacted)
+            ::core::result::Result::Ok(__redacted)
         }
     };
 
@@ -661,11 +689,14 @@ fn top_or_sub_cmd_impl(
             errors.err(name, "`#[argh(name = \"...\")]` attribute is required for subcommands");
             &empty_str
         });
+        let short_name =
+            type_attrs.short.as_ref().map(|c| quote! { &#c }).unwrap_or_else(|| quote! { &'\0' });
         quote! {
             #[automatically_derived]
             impl #impl_generics argh::SubCommand for #name #ty_generics #where_clause {
                 const COMMAND: &'static argh::CommandInfo = &argh::CommandInfo {
                     name: #subcommand_name,
+                    short: #short_name,
                     description: #description,
                 };
             }
@@ -791,7 +822,7 @@ fn declare_local_storage_for_redacted_fields<'a>(
                     let mut #field_name: argh::ParseValueSlotTy::<#field_slot_type, String> =
                         argh::ParseValueSlotTy {
                         slot: std::default::Default::default(),
-                        parse_func: |arg, _| { Ok(arg.to_owned()) },
+                        parse_func: |arg, _| { ::core::result::Result::Ok(arg.to_owned()) },
                     };
                 }
             }
@@ -813,7 +844,7 @@ fn declare_local_storage_for_redacted_fields<'a>(
                     let mut #field_name: argh::ParseValueSlotTy::<#field_slot_type, String> =
                         argh::ParseValueSlotTy {
                         slot: std::default::Default::default(),
-                        parse_func: |_, _| { Ok(#arg_name.to_owned()) },
+                        parse_func: |_, _| { ::core::result::Result::Ok(#arg_name.to_owned()) },
                     };
                 }
             }
@@ -1078,12 +1109,16 @@ fn impl_from_args_enum(
                 let subcommand_name = if let Some(subcommand_name) = command_name.last() {
                     *subcommand_name
                 } else {
-                    return Err(argh::EarlyExit::from("no subcommand name".to_owned()));
+                    return ::core::result::Result::Err(argh::EarlyExit::from("no subcommand name".to_owned()));
                 };
 
                 #(
-                    if subcommand_name == <#variant_ty as argh::SubCommand>::COMMAND.name {
-                        return Ok(#name_repeating::#variant_names(
+                    if subcommand_name == <#variant_ty as argh::SubCommand>::COMMAND.name
+                        || (*<#variant_ty as argh::SubCommand>::COMMAND.short != '\0'
+                            && subcommand_name.len() == 1
+                            && subcommand_name.starts_with(*<#variant_ty as argh::SubCommand>::COMMAND.short))
+                    {
+                        return ::core::result::Result::Ok(#name_repeating::#variant_names(
                             <#variant_ty as argh::FromArgs>::from_args(command_name, args)?
                         ));
                     }
@@ -1091,25 +1126,29 @@ fn impl_from_args_enum(
 
                 #dynamic_from_args
 
-                Err(argh::EarlyExit::from("no subcommand matched".to_owned()))
+                ::core::result::Result::Err(argh::EarlyExit::from("no subcommand matched".to_owned()))
             }
 
             fn redact_arg_values(command_name: &[&str], args: &[&str]) -> std::result::Result<Vec<String>, argh::EarlyExit> {
                 let subcommand_name = if let Some(subcommand_name) = command_name.last() {
                     *subcommand_name
                 } else {
-                    return Err(argh::EarlyExit::from("no subcommand name".to_owned()));
+                    return ::core::result::Result::Err(argh::EarlyExit::from("no subcommand name".to_owned()));
                 };
 
                 #(
-                    if subcommand_name == <#variant_ty as argh::SubCommand>::COMMAND.name {
+                    if subcommand_name == <#variant_ty as argh::SubCommand>::COMMAND.name
+                        || (*<#variant_ty as argh::SubCommand>::COMMAND.short != '\0'
+                            && subcommand_name.len() == 1
+                            && subcommand_name.starts_with(*<#variant_ty as argh::SubCommand>::COMMAND.short))
+                    {
                         return <#variant_ty as argh::FromArgs>::redact_arg_values(command_name, args);
                     }
                 )*
 
                 #dynamic_redact_arg_values
 
-                Err(argh::EarlyExit::from("no subcommand matched".to_owned()))
+                ::core::result::Result::Err(argh::EarlyExit::from("no subcommand matched".to_owned()))
             }
         }
 
@@ -1177,4 +1216,102 @@ fn enum_only_single_field_unnamed_variants<'a>(
             }
         }
     }
+}
+
+/// Implements `FromArgValue` for a `#![derive(FromArgValue)]` enum (a choice enum).
+fn impl_from_arg_value_enum(
+    errors: &Errors,
+    name: &syn::Ident,
+    generic_args: &syn::Generics,
+    de: &syn::DataEnum,
+) -> TokenStream {
+    // An enum variant like `<name>`
+    struct ChoiceVariant<'a> {
+        ident: &'a syn::Ident,
+        name: syn::LitStr,
+    }
+
+    let variants: Vec<ChoiceVariant<'_>> = de
+        .variants
+        .iter()
+        .map(|variant| {
+            let ident = &variant.ident;
+            choice_enum_only_fieldless_variant(errors, &variant.fields);
+            let attrs = parse_attrs::ChoiceVariantAttrs::parse(errors, variant);
+            let name = match attrs.name_override {
+                Some(lit) => lit,
+                None => {
+                    let name_str = pascal_to_snake_case(&format!("{}", ident));
+                    syn::LitStr::new(&name_str, ident.span())
+                }
+            };
+            ChoiceVariant { ident, name }
+        })
+        .collect();
+
+    if variants.is_empty() {
+        errors.err(&de.variants, "Choice enums must have at least one variant");
+    }
+
+    let name_repeating = std::iter::repeat(name.clone());
+    let variant_idents = variants.iter().map(|x| x.ident);
+    let variant_names = variants.iter().map(|x| &x.name).collect::<Vec<_>>();
+    let err_literal = {
+        let mut err = "expected ".to_string();
+        for (i, name) in variant_names.iter().enumerate() {
+            if i == 0 {
+            } else if i == variant_names.len() - 1 {
+                err.push_str(" or ");
+            } else {
+                err.push_str(", ");
+            }
+            err.push_str(&format!("{:?}", name.value()));
+        }
+        LitStr::new(&err, name.span())
+    };
+    let (impl_generics, ty_generics, where_clause) = generic_args.split_for_impl();
+    quote! {
+        impl #impl_generics argh::FromArgValue for #name #ty_generics #where_clause {
+            fn from_arg_value(value: &str)
+                -> ::core::result::Result<Self, String>
+            {
+                ::core::result::Result::Ok(match value {
+                    #(
+                        #variant_names => #name_repeating::#variant_idents,
+                    )*
+                    _ => {
+                        return ::core::result::Result::Err(#err_literal.to_owned())
+                    }
+                })
+            }
+        }
+    }
+}
+
+/// Generates an error if the variant is not a field-less variant like `Foo`.
+fn choice_enum_only_fieldless_variant(errors: &Errors, variant_fields: &syn::Fields) {
+    match variant_fields {
+        syn::Fields::Unit => {}
+        _ => {
+            errors.err(
+                variant_fields,
+                "Choice `enum`s tagged with `#![derive(FromArgValue)]` do not support variants with associated data.",
+            );
+        }
+    }
+}
+
+fn pascal_to_snake_case(camel: &str) -> String {
+    let mut out = String::with_capacity(camel.len() + 8);
+    for (i, c) in camel.chars().enumerate() {
+        if c.is_uppercase() {
+            if i != 0 {
+                out.push('_');
+            }
+            out.extend(c.to_lowercase());
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }

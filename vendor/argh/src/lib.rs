@@ -111,6 +111,30 @@
 //! }
 //! ```
 //!
+//! `FromArgValue` can be automatically derived for `enum`s, with automatic
+//! error messages:
+//!
+//! ```
+//! use argh::{FromArgs, FromArgValue};
+//!
+//! #[derive(FromArgValue)]
+//! enum Mode {
+//!     SoftCore,
+//!     HardCore,
+//! }
+//!
+//! #[derive(FromArgs)]
+//! /// Do the thing.
+//! struct DoIt {
+//!     #[argh(option)]
+//!     /// how to do it
+//!     how: Mode,
+//! }
+//!
+//! // ./some_bin --how whatever
+//! // > Error parsing option '--how' with value 'whatever': expected "soft_core" or "hard_core"
+//! ```
+//!
 //! Positional arguments can be declared using `#[argh(positional)]`.
 //! These arguments will be parsed in order of their declaration in
 //! the structure:
@@ -206,7 +230,7 @@
 //! # use argh::DynamicSubCommand;
 //! # use argh::EarlyExit;
 //! # use argh::FromArgs;
-//! # use once_cell::sync::OnceCell;
+//! # use std::sync::LazyLock;
 //!
 //! #[derive(FromArgs, PartialEq, Debug)]
 //! /// Top-level command.
@@ -240,8 +264,7 @@
 //!
 //! impl DynamicSubCommand for Dynamic {
 //!     fn commands() -> &'static [&'static CommandInfo] {
-//!         static RET: OnceCell<Vec<&'static CommandInfo>> = OnceCell::new();
-//!         RET.get_or_init(|| {
+//!         static RET: LazyLock<Vec<&'static CommandInfo>> = LazyLock::new(|| {
 //!             let mut commands = Vec::new();
 //!
 //!             // argh needs the `CommandInfo` structs we generate to be valid
@@ -253,11 +276,13 @@
 //!             // don't know about until runtime!
 //!             commands.push(&*Box::leak(Box::new(CommandInfo {
 //!                 name: "dynamic_command",
+//!                 short: &'d',
 //!                 description: "A dynamic command",
 //!             })));
 //!
 //!             commands
-//!         })
+//!         });
+//!         &RET
 //!     }
 //!
 //!     fn try_redact_arg_values(
@@ -319,7 +344,7 @@
 
 use std::str::FromStr;
 
-pub use argh_derive::{ArgsInfo, FromArgs};
+pub use argh_derive::{ArgsInfo, FromArgValue, FromArgs};
 
 /// Information about a particular command used for output.
 pub type CommandInfo = argh_shared::CommandInfo<'static>;
@@ -332,6 +357,7 @@ pub type SubCommandInfo = argh_shared::SubCommandInfo<'static>;
 
 pub use argh_shared::{ErrorCodeInfo, FlagInfo, FlagInfoKind, Optionality, PositionalInfo};
 
+#[cfg(feature = "fuzzy_search")]
 use rust_fuzzy_search::fuzzy_search_best_n;
 
 /// Structured information about the command line arguments.
@@ -751,7 +777,7 @@ pub fn cargo_from_env<T: TopLevelCommand>() -> T {
 /// Any field type declared in a struct that derives `FromArgs` must implement
 /// this trait. A blanket implementation exists for types implementing
 /// `FromStr<Error: Display>`. Custom types can implement this trait
-/// directly.
+/// directly. It can also be derived on plain `enum`s without associated data.
 pub trait FromArgValue: Sized {
     /// Construct the type from a commandline value, returning an error string
     /// on failure.
@@ -1014,8 +1040,17 @@ fn unrecognized_argument(
         return format!("Unrecognized argument: \"{}\"\n", given);
     }
 
-    let suggestions = fuzzy_search_best_n(given, &available, 1);
-    format!("Unrecognized argument: \"{}\". Did you mean \"{}\"?\n", given, suggestions[0].0)
+    #[cfg(feature = "fuzzy_search")]
+    {
+        let suggestions = fuzzy_search_best_n(given, &available, 1);
+        return format!(
+            "Unrecognized argument: \"{}\". Did you mean \"{}\"?\n",
+            given, suggestions[0].0
+        );
+    }
+
+    #[cfg(not(feature = "fuzzy_search"))]
+    ["Unrecognized argument: ", given, "\n"].concat()
 }
 
 // `--` or `-` options, including a mutable reference to their value.
@@ -1118,7 +1153,9 @@ impl ParseStructSubCommand<'_> {
         remaining_args: &[&str],
     ) -> Result<bool, EarlyExit> {
         for subcommand in self.subcommands.iter().chain(self.dynamic_subcommands.iter()) {
-            if subcommand.name == arg {
+            if subcommand.name == arg
+                || arg.chars().count() == 1 && arg.chars().next().unwrap() == *subcommand.short
+            {
                 let mut command = cmd_name.to_owned();
                 command.push(subcommand.name);
                 let prepended_help;

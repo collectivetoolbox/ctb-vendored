@@ -80,8 +80,8 @@ impl<T: ZByteReaderTrait> JpegDecoder<T> {
         if self.is_interleaved
             && self.input_colorspace.num_components() > 1
             && self.options.jpeg_get_out_colorspace().num_components() == 1
-            && (self.sub_sample_ratio == SampleRatios::V
-                || self.sub_sample_ratio == SampleRatios::HV)
+            && (self.info.sample_ratio == SampleRatios::V
+                || self.info.sample_ratio == SampleRatios::HV)
         {
             // For a specific set of images, e.g interleaved,
             // when converting from YcbCr to grayscale, we need to
@@ -246,23 +246,11 @@ impl<T: ZByteReaderTrait> JpegDecoder<T> {
                     "Cannot find component {k}, corrupt image"
                 )));
             }
+            // For non-interleaved scans, iterate over the component's actual data-unit grid.
+            let component = &self.components[k];
 
-            let (mcu_width, mcu_height);
-
-            if self.components[k].vertical_sample != 1
-                || self.components[k].horizontal_sample != 1
-                || !self.is_interleaved
-            {
-                // For non interleaved scans
-                // mcu's is the image dimensions divided by 8
-                mcu_width = self.info.width.div_ceil(8) as usize;
-                mcu_height = self.info.height.div_ceil(8) as usize;
-            } else {
-                // For other channels, in an interleaved mcu, number of MCU's
-                // are determined by some weird maths done in headers.rs->parse_sos()
-                mcu_width = self.mcu_x;
-                mcu_height = self.mcu_y;
-            }
+            let mcu_width = (self.info.width as usize * component.horizontal_sample).div_ceil(self.h_max * 8);
+            let mcu_height = (self.info.height as usize * component.vertical_sample).div_ceil(self.v_max * 8);
 
             for i in 0..mcu_height {
                 for j in 0..mcu_width {
@@ -516,7 +504,7 @@ impl<T: ZByteReaderTrait> JpegDecoder<T> {
         let is_hv = usize::from(self.is_interleaved);
         let upsampler_scratch_size = is_hv * self.components[0].width_stride;
         let width = usize::from(self.info.width);
-        let padded_width = calculate_padded_width(width, self.sub_sample_ratio);
+        let padded_width = calculate_padded_width(width, self.info.sample_ratio);
 
         let mut upsampler_scratch_space = vec![0; upsampler_scratch_size];
         let mut tmp = [0_i32; DCT_BLOCK];
@@ -641,7 +629,7 @@ impl<T: ZByteReaderTrait> JpegDecoder<T> {
         */
         self.h_max = 1;
         self.v_max = 1;
-        self.sub_sample_ratio = SampleRatios::None;
+        self.info.sample_ratio = SampleRatios::None;
         self.is_interleaved = false;
         self.components[0].vertical_sample = 1;
         self.components[0].width_stride = (((self.info.width as usize) + 7) / 8) * 8;
@@ -684,17 +672,17 @@ where
     return Err(DecodeErrors::ExhaustedData);
 }
 
-// #[cfg(test)]
-// mod tests{
-//     use zune_core::bytestream::ZCursor;
-//     use crate::JpegDecoder;
-//
-//     #[test]
-//     fn make_test(){
-//         let img = "/Users/etemesi/Downloads/wrong_sampling.jpeg";
-//         let data = ZCursor::new(std::fs::read(img).unwrap());
-//         let mut decoder = JpegDecoder::new(data);
-//         decoder.decode().unwrap();
-//
-//     }
-// }
+#[cfg(test)]
+mod tests{
+    use zune_core::bytestream::ZCursor;
+    use crate::JpegDecoder;
+
+    #[test]
+    fn make_test(){
+        let img = "/Users/etemesi/Downloads/wrong_sampling.jpeg";
+        let data = ZCursor::new([255, 216, 255, 224, 0, 16, 74, 70, 73, 70, 0, 1, 0, 2, 0, 28, 0, 28, 0, 0, 255, 219, 0, 67, 0, 40, 28, 30, 20, 30, 25, 40, 35, 33, 35, 45, 43, 40, 48, 60, 100, 65, 60, 55, 55, 60, 123, 88, 93, 65, 100, 145, 128, 153, 150, 143, 128, 140, 138, 160, 180, 230, 195, 160, 170, 218, 173, 138, 140, 200, 255, 203, 218, 255, 238, 245, 255, 101, 0, 62, 8, 255, 255, 250, 255, 230, 253, 255, 17, 255, 219, 0, 67, 1, 43, 45, 45, 42, 60, 48, 60, 118, 65, 65, 118, 248, 165, 140, 165, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 241, 255, 255, 255, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 255, 192, 0, 17, 8, 0, 32, 0, 32, 3, 2, 17, 0, 1, 34, 1, 3, 17, 1, 255, 196, 0, 24, 0, 1, 1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 3, 0, 1, 4, 255, 196, 0, 37, 16, 0, 2, 2, 1, 4, 1, 3, 5, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 17, 0, 4, 18, 33, 48, 34, 65, 81, 113, 19, 20, 51, 97, 161, 255, 196, 0, 22, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 255, 196, 0, 26, 17, 1, 0, 2, 3, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 17, 18, 38, 65, 255, 218, 0, 12, 3, 1, 0, 2, 17, 3, 17, 0, 63, 0, 175, 119, 49, 197, 184, 2, 0, 0, 0, 16, 13, 129, 103, 161, 102, 178, 115, 125, 202, 68, 236, 173, 25, 42, 164, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 38, 0, 0, 0, 0, 250, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 67, 1, 43, 45, 45, 60, 48, 60, 118, 65, 65, 118, 248, 165, 140, 165, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 241, 255, 255, 255, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 255, 192, 0, 17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 248, 255, 192, 0, 17, 8, 0, 32, 0, 32, 3, 1, 34, 0, 2, 17, 1, 3, 17, 1, 255, 196, 0, 24, 0, 1, 1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 126, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 198]);
+        let mut decoder = JpegDecoder::new(data);
+        decoder.decode().unwrap();
+
+    }
+}

@@ -1,1 +1,0 @@
-window.ALL_CRATES = ["rust_fuzzy_search"];

@@ -12,7 +12,7 @@
 [package]
 edition = "2018"
 name = "argh"
-version = "0.1.13"
+version = "0.1.14"
 authors = [
     "Taylor Cramer <cramertj@google.com>",
     "Benjamin Brittain <bwb@google.com>",
@@ -36,6 +36,15 @@ categories = ["command-line-interface"]
 license = "BSD-3-Clause"
 repository = "https://github.com/google/argh"
 
+[features]
+default = [
+    "help",
+    "serde",
+]
+fuzzy_search = ["dep:rust-fuzzy-search"]
+help = ["argh_derive/help"]
+serde = ["argh_shared/serde"]
+
 [lib]
 name = "argh"
 path = "src/lib.rs"
@@ -56,25 +65,23 @@ path = "tests/compiletest.rs"
 name = "lib"
 path = "tests/lib.rs"
 
+[[test]]
+name = "short_alias"
+path = "tests/short_alias.rs"
+
+[[test]]
+name = "subcommand_short_help"
+path = "tests/subcommand_short_help.rs"
+
 [dependencies.argh_derive]
-version = "0.1.13"
+version = "0.1.14"
 
 [dependencies.argh_shared]
-version = "0.1.13"
+version = "0.1.14"
 
 [dependencies.rust-fuzzy-search]
 version = "0.1.1"
-
-[dev-dependencies.once_cell]
-version = "1.10.0"
+optional = true
 
 [dev-dependencies.trybuild]
 version = "1.0.63"
-
-[features]
-default = [
-    "help",
-    "serde",
-]
-help = ["argh_derive/help"]
-serde = ["argh_shared/serde"]

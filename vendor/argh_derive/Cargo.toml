@@ -12,7 +12,7 @@
 [package]
 edition = "2018"
 name = "argh_derive"
-version = "0.1.13"
+version = "0.1.14"
 authors = [
     "Taylor Cramer <cramertj@google.com>",
     "Benjamin Brittain <bwb@google.com>",
@@ -29,13 +29,16 @@ readme = "README.md"
 license = "BSD-3-Clause"
 repository = "https://github.com/google/argh"
 
+[features]
+help = []
+
 [lib]
 name = "argh_derive"
 path = "src/lib.rs"
 proc-macro = true
 
 [dependencies.argh_shared]
-version = "0.1.13"
+version = "0.1.14"
 
 [dependencies.proc-macro2]
 version = "1.0"
@@ -45,6 +48,3 @@ version = "1.0"
 
 [dependencies.syn]
 version = "2.0"
-
-[features]
-help = []
