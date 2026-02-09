@@ -1,4 +1,4 @@
-// Copyright © 2025 Mikhail Hogrefe
+// Copyright © 2026 Mikhail Hogrefe
 //
 // This file is part of Malachite.
 //
@@ -11,14 +11,16 @@ use core::cmp::Ordering;
 use malachite_base::rounding_modes::RoundingMode::{self, *};
 
 impl Float {
-    /// Returns an approximation to the square root of 3, with the given precision and rounded using
+    /// Returns an approximation of the square root of 3, with the given precision and rounded using
     /// the given [`RoundingMode`]. An [`Ordering`] is also returned, indicating whether the rounded
     /// value is less than or greater than the exact value of the constant. (Since the constant is
     /// irrational, the rounded value is never equal to the exact value.)
     ///
     /// $$
-    /// x = \sqrt{3}.
+    /// x = \sqrt{3}+\varepsilon.
     /// $$
+    /// - If $m$ is not `Nearest`, then $|\varepsilon| < 2^{-p+1}$.
+    /// - If $m$ is `Nearest`, then $|\varepsilon| < 2^{-p}$.
     ///
     /// The constant is irrational and algebraic.
     ///
@@ -53,14 +55,15 @@ impl Float {
         Self::sqrt_prec_round(const { Self::const_from_unsigned(3) }, prec, rm)
     }
 
-    /// Returns an approximation to the square root of 3, with the given precision and rounded to
+    /// Returns an approximation of the square root of 3, with the given precision and rounded to
     /// the nearest [`Float`] of that precision. An [`Ordering`] is also returned, indicating
     /// whether the rounded value is less than or greater than the exact value of the constant.
     /// (Since the constant is irrational, the rounded value is never equal to the exact value.)
     ///
     /// $$
-    /// x = \sqrt{3}.
+    /// x = \sqrt{3}+\varepsilon.
     /// $$
+    /// - $|\varepsilon| < 2^{-p}$.
     ///
     /// The constant is irrational and algebraic.
     ///

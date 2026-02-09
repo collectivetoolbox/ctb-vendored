@@ -1,5 +1,29 @@
 # `wide` Changelog
 
+## 1.1.1
+
+* Further improvements to the `Neg` impls on non-x86 targets.
+
+## 1.1.0
+
+* add `i64x2::min`, `i64x2::max`.
+* add `u64x2::min`, `u64x2::max`.
+* add `u64x8::min`.
+
+## 1.0.3
+
+* fix floating point negation edge cases, which also allows optimizations in
+  more cases.
+
+## 1.0.2
+
+* fix edge case where `wide` was using the wrong avx512 sub-features to select
+  when `safe_arch` functions could be called, causing build errors.
+
+## 1.0.1
+
+* initial stable version
+
 ## 0.8.3
 
 * `to_bitmask` implemented for all unsigned int types.

@@ -13,8 +13,14 @@
 edition = "2018"
 rust-version = "1.36.0"
 name = "ctor-lite"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["John Nunley <dev@notgull.net>"]
+build = false
+autolib = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
 description = "Run code at program startup or shutdown"
 homepage = "https://codeberg.org/notgull/ctor-lite"
 readme = "README.md"
@@ -22,9 +28,22 @@ keywords = [
     "ctor",
     "macros",
 ]
-categories = ["macros"]
+categories = []
 license = "MIT OR Apache-2.0"
 repository = "https://codeberg.org/notgull/ctor-lite"
+
+[features]
+alloc = []
+default = ["std"]
+std = ["alloc"]
+
+[lib]
+name = "ctor_lite"
+path = "src/lib.rs"
+
+[[test]]
+name = "init"
+path = "tests/init.rs"
 
 [dev-dependencies.macro_rules_attribute]
 version = "0.2.0"
@@ -33,8 +52,3 @@ version = "0.2.0"
 version = "0.38.34"
 features = ["stdio"]
 default-features = false
-
-[features]
-alloc = []
-default = ["std"]
-std = ["alloc"]

@@ -1,0 +1,30 @@
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License in the LICENSE-APACHE file or at:
+//     https://www.apache.org/licenses/LICENSE-2.0
+
+#version 450
+#extension GL_ARB_separate_shader_objects : enable
+
+precision mediump float;
+
+layout(location = 0) in vec4 fragColor;
+layout(location = 1) in vec2 norm2;
+
+layout(location = 0) out vec4 outColor;
+
+layout(set = 0, binding = 1) uniform FragCommon {
+    vec3 lightNorm;
+    // Note: since WGPU v0.12 this type is interpreted as 16 bytes.
+    // For compatibility, we explicitly pad to 16 bytes.
+    float _padding;
+};
+
+void main() {
+    float n3 = sqrt(1.0 - norm2.x * norm2.x - norm2.y * norm2.y);
+    vec3 norm = vec3(norm2, n3);
+    // HACK: hard code the light norm since the value received above is clearly wrong
+    vec3 lightNorm = vec3(0.1204612, -0.28491753, 1.0);
+    vec3 c = fragColor.rgb * dot(norm, lightNorm);
+    outColor = vec4(c, fragColor.a);
+}

@@ -11,9 +11,9 @@
 
 [package]
 edition = "2021"
-rust-version = "1.86"
+rust-version = "1.85"
 name = "cargo-util-schemas"
-version = "0.8.2"
+version = "0.8.1"
 build = false
 autolib = false
 autobins = false

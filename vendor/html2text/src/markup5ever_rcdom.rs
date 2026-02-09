@@ -49,17 +49,17 @@ use std::rc::{Rc, Weak};
 use html5ever::interface::ElemName;
 use tendril::StrTendril;
 
+use html5ever::Attribute;
+use html5ever::ExpandedName;
+use html5ever::QualName;
 use html5ever::interface::tree_builder;
 use html5ever::interface::tree_builder::{ElementFlags, NodeOrText, QuirksMode, TreeSink};
 use html5ever::serialize::TraversalScope;
 use html5ever::serialize::TraversalScope::{ChildrenOnly, IncludeNode};
 use html5ever::serialize::{Serialize, Serializer};
-use html5ever::Attribute;
-use html5ever::ExpandedName;
-use html5ever::QualName;
 
 /// The different kinds of nodes in the DOM.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum NodeData {
     /// The `Document` itself - the root node of a HTML document.
     Document,
@@ -129,12 +129,13 @@ impl Node {
     }
 
     pub fn get_parent(&self) -> Option<Rc<Self>> {
-        if let Some(parent) = self.parent.take() {
-            let parent_handle = parent.upgrade();
-            self.parent.set(Some(parent));
-            parent_handle
-        } else {
-            None
+        match self.parent.take() {
+            Some(parent) => {
+                let parent_handle = parent.upgrade();
+                self.parent.set(Some(parent));
+                parent_handle
+            }
+            _ => None,
         }
     }
 

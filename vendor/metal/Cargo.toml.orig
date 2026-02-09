@@ -1,6 +1,6 @@
 [package]
 name = "metal"
-version = "0.32.0"
+version = "0.33.0"
 description = "Rust bindings for Metal"
 documentation = "https://docs.rs/crate/metal"
 homepage = "https://github.com/gfx-rs/metal-rs"
@@ -49,12 +49,12 @@ paste = "1"
 version = "0.2.4"
 
 [dev-dependencies]
-cocoa = "0.25.0"
+cocoa = "0.26.0"
 winit = "0.29"
 sema = "0.1.4"
-png = "0.17"
-glam = "0.27"
-rand = "0.8"
+png = "0.18"
+glam = "0.30"
+rand = "0.9"
 
 [[example]]
 name = "window"

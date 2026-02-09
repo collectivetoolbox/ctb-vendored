@@ -11,8 +11,9 @@
 
 [package]
 edition = "2018"
+rust-version = "1.83"
 name = "async-compression"
-version = "0.4.36"
+version = "0.4.39"
 authors = [
     "Wim Looman <wim@nemo157.com>",
     "Allen Bui <fairingrey@gmail.com>",
@@ -181,14 +182,10 @@ required-features = [
 ]
 
 [dependencies.compression-codecs]
-version = "0.4.35"
+version = "0.4.36"
 
 [dependencies.compression-core]
 version = "0.4.31"
-
-[dependencies.futures-core]
-version = "0.3"
-default-features = false
 
 [dependencies.futures-io]
 version = "0.3"
@@ -243,7 +240,7 @@ version = "0.9"
 version = "1"
 
 [dev-dependencies.proptest-derive]
-version = "0.7"
+version = "0.8"
 
 [dev-dependencies.rand]
 version = "0.9"

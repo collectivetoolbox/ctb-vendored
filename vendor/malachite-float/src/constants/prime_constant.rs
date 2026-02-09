@@ -1,4 +1,4 @@
-// Copyright © 2025 Mikhail Hogrefe
+// Copyright © 2026 Mikhail Hogrefe
 //
 // This file is part of Malachite.
 //
@@ -12,7 +12,7 @@ use malachite_base::num::factorization::primes::prime_indicator_sequence_less_th
 use malachite_base::rounding_modes::RoundingMode::{self, *};
 
 impl Float {
-    /// Returns an approximation to the prime constant, with the given precision and rounded using
+    /// Returns an approximation of the prime constant, with the given precision and rounded using
     /// the given [`RoundingMode`]. An [`Ordering`] is also returned, indicating whether the rounded
     /// value is less than or greater than the exact value of the constant. (Since the constant is
     /// irrational, the rounded value is never equal to the exact value.)
@@ -20,8 +20,10 @@ impl Float {
     /// The prime constant is the real number whose $n$th bit is prime if and only if $n$ is prime.
     /// That is,
     /// $$
-    /// P = \sum_{p\ \text{prime}\}2^{-p}.
+    /// \rho = \sum_{p\ \text{prime}\}2^{-p}+\varepsilon.
     /// $$
+    /// - If $m$ is not `Nearest`, then $|\varepsilon| < 2^{-p-1}$.
+    /// - If $m$ is `Nearest`, then $|\varepsilon| < 2^{-p-2}$.
     ///
     /// The constant is irrational. It is unknown whether it is transcendental; see
     /// <https://mathoverflow.net/questions/114905>.
@@ -68,7 +70,7 @@ impl Float {
         )
     }
 
-    /// Returns an approximation to the prime constant, with the given precision and rounded to the
+    /// Returns an approximation of the prime constant, with the given precision and rounded to the
     /// nearest [`Float`] of that precision. An [`Ordering`] is also returned, indicating whether
     /// the rounded value is less than or greater than the exact value of the constant. (Since the
     /// constant is irrational, the rounded value is never equal to the exact value.)
@@ -76,8 +78,9 @@ impl Float {
     /// The prime constant is the real number whose $n$th bit is prime if and only if $n$ is prime.
     /// That is,
     /// $$
-    /// P = \sum_{p\ \text{prime}\}2^{-p}.
+    /// \rho = \sum_{p\ \text{prime}\}2^{-p}+\varepsilon.
     /// $$
+    /// - $|\varepsilon| < 2^{-p-2}$.
     ///
     /// The constant is irrational. It is unknown whether it is transcendental; see
     /// <https://mathoverflow.net/questions/114905>.

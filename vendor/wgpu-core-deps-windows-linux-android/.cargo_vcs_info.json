@@ -1,6 +1,6 @@
 {
   "git": {
-    "sha1": "482a983e1006333dc249bd1a08b04db3e4a48230"
+    "sha1": "3f02781bb5a0a1fe1922ea36c9bdacf9792abcbc"
   },
   "path_in_vcs": "wgpu-core/platform-deps/windows-linux-android"
 }

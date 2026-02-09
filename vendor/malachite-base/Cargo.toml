@@ -13,7 +13,7 @@
 edition = "2024"
 rust-version = "1.90.0"
 name = "malachite-base"
-version = "0.9.0"
+version = "0.9.1"
 authors = ["Mikhail Hogrefe <mikhailhogrefe@gmail.com>"]
 build = false
 autolib = false
@@ -89,11 +89,11 @@ optional = true
 default-features = false
 
 [dependencies.gnuplot]
-version = "0.0.39"
+version = "0.0.46"
 optional = true
 
 [dependencies.hashbrown]
-version = "0.16"
+version = "0.16.1"
 features = [
     "default-hasher",
     "inline-more",
@@ -106,21 +106,21 @@ features = ["use_alloc"]
 default-features = false
 
 [dependencies.libm]
-version = "0.2.8"
+version = "0.2.16"
 default-features = false
 
 [dependencies.rand]
-version = "0.8.5"
+version = "0.9.2"
 optional = true
 default-features = false
 
 [dependencies.rand_chacha]
-version = "0.3.1"
+version = "0.9.0"
 optional = true
 default-features = false
 
 [dependencies.ryu]
-version = "1.0.15"
+version = "1.0.22"
 default-features = false
 
 [dependencies.sha3]
@@ -129,11 +129,11 @@ optional = true
 default-features = false
 
 [dependencies.time]
-version = "0.3.28"
+version = "0.3.46"
 optional = true
 
 [dependencies.walkdir]
-version = "2.3.3"
+version = "2.5.0"
 optional = true
 
 [dev-dependencies.maplit]

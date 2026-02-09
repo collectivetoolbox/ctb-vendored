@@ -40,10 +40,20 @@ impl traits::Listener for Listener {
 
     fn do_not_reclaim_name_on_drop(&mut self) { self.reclaim.forget(); }
 }
+/// Access to the underlying implementation.
+impl Listener {
+    /// Borrows the [`UnixListener`] contained within, granting access to operations defined on it.
+    #[inline(always)]
+    pub fn inner(&self) -> &UnixListener { &self.listener }
+    /// Mutably borrows the [`UnixListener`] contained within, granting access to operations
+    /// defined on it.
+    #[inline(always)]
+    pub fn inner_mut(&mut self) -> &mut UnixListener { &mut self.listener }
+}
 
 /// Does not assume that the sync `Listener` is in nonblocking mode, setting it to
 /// `ListenerNonblockingMode::Both` automatically.
-// TODO(3.0.0) remove handholding and assume nonblocking
+// FUTURE remove handholding and assume nonblocking
 impl TryFrom<SyncListener> for Listener {
     type Error = io::Error;
     fn try_from(mut sync: SyncListener) -> io::Result<Self> {

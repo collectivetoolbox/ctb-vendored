@@ -4,7 +4,7 @@ use crate::os::unix::uds_local_socket::tokio as uds_impl;
 use crate::os::windows::named_pipe::local_socket::tokio as np_impl;
 use {
     super::r#trait,
-    crate::local_socket::Name,
+    crate::local_socket::{traits::StreamCommon, ConnectOptions},
     std::{
         io,
         pin::Pin,
@@ -62,11 +62,13 @@ mkenum!(
 /// Tokio-based local socket byte stream, obtained either from [`Listener`](super::super::Listener)
 /// or by connecting to an existing local socket.
 ///
+/// See the [module-level documentation of local sockets](crate::local_socket) for more details.
+///
 /// # Examples
 ///
 /// ## Basic client
 /// ```no_run
-#[doc = doctest_file::include_doctest!("examples/local_socket/tokio/listener.rs")]
+#[cfg_attr(doc, doc = doctest_file::include_doctest!("examples/local_socket/tokio/listener.rs"))]
 /// ```
 Stream);
 
@@ -75,7 +77,9 @@ impl r#trait::Stream for Stream {
     type SendHalf = SendHalf;
 
     #[inline]
-    async fn connect(name: Name<'_>) -> io::Result<Self> { dispatch::connect(name).await }
+    async fn from_options(options: &ConnectOptions<'_>) -> io::Result<Self> {
+        dispatch::connect(options).await
+    }
     fn split(self) -> (RecvHalf, SendHalf) {
         match self {
             #[cfg(windows)]
@@ -105,6 +109,12 @@ impl r#trait::Stream for Stream {
         }
     }
 }
+impl StreamCommon for Stream {
+    #[inline]
+    fn take_error(&self) -> io::Result<Option<io::Error>> {
+        dispatch!(Self: x in self => x.take_error())
+    }
+}
 multimacro! {
     Stream,
     dispatch_read,
@@ -113,6 +123,8 @@ multimacro! {
 
 mkenum!(
 /// Receive half of a Tokio-based local socket stream, obtained by splitting a [`Stream`].
+///
+/// See the [module-level documentation of local sockets](crate::local_socket) for more details.
 "local_socket::tokio::" RecvHalf);
 impl r#trait::RecvHalf for RecvHalf {
     type Stream = Stream;
@@ -124,6 +136,8 @@ multimacro! {
 
 mkenum!(
 /// Send half of a Tokio-based local socket stream, obtained by splitting a [`Stream`].
+///
+/// See the [module-level documentation of local sockets](crate::local_socket) for more details.
 "local_socket::tokio::" SendHalf);
 impl r#trait::SendHalf for SendHalf {
     type Stream = Stream;

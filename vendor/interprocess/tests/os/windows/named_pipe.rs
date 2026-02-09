@@ -9,7 +9,10 @@ use {
         fmt::Debug,
         io,
         path::Path,
-        sync::{mpsc::Sender, Arc},
+        sync::{
+            mpsc::{self, Sender},
+            Arc,
+        },
     },
 };
 
@@ -21,11 +24,18 @@ macro_rules! matrix {
         fn $nm() -> TestResult {
             use $mod::*;
             test_wrapper(|| {
-                let server = matrix!(@dir_s $ty);
+                let (dtx, drx) = mpsc::channel();
+                let (server, client) = (matrix!(@dir_s $ty), matrix!(@dir_c $ty));
                 drive_server_and_multiple_clients(
-                    |ns, nc| server(make_id!(), ns, nc),
-                    matrix!(@dir_c $ty),
-                )
+                    |ns, nc| server(make_id!(), ns, nc, drx),
+                    |nm| {
+                        client(nm, true)?;
+                        dtx.send(()).opname("doa_sync send")?;
+                        Ok(())
+                    },
+                    |nm| client(nm, false),
+                )?;
+                Ok(())
             })
         }
     )+};
@@ -44,18 +54,22 @@ fn drive_server<L: Debug>(
     id: &str,
     name_sender: Sender<Arc<str>>,
     num_clients: u32,
-    mut createfn: impl (FnMut(PipeListenerOptions<'_>) -> io::Result<L>),
+    mut createfn: impl FnMut(PipeListenerOptions<'_>) -> io::Result<L>,
     mut acceptfn: impl FnMut(&mut L) -> TestResult,
+    doa_sync: mpsc::Receiver<()>,
 ) -> TestResult {
     let (name, mut listener) = listen_and_pick_name(&mut namegen_named_pipe(id), |nm| {
         createfn(PipeListenerOptions::new().path(Path::new(nm)))
     })?;
 
-    let _ = name_sender.send(name);
+    let _ = name_sender.send(Arc::from(name));
+    doa_sync.recv().opname("doa_sync receive")?;
 
-    for _ in 0..num_clients {
+    let start = std::time::Instant::now();
+    for i in 0..num_clients {
+        eprint!("[{:.3}] accepting client {i}/{num_clients}… ", start.elapsed().as_secs_f64());
         acceptfn(&mut listener)?;
+        eprintln!("done");
     }
-
     Ok(())
 }

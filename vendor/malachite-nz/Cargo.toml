@@ -13,7 +13,7 @@
 edition = "2024"
 rust-version = "1.90.0"
 name = "malachite-nz"
-version = "0.9.0"
+version = "0.9.1"
 authors = ["Mikhail Hogrefe <mikhailhogrefe@gmail.com>"]
 build = "build.rs"
 autolib = false
@@ -87,7 +87,7 @@ version = "0.1.4"
 optional = true
 
 [dependencies.indoc]
-version = "2.0.4"
+version = "2.0.7"
 optional = true
 
 [dependencies.itertools]
@@ -96,11 +96,11 @@ features = ["use_alloc"]
 default-features = false
 
 [dependencies.libm]
-version = "0.2.8"
+version = "0.2.16"
 default-features = false
 
 [dependencies.malachite-base]
-version = "0.9.0"
+version = "0.9.1"
 default-features = false
 
 [dependencies.num]
@@ -109,11 +109,11 @@ features = ["serde"]
 optional = true
 
 [dependencies.pyo3]
-version = "0.24.1"
+version = "0.27.2"
 optional = true
 
 [dependencies.rug]
-version = "1.24.1"
+version = "1.28.1"
 features = [
     "integer",
     "serde",
@@ -122,7 +122,7 @@ optional = true
 default-features = false
 
 [dependencies.serde]
-version = "1.0.188"
+version = "1.0.228"
 features = [
     "alloc",
     "derive",
@@ -131,15 +131,15 @@ optional = true
 default-features = false
 
 [dependencies.serde_json]
-version = "1.0.105"
+version = "1.0.149"
 optional = true
 
 [dependencies.wide]
-version = "0.8.0"
+version = "1.1.1"
 
 [dev-dependencies]
 
 [build-dependencies.pyo3-build-config]
-version = "0.24.1"
+version = "0.27.2"
 features = ["resolve-config"]
 optional = true

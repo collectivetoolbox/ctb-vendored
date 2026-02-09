@@ -139,11 +139,11 @@ pub enum FunctionType {
 }
 
 impl FunctionType {
-    /// Returns true if the function is an entry point for a compute shader.
-    pub fn is_compute_entry_point(&self, module: &crate::Module) -> bool {
+    /// Returns true if the function is an entry point for a compute-like shader.
+    pub fn is_compute_like_entry_point(&self, module: &crate::Module) -> bool {
         match *self {
             FunctionType::EntryPoint(index) => {
-                module.entry_points[index as usize].stage == crate::ShaderStage::Compute
+                module.entry_points[index as usize].stage.compute_like()
             }
             FunctionType::Function(_) => false,
         }
@@ -215,6 +215,10 @@ impl FunctionCtx<'_> {
                     external_texture_key,
                 )
             }
+            // This is a const function, which _sometimes_ gets called,
+            // so this lint is _sometimes_ triggered, depending on feature set.
+            #[expect(clippy::allow_attributes)]
+            #[allow(clippy::panic)]
             FunctionType::EntryPoint(_) => {
                 panic!("External textures cannot be used as arguments to entry points")
             }

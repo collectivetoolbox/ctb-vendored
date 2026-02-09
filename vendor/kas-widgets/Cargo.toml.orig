@@ -1,0 +1,36 @@
+[package]
+name = "kas-widgets"
+version = "0.17.1"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "KAS GUI / widgets"
+readme = "README.md"
+documentation = "https://docs.rs/kas-widgets/"
+keywords = ["gui"]
+categories = ["gui"]
+repository.workspace = true
+rust-version.workspace = true
+exclude = ["/screenshots"]
+
+[package.metadata.docs.rs]
+features = ["kas/wayland"]
+
+[dependencies]
+log = "0.4"
+smallvec = "1.6.1"
+unicode-segmentation = "1.7"
+thiserror = "2.0.3"
+linear-map = "1.2.0"
+
+# We must rename this package since macros expect kas to be in scope:
+kas = { version = "0.17.0", package = "kas-core", path = "../kas-core" }
+
+[lints.clippy]
+collapsible_else_if = "allow"
+collapsible_if = "allow"
+comparison_chain = "allow"
+module_inception = "allow"
+needless_lifetimes = "allow"
+redundant_pattern_matching = "allow"
+unit_arg = "allow"

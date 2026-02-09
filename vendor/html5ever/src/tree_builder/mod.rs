@@ -118,7 +118,7 @@ pub struct TreeBuilder<Handle, Sink> {
 
     /// Form element pointer.
     form_elem: RefCell<Option<Handle>>,
-    //§ END
+
     /// Frameset-ok flag.
     frameset_ok: Cell<bool>,
 
@@ -264,7 +264,7 @@ where
     }
 
     /// Call the `Tracer`'s `trace_handle` method on every `Handle` in the tree builder's
-    /// internal state.  This is intended to support garbage-collected DOMs.
+    /// internal state. This is intended to support garbage-collected DOMs.
     pub fn trace_handles(&self, tracer: &dyn Tracer<Handle = Handle>) {
         tracer.trace_handle(&self.doc_handle);
         for e in &*self.open_elems.borrow() {
@@ -399,6 +399,9 @@ where
                 ProcessResult::ToRawData(k) => {
                     assert!(more_tokens.is_empty());
                     return tokenizer::TokenSinkResult::RawData(k);
+                },
+                ProcessResult::EncodingIndicator(encoding) => {
+                    return tokenizer::TokenSinkResult::EncodingIndicator(encoding)
                 },
             }
         }
@@ -923,6 +926,7 @@ where
             .borrow_mut()
             .pop()
             .expect("no current element");
+
         self.sink.pop(&elem);
         elem
     }
@@ -1183,6 +1187,7 @@ where
         n
     }
 
+    /// Pop element until an element with the given name has been popped.
     fn pop_until_named(&self, name: LocalName) -> usize {
         self.pop_until(|p| *p.ns == ns!(html) && *p.local == name)
     }
@@ -1269,16 +1274,6 @@ where
                 _ => continue,
             };
             match *name {
-                local_name!("select") => {
-                    for ancestor in self.open_elems.borrow()[0..i].iter().rev() {
-                        if self.html_elem_named(ancestor, local_name!("template")) {
-                            return InsertionMode::InSelect;
-                        } else if self.html_elem_named(ancestor, local_name!("table")) {
-                            return InsertionMode::InSelectInTable;
-                        }
-                    }
-                    return InsertionMode::InSelect;
-                },
                 local_name!("td") | local_name!("th") => {
                     if !last {
                         return InsertionMode::InCell;
@@ -1356,7 +1351,7 @@ where
         // FIXME: application cache selection algorithm
     }
 
-    // https://html.spec.whatwg.org/multipage/#create-an-element-for-the-token
+    /// <https://html.spec.whatwg.org/multipage/#create-an-element-for-the-token>
     fn insert_element(
         &self,
         push: PushFlag,

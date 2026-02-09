@@ -19,6 +19,7 @@ pub(crate) enum NameInner<'s> {
 
 impl Default for NameInner<'_> {
     fn default() -> Self {
+        // FUTURE make const
         #[cfg(windows)]
         {
             Self::NamedPipe(Cow::default())
@@ -46,6 +47,7 @@ macro_rules! map_cow {
 }
 
 impl NameInner<'_> {
+    #[inline]
     pub const fn is_namespaced(&self) -> bool {
         match self {
             #[cfg(windows)]
@@ -58,6 +60,7 @@ impl NameInner<'_> {
             Self::UdSocketNs(..) => true,
         }
     }
+    #[inline]
     pub const fn is_path(&self) -> bool {
         match self {
             #[cfg(windows)]

@@ -10,9 +10,6 @@ use crate::sync::atomic::{AtomicUsize, Ordering};
 #[cfg(not(loom))]
 use crate::sync::WithMut;
 
-#[cfg(all(feature = "std", not(target_family = "wasm")))]
-use core::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
-
 use event_listener::Event;
 use event_listener_strategy::{NonBlocking, Strategy};
 
@@ -121,7 +118,7 @@ impl<T> OnceCell<T> {
         /// use async_lock::OnceCell;
         ///
         /// let cell = OnceCell::new();
-        /// # cell.set_blocking(1);
+        /// # let _: Option<&u32> = cell.get();
         /// ```
         pub const fn new() -> Self {
             Self {
@@ -263,7 +260,8 @@ impl<T> OnceCell<T> {
     ///
     /// # Example
     ///
-    /// ```rust
+    #[cfg_attr(not(target_family = "wasm"), doc = "```rust")]
+    #[cfg_attr(target_family = "wasm", doc = "```ignore")]
     /// use async_lock::OnceCell;
     /// use std::sync::Arc;
     /// use std::time::Duration;
@@ -791,21 +789,12 @@ impl<T> Default for OnceCell<T> {
 /// Either return the result of a future now, or panic.
 #[cfg(all(feature = "std", not(target_family = "wasm")))]
 fn now_or_never<T>(f: impl Future<Output = T>) -> T {
-    const NOOP_WAKER: RawWakerVTable = RawWakerVTable::new(clone, wake, wake_by_ref, drop);
-
-    unsafe fn wake(_: *const ()) {}
-    unsafe fn wake_by_ref(_: *const ()) {}
-    unsafe fn clone(_: *const ()) -> RawWaker {
-        RawWaker::new(ptr::null(), &NOOP_WAKER)
-    }
-    unsafe fn drop(_: *const ()) {}
-
-    pin!(f);
-
-    let waker = unsafe { Waker::from_raw(RawWaker::new(ptr::null(), &NOOP_WAKER)) };
+    use core::pin::pin;
+    use core::task::{Context, Poll, Waker};
 
     // Poll the future exactly once.
-    let mut cx = Context::from_waker(&waker);
+    let f = pin!(f);
+    let mut cx = Context::from_waker(Waker::noop());
 
     match f.poll(&mut cx) {
         Poll::Ready(value) => value,

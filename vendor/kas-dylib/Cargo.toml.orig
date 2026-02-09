@@ -1,0 +1,37 @@
+[package]
+name = "kas-dylib"
+version = "0.17.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "KAS GUI / dylib"
+readme = "README.md"
+documentation = "https://docs.rs/kas-dylib/"
+keywords = ["gui"]
+categories = ["gui"]
+repository.workspace = true
+rust-version.workspace = true
+
+[package.metadata.docs.rs]
+features = ["docs_rs"]
+
+[lib]
+crate-type = ["dylib"]
+
+[features]
+image = ["dep:kas-image"]
+view = ["dep:kas-view"]
+wgpu = ["dep:kas-wgpu"]
+soft = ["dep:kas-soft"]
+
+# Non-local features required for doc builds.
+# Note: docs.rs does not support direct usage of transitive features.
+docs_rs = ["kas-core/wayland"]
+
+[dependencies]
+kas-core = { version = "0.17.0", path = "../kas-core", default-features = false }
+kas-widgets = { version = "0.17.0", path = "../kas-widgets" }
+kas-image = { version = "0.17.0", path = "../kas-image", default-features = false, optional = true }
+kas-view = { version = "0.17.0", path = "../kas-view", default-features = false, optional = true }
+kas-wgpu = { version = "0.17.0", path = "../kas-wgpu", default-features = false, optional = true }
+kas-soft = { version = "0.17.0", path = "../kas-soft", default-features = false, optional = true }

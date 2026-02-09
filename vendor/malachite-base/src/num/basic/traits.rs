@@ -1,4 +1,4 @@
-// Copyright © 2025 Mikhail Hogrefe
+// Copyright © 2026 Mikhail Hogrefe
 //
 // Implementations of traits for NonZero* types by b4D8.
 //
@@ -108,6 +108,84 @@ pub trait Sqrt3Over3 {
 /// Provides $\varphi$, the golden ratio.
 pub trait Phi {
     const PHI: Self;
+}
+
+/// Provides $\pi$.
+pub trait Pi {
+    const PI: Self;
+}
+
+/// Provides $\tau=2\pi$.
+pub trait Tau {
+    const TAU: Self;
+}
+
+/// Provides $\pi/2$.
+pub trait PiOver2 {
+    const PI_OVER_2: Self;
+}
+
+/// Provides $\pi/3$.
+pub trait PiOver3 {
+    const PI_OVER_3: Self;
+}
+
+/// Provides $\pi/4$.
+pub trait PiOver4 {
+    const PI_OVER_4: Self;
+}
+
+/// Provides $\pi/6$.
+pub trait PiOver6 {
+    const PI_OVER_6: Self;
+}
+
+/// Provides $\pi/8$.
+pub trait PiOver8 {
+    const PI_OVER_8: Self;
+}
+
+/// Provides $1/\pi$.
+pub trait OneOverPi {
+    const ONE_OVER_PI: Self;
+}
+
+/// Provides $\sqrt{\pi}$.
+pub trait SqrtPi {
+    const SQRT_PI: Self;
+}
+
+/// Provides $1/\sqrt{\pi}$.
+pub trait OneOverSqrtPi {
+    const ONE_OVER_SQRT_PI: Self;
+}
+
+/// Provides $1/\sqrt{\tau}=1/\sqrt{2\pi}$.
+pub trait OneOverSqrtTau {
+    const ONE_OVER_SQRT_TAU: Self;
+}
+
+/// Provides $2/\pi$.
+pub trait TwoOverPi {
+    const TWO_OVER_PI: Self;
+}
+
+/// Provides $2/\sqrt{\pi}$.
+pub trait TwoOverSqrtPi {
+    const TWO_OVER_SQRT_PI: Self;
+}
+
+/// Provides Gauss's constant, $G=1/\mathrm{AGM}(1,\sqrt{2})$.
+///
+/// Having three consecutive esses in an identifier is awkward, so let's pretend that we sometimes
+/// use AP Style and write "Gauss' constant".
+pub trait GaussConstant {
+    const GAUSS_CONSTANT: Self;
+}
+
+/// Provides the lemniscate constant $\varpi=\pi G$, where $G$ is Gauss's constant.
+pub trait LemniscateConstant {
+    const LEMNISCATE_CONSTANT: Self;
 }
 
 // Implementation for `NonZero*` types:

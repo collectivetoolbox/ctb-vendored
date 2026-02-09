@@ -26,7 +26,9 @@ static_assertions::assert_impl_all!(SurfaceConfiguration: Send, Sync);
 /// [`GPUCanvasContext`](https://gpuweb.github.io/gpuweb/#canvas-context)
 /// serves a similar role.
 pub struct Surface<'window> {
-    /// Additional surface data returned by [`DynContext::instance_create_surface`].
+    /// Additional surface data returned by [`InstanceInterface::create_surface`][cs].
+    ///
+    /// [cs]: crate::dispatch::InstanceInterface::create_surface
     pub(crate) inner: dispatch::DispatchSurface,
 
     // Stores the latest `SurfaceConfiguration` that was set using `Surface::configure`.
@@ -95,6 +97,13 @@ impl Surface<'_> {
 
         let mut conf = self.config.lock();
         *conf = Some(config.clone());
+    }
+
+    /// Returns the current configuration of [`Surface`], if configured.
+    ///
+    /// This is similar to [WebGPU `GPUcCanvasContext::getConfiguration`](https://gpuweb.github.io/gpuweb/#dom-gpucanvascontext-getconfiguration).
+    pub fn get_configuration(&self) -> Option<SurfaceConfiguration> {
+        self.config.lock().clone()
     }
 
     /// Returns the next texture to be presented by the swapchain for drawing.
@@ -408,8 +417,11 @@ pub(crate) enum CreateSurfaceErrorKind {
     #[cfg_attr(not(webgpu), expect(dead_code))]
     Web(String),
 
-    /// Error when trying to get a [`DisplayHandle`] or a [`WindowHandle`] from
-    /// `raw_window_handle`.
+    /// Error when trying to get a [`RawDisplayHandle`][rdh] or a
+    /// [`RawWindowHandle`][rwh] from a [`SurfaceTarget`].
+    ///
+    /// [rdh]: raw_window_handle::RawDisplayHandle
+    /// [rwh]: raw_window_handle::RawWindowHandle
     RawHandle(raw_window_handle::HandleError),
 }
 static_assertions::assert_impl_all!(CreateSurfaceError: Send, Sync);

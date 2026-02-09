@@ -1,4 +1,4 @@
-// Copyright © 2025 Mikhail Hogrefe
+// Copyright © 2026 Mikhail Hogrefe
 //
 // This file is part of Malachite.
 //
@@ -7,6 +7,7 @@
 // 3 of the License, or (at your option) any later version. See <https://www.gnu.org/licenses/>.
 
 use crate::Rational;
+use malachite_base::num::basic::integers::PrimitiveInt;
 use malachite_base::num::conversion::traits::ExactFrom;
 use malachite_base::num::logic::traits::SignificantBits;
 use malachite_base::test_util::bench::bucketers::Bucketer;
@@ -26,6 +27,15 @@ pub fn pair_2_pair_1_rational_bit_bucketer<T, U>(
 ) -> Bucketer<'_, (T, (Rational, U))> {
     Bucketer {
         bucketing_function: &|(_, (q, _))| usize::exact_from(q.significant_bits()),
+        bucketing_label: format!("{var_name}.significant_bits()"),
+    }
+}
+
+pub fn triple_3_pair_1_rational_bit_bucketer<T, U, V>(
+    var_name: &str,
+) -> Bucketer<'_, (T, U, (Rational, V))> {
+    Bucketer {
+        bucketing_function: &|(_, _, (q, _))| usize::exact_from(q.significant_bits()),
         bucketing_label: format!("{var_name}.significant_bits()"),
     }
 }
@@ -279,6 +289,46 @@ pub fn quadruple_1_2_3_rational_bit_i64_u64_max_bucketer<'a, T>(
         },
         bucketing_label: format!(
             "max({x_name}.significant_bits(), {y_name}.unsigned_abs(), {z_name})"
+        ),
+    }
+}
+
+pub fn triple_rational_rational_primitive_int_max_bit_bucketer<'a, T: PrimitiveInt>(
+    x_name: &'a str,
+    y_name: &'a str,
+    z_name: &'a str,
+) -> Bucketer<'a, (Rational, Rational, T)> {
+    Bucketer {
+        bucketing_function: &|(x, y, z)| {
+            usize::exact_from(max!(
+                x.significant_bits(),
+                y.significant_bits(),
+                z.significant_bits()
+            ))
+        },
+        bucketing_label: format!(
+            "max({x_name}.significant_bits(), {y_name}.significant_bits(), \
+            {z_name}.significant_bits())"
+        ),
+    }
+}
+
+pub fn quadruple_1_2_3_rational_rational_primitive_int_max_bit_bucketer<'a, T: PrimitiveInt, U>(
+    x_name: &'a str,
+    y_name: &'a str,
+    z_name: &'a str,
+) -> Bucketer<'a, (Rational, Rational, T, U)> {
+    Bucketer {
+        bucketing_function: &|(x, y, z, _)| {
+            usize::exact_from(max!(
+                x.significant_bits(),
+                y.significant_bits(),
+                z.significant_bits()
+            ))
+        },
+        bucketing_label: format!(
+            "max({x_name}.significant_bits(), {y_name}.significant_bits(), \
+            {z_name}.significant_bits())"
         ),
     }
 }

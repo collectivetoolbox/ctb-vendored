@@ -2,18 +2,23 @@ use {
     crate::{
         error::{FromHandleError, ReuniteError},
         local_socket::{
-            traits::tokio::{self as traits, ReuniteResult},
-            Name, NameInner,
+            traits::{
+                tokio::{self as traits, ReuniteResult},
+                StreamCommon,
+            },
+            ConnectOptions, NameInner,
         },
-        os::windows::named_pipe::{
-            pipe_mode::Bytes,
-            tokio::{DuplexPipeStream, RecvPipeStream, SendPipeStream},
+        os::windows::{
+            named_pipe::{
+                pipe_mode::Bytes,
+                tokio::{DuplexPipeStream, RecvPipeStream, SendPipeStream},
+            },
+            winprelude::*,
         },
         Sealed,
     },
     std::{
         io,
-        os::windows::prelude::*,
         pin::Pin,
         task::{Context, Poll},
     },
@@ -24,17 +29,19 @@ type StreamImpl = DuplexPipeStream<Bytes>;
 type RecvHalfImpl = RecvPipeStream<Bytes>;
 type SendHalfImpl = SendPipeStream<Bytes>;
 
-/// Wrapper around [`DuplexPipeStream`] that implements [`Stream`](traits::Stream).
+/// Wrapper around [`DuplexPipeStream`] that implements the [`Stream`](traits::Stream) trait.
 #[derive(Debug)]
 pub struct Stream(pub(super) StreamImpl);
 impl Sealed for Stream {}
+
 impl traits::Stream for Stream {
     type RecvHalf = RecvHalf;
     type SendHalf = SendHalf;
 
-    async fn connect(name: Name<'_>) -> io::Result<Self> {
-        let NameInner::NamedPipe(path) = name.0;
-        StreamImpl::connect_by_path(path).await.map(Self)
+    #[inline]
+    async fn from_options(options: &ConnectOptions<'_>) -> io::Result<Self> {
+        let NameInner::NamedPipe(path) = &options.name.0;
+        StreamImpl::connect_by_path(path.as_ref()).await.map(Self)
     }
     #[inline]
     fn split(self) -> (RecvHalf, SendHalf) {
@@ -47,6 +54,22 @@ impl traits::Stream for Stream {
             ReuniteError { rh: RecvHalf(rh), sh: SendHalf(sh) }
         })
     }
+}
+impl StreamCommon for Stream {
+    #[inline(always)]
+    fn take_error(&self) -> io::Result<Option<io::Error>> { Ok(None) }
+}
+
+/// Access to the underlying implementation.
+impl Stream {
+    /// Borrows the [`DuplexPipeStream`] contained within, granting access to operations defined
+    /// on it.
+    #[inline(always)]
+    pub fn inner(&self) -> &StreamImpl { &self.0 }
+    /// Mutably borrows the [`DuplexPipeStream`] contained within, granting access to operations
+    /// defined on it.
+    #[inline(always)]
+    pub fn inner_mut(&mut self) -> &mut StreamImpl { &mut self.0 }
 }
 
 impl AsyncWrite for &Stream {
@@ -87,6 +110,8 @@ multimacro! {
     Stream,
     pinproj_for_unpin(StreamImpl),
     forward_rbv(StreamImpl, &),
+    forward_as_ref(StreamImpl),
+    forward_as_mut(StreamImpl),
     forward_tokio_read,
     forward_tokio_ref_read,
     forward_as_handle,
@@ -104,6 +129,8 @@ multimacro! {
     RecvHalf,
     pinproj_for_unpin(RecvHalfImpl),
     forward_rbv(RecvHalfImpl, &),
+    forward_as_ref(RecvHalfImpl),
+    forward_as_mut(RecvHalfImpl),
     forward_tokio_read,
     forward_tokio_ref_read,
     forward_as_handle,
@@ -140,6 +167,8 @@ impl AsyncWrite for &SendHalf {
 multimacro! {
     SendHalf,
     forward_rbv(SendHalfImpl, &),
+    forward_as_ref(SendHalfImpl),
+    forward_as_mut(SendHalfImpl),
     forward_as_handle,
     forward_debug("local_socket::SendHalf"),
     derive_tokio_mut_write,

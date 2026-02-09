@@ -10,10 +10,10 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
-edition = "2021"
-rust-version = "1.86.0"
+edition = "2024"
+rust-version = "1.87.0"
 name = "process-wrap"
-version = "9.0.0"
+version = "9.0.1"
 authors = ["Félix Saparelli <felix@passcod.name>"]
 build = false
 exclude = [
@@ -38,6 +38,7 @@ keywords = [
 ]
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/watchexec/process-wrap"
+resolver = "3"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -149,5 +150,5 @@ optional = true
 default-features = false
 
 [target."cfg(windows)".dependencies.windows]
-version = "0.61.1"
+version = "0.62.2"
 optional = true

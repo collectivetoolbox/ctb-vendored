@@ -1,4 +1,4 @@
-// Copyright © 2025 Mikhail Hogrefe
+// Copyright © 2026 Mikhail Hogrefe
 //
 // This file is part of Malachite.
 //
@@ -135,6 +135,12 @@ pub fn test_prime_constant_prec() {
     assert_eq!(pc_f64.to_string(), "0.41468250985111166");
     assert_eq!(to_hex_string(&pc_f64), "0x0.6a28a20a08a208#53");
     assert_eq!(pc_f64, f64::PRIME_CONSTANT);
+}
+
+#[test]
+#[should_panic]
+fn prime_constant_prec_fail_1() {
+    Float::prime_constant_prec(0);
 }
 
 fn test_prime_constant_prec_round_helper(

@@ -1,4 +1,4 @@
-// Copyright © 2025 Mikhail Hogrefe
+// Copyright © 2026 Mikhail Hogrefe
 //
 // This file is part of Malachite.
 //
@@ -77,6 +77,7 @@ pub mod arithmetic {
     pub mod log_base;
     pub mod log_base_2;
     pub mod log_base_power_of_2;
+    pub mod mod_op;
     pub mod mul;
     pub mod neg;
     pub mod next_power_of_2;

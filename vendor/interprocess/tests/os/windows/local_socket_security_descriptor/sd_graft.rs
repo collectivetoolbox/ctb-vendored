@@ -8,14 +8,12 @@ use {
             security_descriptor::{
                 AsSecurityDescriptorExt, BorrowedSecurityDescriptor, LocalBox, SecurityDescriptor,
             },
-            AsRawHandleExt as _,
+            winprelude::*,
         },
         tests::util::*,
         OrErrno, SubUsizeExt, TryClone,
     },
-    std::{
-        ffi::OsString, fs::File, io, mem::MaybeUninit, os::windows::prelude::*, ptr, sync::Arc,
-    },
+    std::{ffi::OsString, fs::File, io, mem::MaybeUninit, ptr},
     widestring::{U16CStr, U16Str},
     windows_sys::Win32::{
         Foundation::{MAX_PATH, STATUS_SUCCESS},
@@ -32,6 +30,7 @@ const SECINFO: u32 =
 
 fn get_sd(handle: BorrowedHandle<'_>, ot: SE_OBJECT_TYPE) -> TestResult<SecurityDescriptor> {
     let mut sdptr = ptr::null_mut();
+    #[allow(clippy::cast_possible_wrap)] // sign not relevant
     let errno = unsafe {
         GetSecurityInfo(
             handle.as_int_handle(),
@@ -42,13 +41,7 @@ fn get_sd(handle: BorrowedHandle<'_>, ot: SE_OBJECT_TYPE) -> TestResult<Security
             ptr::null_mut(),
             ptr::null_mut(),
             &mut sdptr,
-        )
-    };
-    let errno = {
-        #[allow(clippy::as_conversions)]
-        {
-            errno as i32
-        }
+        ) as i32
     };
     (errno == STATUS_SUCCESS)
         .then_some(())
@@ -101,7 +94,6 @@ fn get_self_exe(obuf: &mut [MaybeUninit<u16>]) -> io::Result<&U16CStr> {
     })
 }
 
-#[allow(clippy::as_conversions)]
 pub(super) fn test_main() -> TestResult {
     let sd = {
         let mut pathbuf = [MaybeUninit::uninit(); MAX_PATH as _];
@@ -123,7 +115,7 @@ pub(super) fn test_main() -> TestResult {
                 .security_descriptor(sd.try_clone()?)
                 .create_sync()
         })?;
-    let _ = Stream::connect(Arc::try_unwrap(name).unwrap()).opname("client connect")?;
+    let _ = Stream::connect(name).opname("client connect")?;
 
     let listener_handle = match listener {
         Listener::NamedPipe(l) => OwnedHandle::from(l),

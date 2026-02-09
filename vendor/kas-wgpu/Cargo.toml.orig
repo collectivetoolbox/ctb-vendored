@@ -1,0 +1,51 @@
+[package]
+name = "kas-wgpu"
+version = "0.17.1"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "KAS GUI / wgpu front-end"
+keywords = ["gui", "wgpu"]
+categories = ["gui"]
+repository.workspace = true
+rust-version.workspace = true
+readme = "README.md"
+documentation = "https://docs.rs/kas-wgpu/"
+
+[package.metadata.docs.rs]
+features = ["kas/wayland"]
+
+[features]
+default = []
+
+# WGPU backends
+vulkan = ["wgpu/vulkan"]
+gles = ["wgpu/gles"]
+dx12 = ["wgpu/dx12"]
+metal = ["wgpu/metal"]
+
+[dependencies]
+bytemuck = "1.7.0"
+futures-lite = "2.0"
+log = "0.4"
+thiserror = "2.0.3"
+guillotiere = "0.6.0"
+
+[dependencies.kas]
+# Rename package purely for convenience:
+version = "0.17.0"
+package = "kas-core"
+path = "../kas-core"
+
+[dependencies.wgpu]
+version = "28.0.0"
+default-features = false
+features = ["spirv"]
+
+[build-dependencies]
+glob = "0.3"
+
+[lints.clippy]
+needless_lifetimes = "allow"
+unit_arg = "allow"
+neg_cmp_op_on_partial_ord = "allow"

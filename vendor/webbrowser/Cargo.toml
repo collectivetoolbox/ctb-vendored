@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.60"
 name = "webbrowser"
-version = "1.0.6"
+version = "1.1.0"
 authors = ["Amod Malviya @amodm"]
 build = false
 autolib = false
@@ -71,9 +71,12 @@ path = "tests/test_windows.rs"
 
 [dependencies.log]
 version = "0.4"
+default-features = false
 
 [dependencies.url]
 version = "2"
+features = ["std"]
+default-features = false
 
 [dev-dependencies.actix-files]
 version = "0.6"

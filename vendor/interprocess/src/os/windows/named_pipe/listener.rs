@@ -20,13 +20,13 @@ use {
         },
     },
     windows_sys::Win32::{
-        Foundation::{ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING},
-        System::Pipes::ConnectNamedPipe,
+        Foundation::{
+            ERROR_NO_DATA, ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING, ERROR_PIPE_NOT_CONNECTED,
+        },
+        System::Pipes::{ConnectNamedPipe, DisconnectNamedPipe},
     },
 };
 pub use {incoming::*, options::*};
-
-// TODO(2.3.0) finish collect_options and add conversion from handles after all
 
 /// The server for a named pipe, listening for connections to clients and producing pipe streams.
 ///
@@ -35,10 +35,17 @@ pub use {incoming::*, options::*};
 ///
 /// The only way to create a `PipeListener` is to use [`PipeListenerOptions`]. See its documentation
 /// for more.
-// TODO(2.3.0) examples
+///
+/// # Examples
+///
+/// ## Basic server
+/// ```no_run
+#[cfg_attr(doc, doc = doctest_file::include_doctest!("examples/named_pipe/sync/listener.rs"))]
+/// ```
 pub struct PipeListener<Rm: PipeModeTag, Sm: PipeModeTag> {
     config: PipeListenerOptions<'static>, // We need the options to create new instances
     nonblocking: AtomicBool,
+    // TODO implement a handover mechanism for the case of having an instance limit of 1
     stored_instance: Mutex<FileHandle>,
     _phantom: PhantomData<(Rm, Sm)>,
 }
@@ -49,13 +56,22 @@ impl<Rm: PipeModeTag, Sm: PipeModeTag> PipeListener<Rm, Sm> {
     /// the pipe.
     ///
     /// See `incoming` for an iterator version of this.
+    ///
+    /// **Neglecting to call this periodically may result in new clients being unable to
+    /// connect.** This is because a named pipe client connecting to a server immediately puts the
+    /// pipe into a connected state, contrary to the concept of *accepting* clients. If a client
+    /// connects to and disconnects from a named pipe without `accept` being called between those
+    /// two events, the named pipe instance will contain a dead-on-arrival connection that will
+    /// prevent new connections until it is removed by a call to `accept`.
     pub fn accept(&self) -> io::Result<PipeStream<Rm, Sm>> {
         let instance_to_hand_out = {
             let mut stored_instance = self.stored_instance.lock().map_err(poison_error)?;
             // Doesn't actually even need to be atomic to begin with, but it's simpler and more
             // convenient to do this instead. The mutex takes care of ordering.
             let nonblocking = self.nonblocking.load(Relaxed);
-            block_on_connect(stored_instance.as_handle())?;
+
+            block_on_connect_clearing_empty_conns(stored_instance.as_handle())?;
+
             let new_instance = self.create_instance(nonblocking)?;
             replace(&mut *stored_instance, new_instance)
         };
@@ -95,7 +111,6 @@ impl<Rm: PipeModeTag, Sm: PipeModeTag> PipeListener<Rm, Sm> {
     ///
     /// The options are necessary to provide because the listener needs to create new instances of
     /// the named pipe server in `.accept()`.
-    // TODO(2.3.0) mention TryFrom<OwnedHandle> here
     pub fn from_handle_and_options(
         handle: OwnedHandle,
         options: PipeListenerOptions<'static>,
@@ -141,6 +156,15 @@ impl<Rm: PipeModeTag, Sm: PipeModeTag> From<PipeListener<Rm, Sm>> for OwnedHandl
     }
 }
 
+fn block_on_connect_clearing_empty_conns(handle: BorrowedHandle<'_>) -> io::Result<()> {
+    loop {
+        match block_on_connect(handle) {
+            Err(e) if e.raw_os_error().eeq(ERROR_NO_DATA) => disconnect_if_connected(handle)?,
+            r => break r,
+        }
+    }
+}
+
 fn block_on_connect(handle: BorrowedHandle<'_>) -> io::Result<()> {
     unsafe { ConnectNamedPipe(handle.as_int_handle(), ptr::null_mut()) != 0 }
         .true_val_or_errno(())
@@ -155,4 +179,10 @@ fn thunk_accept_error(e: io::Error) -> io::Result<()> {
     } else {
         Err(e)
     }
+}
+
+fn disconnect_if_connected(handle: BorrowedHandle<'_>) -> io::Result<()> {
+    unsafe { DisconnectNamedPipe(handle.as_int_handle()) != 0 }
+        .true_val_or_errno(())
+        .or_else(|e| if e.raw_os_error().eeq(ERROR_PIPE_NOT_CONNECTED) { Ok(()) } else { Err(e) })
 }

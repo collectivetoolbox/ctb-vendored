@@ -15,14 +15,16 @@ mkenum!(
 ///
 /// This struct is created by [`ListenerOptions`](crate::local_socket::ListenerOptions).
 ///
-/// [Name reclamation](super::super::Stream#name-reclamation) is performed by default on
-/// backends that necessitate it.
+/// See the [module-level documentation of local sockets](crate::local_socket) for more details.
+///
+/// [Name reclamation](crate::local_socket::Listener#name-reclamation) is performed by default
+/// when using local socket implementations that necessitate it.
 ///
 /// # Examples
 ///
 /// ## Basic server
 /// ```no_run
-#[doc = doctest_file::include_doctest!("examples/local_socket/tokio/listener.rs")]
+#[cfg_attr(doc, doc = doctest_file::include_doctest!("examples/local_socket/tokio/listener.rs"))]
 /// ```
 Listener);
 
@@ -31,7 +33,7 @@ impl r#trait::Listener for Listener {
 
     #[inline]
     fn from_options(options: ListenerOptions<'_>) -> io::Result<Self> {
-        dispatch::from_options(options)
+        dispatch::listen(options)
     }
     #[inline]
     async fn accept(&self) -> io::Result<Stream> {

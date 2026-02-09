@@ -44,6 +44,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0), 
 
 ## Unreleased
 
+## [0.4.39](https://github.com/Nullus157/async-compression/compare/async-compression-v0.4.38...async-compression-v0.4.39) - 2026-02-07
+
+### Other
+
+- Revert "Fix decoding of empty response streams." ([#446](https://github.com/Nullus157/async-compression/pull/446))
+
+## [0.4.38](https://github.com/Nullus157/async-compression/compare/async-compression-v0.4.37...async-compression-v0.4.38) - 2026-02-06
+
+### Other
+
+- Fix decoding of empty response streams. ([#444](https://github.com/Nullus157/async-compression/pull/444))
+- *(deps)* update proptest-derive requirement from 0.7 to 0.8 ([#442](https://github.com/Nullus157/async-compression/pull/442))
+
+## [0.4.37](https://github.com/Nullus157/async-compression/compare/async-compression-v0.4.36...async-compression-v0.4.37) - 2026-01-10
+
+### Other
+
+- Set async-compression msrv ([#440](https://github.com/Nullus157/async-compression/pull/440))
+- Fix BufWriter::flush_buf: propagate error before reset ([#438](https://github.com/Nullus157/async-compression/pull/438))
+- Switch futures_core::ready to standard library api ([#436](https://github.com/Nullus157/async-compression/pull/436))
+
 ## [0.4.36](https://github.com/Nullus157/async-compression/compare/async-compression-v0.4.35...async-compression-v0.4.36) - 2025-12-11
 
 ### Other

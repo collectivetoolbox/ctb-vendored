@@ -1,4 +1,4 @@
-// Copyright © 2025 Mikhail Hogrefe
+// Copyright © 2026 Mikhail Hogrefe
 //
 // This file is part of Malachite.
 //
@@ -163,6 +163,12 @@ pub fn test_ln_2_prec() {
     assert_eq!(ln_2_f64.to_string(), "0.6931471805599453");
     assert_eq!(to_hex_string(&ln_2_f64), "0x0.b17217f7d1cf78#53");
     assert_eq!(ln_2_f64, f64::LN_2);
+}
+
+#[test]
+#[should_panic]
+fn ln_2_prec_fail_1() {
+    Float::ln_2_prec(0);
 }
 
 fn test_ln_2_prec_round_helper(

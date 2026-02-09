@@ -7,9 +7,10 @@
 - **[API documentation][docs]**.
 - [Dual-licensed][copyright] with Apache 2.0 and MIT.
 - Successor to [command-group](https://github.com/watchexec/command-group).
-- Minimum Supported Rust Version: 1.86.0.
+- Minimum Supported Rust Version: 1.87.0.
   - Only the latest stable rustc version is supported.
-  - MSRV increases will not incur major version bumps.
+  - We try to conservatively bump the MSRV,
+  - but MSRV increases will not incur major version bumps.
 
 [copyright]: ./COPYRIGHT
 [docs]: https://docs.rs/process-wrap
@@ -26,7 +27,7 @@ The full test suite from command-group was retained: process-wrap has parity on 
 
 ```toml
 [dependencies]
-process-wrap = { version = "9.0.0", features = ["tokio1"] }
+process-wrap = { version = "9.0.1", features = ["tokio1"] }
 ```
 
 By default, the crate does nothing, you need to enable either the std or Tokio "frontend". A default
@@ -87,7 +88,7 @@ dbg!(status);
 
 ```toml
 [dependencies]
-process-wrap = { version = "9.0.0", features = ["std"] }
+process-wrap = { version = "9.0.1", features = ["std"] }
 ```
 
 ```rust

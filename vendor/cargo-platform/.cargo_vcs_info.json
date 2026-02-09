@@ -1,6 +1,6 @@
 {
   "git": {
-    "sha1": "344c4567c634a25837e3c3476aac08af84cf9203"
+    "sha1": "873a0649350c486caf67be772828a4f36bb4734c"
   },
   "path_in_vcs": "crates/cargo-platform"
 }

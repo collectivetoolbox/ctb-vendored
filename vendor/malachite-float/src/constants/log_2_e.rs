@@ -1,4 +1,4 @@
-// Copyright © 2025 Mikhail Hogrefe
+// Copyright © 2026 Mikhail Hogrefe
 //
 // Uses code adopted from the GNU MPFR Library.
 //
@@ -21,14 +21,16 @@ use malachite_nz::natural::arithmetic::float_extras::float_can_round;
 use malachite_nz::platform::Limb;
 
 impl Float {
-    /// Returns an approximation to the base-2 logarithm of $e$, with the given precision and
+    /// Returns an approximation of the base-2 logarithm of $e$, with the given precision and
     /// rounded using the given [`RoundingMode`]. An [`Ordering`] is also returned, indicating
     /// whether the rounded value is less than or greater than the exact value of the constant.
     /// (Since the constant is irrational, the rounded value is never equal to the exact value.)
     ///
     /// $$
-    /// L = \log_2 e.
+    /// x = \log_2 e+\varepsilon.
     /// $$
+    /// - If $m$ is not `Nearest`, then $|\varepsilon| < 2^{-p+1}$.
+    /// - If $m$ is `Nearest`, then $|\varepsilon| < 2^{-p}$.
     ///
     /// The constant is irrational and transcendental.
     ///
@@ -64,7 +66,7 @@ impl Float {
         loop {
             let log_2_e = Self::ln_2_prec_round(working_prec, Floor).0.reciprocal();
             // See algorithms.tex. Since we rounded down when computing ln_2, the absolute error of
-            // the square root is bounded by (c_w + 2c_uk_u)ulp(sqrt) <= 4ulp(sqrt).
+            // the inverse is bounded by (c_w + 2c_uk_u)ulp(log_e(2)) <= 4ulp(log_e(2)).
             if float_can_round(
                 log_2_e.significand_ref().unwrap(),
                 working_prec - 2,
@@ -78,15 +80,16 @@ impl Float {
         }
     }
 
-    /// Returns an approximation to the base-2 logarithm of $e$, with the given precision and
+    /// Returns an approximation of the base-2 logarithm of $e$, with the given precision and
     /// rounded to the nearest [`Float`] of that precision. An [`Ordering`] is also returned,
     /// indicating whether the rounded value is less than or greater than the exact value of the
     /// constant. (Since the constant is irrational, the rounded value is never equal to the exact
     /// value.)
     ///
     /// $$
-    /// L = \log_2 e.
+    /// x = \log_2 e+\varepsilon.
     /// $$
+    /// - $|\varepsilon| < 2^{-p}$.
     ///
     /// The constant is irrational and transcendental.
     ///

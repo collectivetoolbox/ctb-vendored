@@ -39,10 +39,24 @@ mod char_ref;
 mod interface;
 pub mod states;
 
+/// The result of invoking the tokenizer once.
 pub enum ProcessResult<Handle> {
+    /// The tokenizer should be re-invoked immediately.
     Continue,
+    /// The tokenizer has not finished, but it needs to wait for more
+    /// input to arrive before it can continue.
     Suspend,
+    /// The tokenizer was blocked by a `<script>`.
+    ///
+    /// This `<script>` needs to be executed before tokenization
+    /// can continue, as it might invoke `document.write`.
     Script(Handle),
+    /// The tokenizer was blocked because it found a `<meta charset>` tag.
+    ///
+    /// Such tags may force the user agent to re-parse the document with the new
+    /// encoding, but non-conformant implementations can reasonably treat
+    /// this as [Self::Continue].
+    EncodingIndicator(StrTendril),
 }
 
 fn option_push(opt_str: &mut Option<StrTendril>, c: char) {
@@ -357,6 +371,9 @@ impl<Sink: TokenSink> Tokenizer<Sink> {
                     ProcessResult::Continue => (),
                     ProcessResult::Suspend => break,
                     ProcessResult::Script(node) => return TokenizerResult::Script(node),
+                    ProcessResult::EncodingIndicator(encoding) => {
+                        return TokenizerResult::EncodingIndicator(encoding)
+                    },
                 }
             }
         } else {
@@ -365,6 +382,9 @@ impl<Sink: TokenSink> Tokenizer<Sink> {
                     ProcessResult::Continue => (),
                     ProcessResult::Suspend => break,
                     ProcessResult::Script(node) => return TokenizerResult::Script(node),
+                    ProcessResult::EncodingIndicator(encoding) => {
+                        return TokenizerResult::EncodingIndicator(encoding)
+                    },
                 }
             }
         }
@@ -455,6 +475,9 @@ impl<Sink: TokenSink> Tokenizer<Sink> {
             TokenSinkResult::RawData(kind) => {
                 self.state.set(states::RawData(kind));
                 ProcessResult::Continue
+            },
+            TokenSinkResult::EncodingIndicator(encoding) => {
+                ProcessResult::EncodingIndicator(encoding)
             },
         }
     }
@@ -1726,7 +1749,7 @@ impl<Sink: TokenSink> Tokenizer<Sink> {
             match self.eof_step() {
                 ProcessResult::Continue => (),
                 ProcessResult::Suspend => break,
-                ProcessResult::Script(_) => unreachable!(),
+                ProcessResult::Script(_) | ProcessResult::EncodingIndicator(_) => unreachable!(),
             }
         }
 

@@ -15,6 +15,8 @@ pub(crate) enum ErrorKind {
     Metadata,
     Clone,
     SetPermissions,
+    SetTimes,
+    SetModified,
     Read,
     Seek,
     Write,
@@ -38,7 +40,17 @@ pub(crate) enum ErrorKind {
     #[cfg(unix)]
     ReadAt,
     #[cfg(unix)]
+    ReadExactAt,
+    #[cfg(unix)]
     WriteAt,
+    #[cfg(unix)]
+    WriteAllAt,
+    #[cfg(unix)]
+    Chown,
+    #[cfg(unix)]
+    Lchown,
+    #[cfg(unix)]
+    Chroot,
 }
 
 /// Contains an IO error that has a file path attached.
@@ -80,6 +92,8 @@ impl fmt::Display for Error {
             E::Metadata => write!(formatter, "failed to query metadata of file `{}`", path),
             E::Clone => write!(formatter, "failed to clone handle for file `{}`", path),
             E::SetPermissions => write!(formatter, "failed to set permissions for file `{}`", path),
+            E::SetTimes => write!(formatter, "failed to set times for file `{}`", path),
+            E::SetModified => write!(formatter, "failed to set modified time for file `{}`", path),
             E::Read => write!(formatter, "failed to read from file `{}`", path),
             E::Seek => write!(formatter, "failed to seek in file `{}`", path),
             E::Write => write!(formatter, "failed to write to file `{}`", path),
@@ -104,7 +118,23 @@ impl fmt::Display for Error {
             #[cfg(unix)]
             E::ReadAt => write!(formatter, "failed to read with offset from `{}`", path),
             #[cfg(unix)]
+            E::ReadExactAt => {
+                write!(
+                    formatter,
+                    "failed to read exactly with offset from `{}`",
+                    path
+                )
+            }
+            #[cfg(unix)]
             E::WriteAt => write!(formatter, "failed to write with offset to `{}`", path),
+            #[cfg(unix)]
+            E::WriteAllAt => write!(formatter, "failed to write all with offset to `{}`", path),
+            #[cfg(unix)]
+            E::Chown => write!(formatter, "failed to chown `{}`", path),
+            #[cfg(unix)]
+            E::Lchown => write!(formatter, "failed to lchown `{}`", path),
+            #[cfg(unix)]
+            E::Chroot => write!(formatter, "failed to chroot to `{}`", path),
         }?;
 
         // The `expose_original_error` feature indicates the caller should display the original error

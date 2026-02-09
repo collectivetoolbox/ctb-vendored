@@ -13,14 +13,13 @@
 edition = "2021"
 rust-version = "1.75"
 name = "interprocess"
-version = "2.2.3"
-authors = ["Goat <v.toncharov@gmail.com>"]
+version = "2.3.1"
+authors = ["Goat"]
 build = false
 exclude = [
     "/.github/",
     "/.gitignore",
     "/.editorconfig",
-    "interprocess.code-workspace",
     "/Cargo.lock",
 ]
 autolib = false
@@ -40,7 +39,7 @@ categories = [
     "os::windows-apis",
     "asynchronous",
 ]
-license = "MIT OR Apache-2.0"
+license = "0BSD"
 repository = "https://github.com/kotauskas/interprocess"
 
 [package.metadata.docs.rs]
@@ -67,6 +66,11 @@ tokio = [
 [lib]
 name = "interprocess"
 path = "src/lib.rs"
+
+[[bin]]
+name = "inspect-platform"
+path = "inspect-platform/main.rs"
+test = false
 
 [[example]]
 name = "unnamed_pipe_sync"
@@ -131,6 +135,7 @@ features = [
     "net",
     "time",
     "io-util",
+    "macros",
 ]
 optional = true
 
@@ -142,6 +147,9 @@ version = "1.36.0"
 features = [
     "sync",
     "rt-multi-thread",
+    "fs",
+    "net",
+    "time",
     "io-util",
     "macros",
 ]
@@ -157,9 +165,8 @@ version = "1.0.0"
 version = "1.36.0"
 features = [
     "sync",
-    "rt-multi-thread",
+    "rt",
     "fs",
-    "net",
     "time",
     "io-util",
 ]
@@ -184,12 +191,18 @@ features = [
 ]
 
 [lints.clippy]
-as_conversions = "deny"
+cast_lossless = "allow"
+cast_possible_truncation = "warn"
+cast_possible_wrap = "warn"
+cast_precision_loss = "deny"
+cast_sign_loss = "warn"
 dbg_macro = "warn"
-exit = "forbid"
+exit = "deny"
+fn_to_numeric_cast_any = "deny"
 get_unwrap = "deny"
+option_map_unit_fn = "allow"
 ptr_as_ptr = "forbid"
-tabs_in_doc_comments = "allow"
+unnecessary_cast = "allow"
 
 [lints.rust]
 dead_code = "allow"

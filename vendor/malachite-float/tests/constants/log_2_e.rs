@@ -1,4 +1,4 @@
-// Copyright © 2025 Mikhail Hogrefe
+// Copyright © 2026 Mikhail Hogrefe
 //
 // This file is part of Malachite.
 //
@@ -135,6 +135,12 @@ pub fn test_log_2_e_prec() {
     assert_eq!(log_2_e_f64.to_string(), "1.4426950408889634");
     assert_eq!(to_hex_string(&log_2_e_f64), "0x1.71547652b82fe#53");
     assert_eq!(log_2_e_f64, f64::LOG_2_E);
+}
+
+#[test]
+#[should_panic]
+fn log_2_e_prec_fail_1() {
+    Float::log_2_e_prec(0);
 }
 
 fn test_log_2_e_prec_round_helper(

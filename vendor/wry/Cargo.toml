@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.77"
 name = "wry"
-version = "0.54.0"
+version = "0.54.1"
 authors = ["Tauri Programme within The Commons Conservancy"]
 build = "build.rs"
 exclude = [

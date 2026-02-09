@@ -1,4 +1,4 @@
-// Copyright © 2025 Mikhail Hogrefe
+// Copyright © 2026 Mikhail Hogrefe
 //
 // This file is part of Malachite.
 //
@@ -63,6 +63,7 @@ extern crate malachite_base;
 pub mod arithmetic {
     pub mod abs;
     pub mod add;
+    pub mod agm;
     pub mod div;
     pub mod is_power_of_2;
     pub mod mul;
@@ -85,6 +86,7 @@ pub mod basic {
     pub mod constants;
     pub mod get_and_set;
     pub mod named;
+    pub mod overflow_and_underflow;
     pub mod size;
     pub mod ulp;
 }
@@ -116,15 +118,30 @@ pub mod comparison {
     pub mod partial_eq_rational;
 }
 pub mod constants {
+    pub mod gauss_constant;
+    pub mod lemniscate_constant;
     pub mod ln_2;
     pub mod log_2_e;
+    pub mod one_over_pi;
+    pub mod one_over_sqrt_pi;
+    pub mod one_over_sqrt_tau;
     pub mod phi;
+    pub mod pi;
+    pub mod pi_over_2;
+    pub mod pi_over_3;
+    pub mod pi_over_4;
+    pub mod pi_over_6;
+    pub mod pi_over_8;
     pub mod prime_constant;
     pub mod prouhet_thue_morse_constant;
     pub mod sqrt_2;
     pub mod sqrt_2_over_2;
     pub mod sqrt_3;
     pub mod sqrt_3_over_3;
+    pub mod sqrt_pi;
+    pub mod tau;
+    pub mod two_over_pi;
+    pub mod two_over_sqrt_pi;
 }
 pub mod conversion {
     pub mod clone;

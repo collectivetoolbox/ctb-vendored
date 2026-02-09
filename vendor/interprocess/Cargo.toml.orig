@@ -1,10 +1,10 @@
 [package]
 name         = "interprocess"
-version      = "2.2.3"
+version      = "2.3.1"
 rust-version = "1.75"
 edition      = "2021"
-authors      = ["Goat <v.toncharov@gmail.com>"]
-license      = "MIT OR Apache-2.0"
+authors      = ["Goat"]
+license      = "0BSD"
 readme       = "README.md"
 repository   = "https://github.com/kotauskas/interprocess"
 
@@ -19,9 +19,13 @@ exclude = [
     "/.github/",
     "/.gitignore",
     "/.editorconfig",
-    "interprocess.code-workspace",
     "/Cargo.lock",
 ]
+
+[[bin]]
+name = "inspect-platform"
+path = "inspect-platform/main.rs"
+test = false
 
 [[example]]
 name = "unnamed_pipe_sync"
@@ -85,6 +89,7 @@ tokio = { version = "1.36.0", features = [
     "net",
     "time",
     "io-util",
+    "macros",
 ], optional = true }
 futures-core = { version = "0.3.28", optional = true }
 
@@ -103,9 +108,8 @@ windows-sys = { version = "0.52.0", features = [
 ] }
 tokio = { version = "1.36.0", features = [
     "sync",
-    "rt-multi-thread",
+    "rt",
     "fs",
-    "net",
     "time",
     "io-util",
 ], optional = true }
@@ -119,6 +123,9 @@ libc = { version = "0.2.137", features = ["extra_traits"] }
 tokio = { version = "1.36.0", features = [
     "sync",
     "rt-multi-thread",
+    "fs",
+    "net",
+    "time",
     "io-util",
     "macros",
 ] }
@@ -130,15 +137,18 @@ rust_2018_idioms = { level = "deny", priority = -1 }
 dead_code = "allow"
 
 [lints.clippy]
-exit       = "forbid"
-ptr_as_ptr = "forbid"
-
-get_unwrap     = "deny"
-as_conversions = "deny"
-
-dbg_macro = "warn"
-
-tabs_in_doc_comments = "allow"
+ptr_as_ptr               = "forbid" # use .cast()
+cast_precision_loss      = "deny" # we don't use floats
+exit                     = "deny" # we're a library
+fn_to_numeric_cast_any   = "deny" # we have no use for this
+get_unwrap               = "deny"
+cast_possible_truncation = "warn"
+cast_possible_wrap       = "warn"
+cast_sign_loss           = "warn"
+dbg_macro                = "warn"
+cast_lossless            = "allow" # very important for portability
+option_map_unit_fn       = "allow" # more concise
+unnecessary_cast         = "allow" # also important for portability
 
 [package.metadata.docs.rs]
 features = ["doc_cfg", "tokio"]

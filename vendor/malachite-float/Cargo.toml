@@ -13,7 +13,7 @@
 edition = "2024"
 rust-version = "1.90.0"
 name = "malachite-float"
-version = "0.9.0"
+version = "0.9.1"
 authors = ["Mikhail Hogrefe <mikhailhogrefe@gmail.com>"]
 build = false
 autolib = false
@@ -93,16 +93,16 @@ features = ["use_alloc"]
 default-features = false
 
 [dependencies.malachite-base]
-version = "0.9.0"
+version = "0.9.1"
 default-features = false
 
 [dependencies.malachite-nz]
-version = "0.9.0"
+version = "0.9.1"
 features = ["float_helpers"]
 default-features = false
 
 [dependencies.malachite-q]
-version = "0.9.0"
+version = "0.9.1"
 default-features = false
 
 [dependencies.num]
@@ -111,7 +111,7 @@ features = ["serde"]
 optional = true
 
 [dependencies.rug]
-version = "1.24.1"
+version = "1.28.1"
 features = [
     "float",
     "serde",
@@ -129,7 +129,7 @@ optional = true
 default-features = false
 
 [dependencies.serde_json]
-version = "1.0.105"
+version = "1.0.149"
 optional = true
 
 [dev-dependencies]

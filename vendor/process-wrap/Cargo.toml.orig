@@ -1,6 +1,6 @@
 [package]
 name = "process-wrap"
-version = "9.0.0"
+version = "9.0.1"
 
 authors = ["Félix Saparelli <felix@passcod.name>"]
 license = "Apache-2.0 OR MIT"
@@ -12,9 +12,10 @@ homepage = "https://github.com/watchexec/process-wrap"
 repository = "https://github.com/watchexec/process-wrap"
 readme = "README.md"
 
-edition = "2021"
+edition = "2024"
+resolver = "3"
 exclude = ["/bin", "/.github"]
-rust-version = "1.86.0"
+rust-version = "1.87.0"
 
 [dependencies]
 futures = { version = "0.3.30", optional = true }
@@ -30,7 +31,7 @@ nix = { version = "0.30.1", default-features = false, features = ["fs", "poll", 
 # as process-wrap is carefully designed to never expose nix's types
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.61.1", optional = true }
+windows = { version = "0.62.2", optional = true }
 # note: bumping the windows version doesn't require a breaking change,
 # as process-wrap is carefully designed to never expose windows's types
 

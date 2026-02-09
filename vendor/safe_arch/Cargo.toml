@@ -10,10 +10,10 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
-edition = "2018"
+edition = "2024"
 rust-version = "1.89"
 name = "safe_arch"
-version = "0.9.3"
+version = "1.0.0"
 authors = ["Lokathor <zefria@gmail.com>"]
 build = false
 exclude = [

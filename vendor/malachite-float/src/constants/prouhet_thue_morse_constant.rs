@@ -1,4 +1,4 @@
-// Copyright © 2025 Mikhail Hogrefe
+// Copyright © 2026 Mikhail Hogrefe
 //
 // This file is part of Malachite.
 //
@@ -29,16 +29,19 @@ const LIMB_0: Limb = 0xd32d2cd32cd2d32c;
 const LIMB_1: Limb = 0x2cd2d32cd32d2cd2;
 
 impl Float {
-    /// Returns an approximation to the Thue-Morse constant, with the given precision and rounded
-    /// using the given [`RoundingMode`]. An [`Ordering`] is also returned, indicating whether the
-    /// rounded value is less than or greater than the exact value of the constant. (Since the
-    /// constant is irrational, the rounded value is never equal to the exact value.)
+    /// Returns an approximation of the Prouhet-Thue-Morse constant, with the given precision and
+    /// rounded using the given [`RoundingMode`]. An [`Ordering`] is also returned, indicating
+    /// whether the rounded value is less than or greater than the exact value of the constant.
+    /// (Since the constant is irrational, the rounded value is never equal to the exact value.)
     ///
-    /// The Thue-Morse constant is the real number whose bits are the Thue-Morse sequence. That is,
+    /// The Prouhet-Thue-Morse constant is the real number whose bits are the Thue-Morse sequence.
+    /// That is,
     /// $$
-    /// \tau = \sum_{k=0}^\infty\frac{t_n}{2^{n+1}},
-    /// $$
+    /// \tau = \sum_{k=0}^\infty\frac{t_n}{2^{n+1}}+\varepsilon,
     /// where $t_n$ is the Thue-Morse sequence.
+    /// $$
+    /// - If $m$ is not `Nearest`, then $|\varepsilon| < 2^{-p-1}$.
+    /// - If $m$ is `Nearest`, then $|\varepsilon| < 2^{-p-2}$.
     ///
     /// An alternative expression, from <https://mathworld.wolfram.com/Thue-MorseConstant.html>, is
     /// $$
@@ -129,16 +132,19 @@ impl Float {
         )
     }
 
-    /// Returns an approximation to the Thue-Morse constant, with the given precision and rounded to
-    /// the nearest [`Float`] of that precision. An [`Ordering`] is also returned, indicating
-    /// whether the rounded value is less than or greater than the exact value of the constant.
-    /// (Since the constant is irrational, the rounded value is never equal to the exact value.)
+    /// Returns an approximation of the Prouhet-Thue-Morse constant, with the given precision and
+    /// rounded to the nearest [`Float`] of that precision. An [`Ordering`] is also returned,
+    /// indicating whether the rounded value is less than or greater than the exact value of the
+    /// constant. (Since the constant is irrational, the rounded value is never equal to the exact
+    /// value.)
     ///
-    /// The Thue-Morse constant is the real number whose bits are the Thue-Morse sequence. That is,
+    /// The Prouhet-Thue-Morse constant is the real number whose bits are the Thue-Morse sequence.
+    /// That is,
     /// $$
-    /// \tau = \sum_{k=0}^\infty\frac{t_n}{2^{n+1}},
+    /// \tau = \sum_{k=0}^\infty\frac{t_n}{2^{n+1}}+\varepsilon,
     /// $$
     /// where $t_n$ is the Thue-Morse sequence.
+    /// - $|\varepsilon| < 2^{-p-2}$.
     ///
     /// An alternative expression, from <https://mathworld.wolfram.com/Thue-MorseConstant.html>, is
     /// $$

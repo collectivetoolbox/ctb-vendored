@@ -20,6 +20,10 @@ use core::{
 };
 
 use super::*;
+use crate::pointer::{
+    invariant::{Exclusive, Shared, Valid},
+    SizeEq, TransmuteFromPtr,
+};
 
 /// Like [`PhantomData`], but [`Send`] and [`Sync`] regardless of whether the
 /// wrapped `T` is.
@@ -319,6 +323,40 @@ pub(crate) const unsafe fn transmute_unchecked<Src, Dst>(src: Src) -> Dst {
     //     representation is analogous to a transmute from the type used for
     //     writing to the type used for reading.
     unsafe { ManuallyDrop::into_inner(Transmute { src: ManuallyDrop::new(src) }.dst) }
+}
+
+/// # Safety
+///
+/// `Src` must have a greater or equal alignment to `Dst`.
+pub(crate) unsafe fn transmute_ref<Src, Dst, R>(src: &Src) -> &Dst
+where
+    Src: ?Sized,
+    Dst: SizeEq<Src>
+        + TransmuteFromPtr<Src, Shared, Valid, Valid, <Dst as SizeEq<Src>>::CastFrom, R>
+        + ?Sized,
+{
+    let dst = Ptr::from_ref(src).transmute();
+    // SAFETY: The caller promises that `Src`'s alignment is at least as large
+    // as `Dst`'s alignment.
+    let dst = unsafe { dst.assume_alignment() };
+    dst.as_ref()
+}
+
+/// # Safety
+///
+/// `Src` must have a greater or equal alignment to `Dst`.
+pub(crate) unsafe fn transmute_mut<Src, Dst, R>(src: &mut Src) -> &mut Dst
+where
+    Src: ?Sized,
+    Dst: SizeEq<Src>
+        + TransmuteFromPtr<Src, Exclusive, Valid, Valid, <Dst as SizeEq<Src>>::CastFrom, R>
+        + ?Sized,
+{
+    let dst = Ptr::from_mut(src).transmute();
+    // SAFETY: The caller promises that `Src`'s alignment is at least as large
+    // as `Dst`'s alignment.
+    let dst = unsafe { dst.assume_alignment() };
+    dst.as_mut()
 }
 
 /// Uses `allocate` to create a `Box<T>`.
@@ -852,5 +890,30 @@ mod tests {
     #[should_panic]
     fn test_round_down_to_next_multiple_of_alignment_zerocopy_panic_in_const_and_vec_try_reserve() {
         round_down_to_next_multiple_of_alignment(0, NonZeroUsize::new(3).unwrap());
+    }
+    #[test]
+    fn test_send_sync_phantom_data() {
+        let x = SendSyncPhantomData::<u8>::default();
+        let y = x.clone();
+        assert!(x == y);
+        assert!(x == SendSyncPhantomData::<u8>::default());
+    }
+
+    #[test]
+    #[allow(clippy::as_conversions)]
+    fn test_as_address() {
+        let x = 0u8;
+        let r = &x;
+        let mut x_mut = 0u8;
+        let rm = &mut x_mut;
+        let p = r as *const u8;
+        let pm = rm as *mut u8;
+        let nn = NonNull::new(p as *mut u8).unwrap();
+
+        assert_eq!(AsAddress::addr(r), p as usize);
+        assert_eq!(AsAddress::addr(rm), pm as usize);
+        assert_eq!(AsAddress::addr(p), p as usize);
+        assert_eq!(AsAddress::addr(pm), pm as usize);
+        assert_eq!(AsAddress::addr(nn), p as usize);
     }
 }

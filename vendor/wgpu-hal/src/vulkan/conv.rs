@@ -260,6 +260,9 @@ pub fn map_texture_usage(usage: wgt::TextureUses) -> vk::ImageUsageFlags {
     ) {
         flags |= vk::ImageUsageFlags::STORAGE;
     }
+    if usage.contains(wgt::TextureUses::TRANSIENT) {
+        flags |= vk::ImageUsageFlags::TRANSIENT_ATTACHMENT;
+    }
     flags
 }
 
@@ -348,6 +351,9 @@ pub fn map_vk_image_usage(usage: vk::ImageUsageFlags) -> wgt::TextureUses {
             | wgt::TextureUses::STORAGE_WRITE_ONLY
             | wgt::TextureUses::STORAGE_READ_WRITE
             | wgt::TextureUses::STORAGE_ATOMIC;
+    }
+    if usage.contains(vk::ImageUsageFlags::TRANSIENT_ATTACHMENT) {
+        bits |= wgt::TextureUses::TRANSIENT;
     }
     bits
 }
@@ -446,13 +452,19 @@ pub fn map_attachment_ops(
 ) -> (vk::AttachmentLoadOp, vk::AttachmentStoreOp) {
     let load_op = if op.contains(crate::AttachmentOps::LOAD) {
         vk::AttachmentLoadOp::LOAD
-    } else {
+    } else if op.contains(crate::AttachmentOps::LOAD_DONT_CARE) {
+        vk::AttachmentLoadOp::DONT_CARE
+    } else if op.contains(crate::AttachmentOps::LOAD_CLEAR) {
         vk::AttachmentLoadOp::CLEAR
+    } else {
+        unreachable!()
     };
     let store_op = if op.contains(crate::AttachmentOps::STORE) {
         vk::AttachmentStoreOp::STORE
-    } else {
+    } else if op.contains(crate::AttachmentOps::STORE_DISCARD) {
         vk::AttachmentStoreOp::DONT_CARE
+    } else {
+        unreachable!()
     };
     (load_op, store_op)
 }
@@ -697,10 +709,10 @@ pub fn map_filter_mode(mode: wgt::FilterMode) -> vk::Filter {
     }
 }
 
-pub fn map_mip_filter_mode(mode: wgt::FilterMode) -> vk::SamplerMipmapMode {
+pub fn map_mip_filter_mode(mode: wgt::MipmapFilterMode) -> vk::SamplerMipmapMode {
     match mode {
-        wgt::FilterMode::Nearest => vk::SamplerMipmapMode::NEAREST,
-        wgt::FilterMode::Linear => vk::SamplerMipmapMode::LINEAR,
+        wgt::MipmapFilterMode::Nearest => vk::SamplerMipmapMode::NEAREST,
+        wgt::MipmapFilterMode::Linear => vk::SamplerMipmapMode::LINEAR,
     }
 }
 

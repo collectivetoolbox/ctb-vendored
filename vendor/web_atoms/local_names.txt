@@ -20,7 +20,9 @@ align
 alignment-baseline
 alignmentscope
 alink
+allow
 allowfullscreen
+alpha
 alphabetic
 alt
 altGlyph
@@ -147,6 +149,7 @@ bgsound
 bias
 big
 blink
+blocking
 blockquote
 body
 border
@@ -190,6 +193,7 @@ codomain
 col
 colgroup
 color
+colorspace
 color-interpolation
 color-interpolation-filters
 color-profile
@@ -530,6 +534,7 @@ markerUnits
 markerWidth
 marquee
 mask
+mask-type
 maskContentUnits
 maskUnits
 math
@@ -791,6 +796,7 @@ ping
 pitch
 placeholder
 plaintext
+playbackorder
 plus
 pointer-events
 points
@@ -892,6 +898,7 @@ section
 seed
 select
 selected
+selectedcontent
 selection
 selector
 semantics
@@ -1001,6 +1008,7 @@ thead
 thickmathspace
 thinmathspace
 time
+timelinebegin
 times
 title
 to

@@ -1,3 +1,15 @@
+# 1.8.1
+
+* Some more careful orderings (#195).
+
+# 1.8.0
+
+* Support for Pin (#185, #183).
+* Fix (hopefully) crash on ARM (#164).
+* Fix Miri check (#186, #156).
+* Fix support for Rust 1.31.0.
+* Some minor clippy lints.
+
 # 1.7.1
 
 * Fix docs build (mutually exclusive features, #112).

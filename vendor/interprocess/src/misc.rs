@@ -4,10 +4,14 @@
 use std::os::unix::io::RawFd;
 use std::{
     io,
-    mem::{transmute, MaybeUninit},
-    num::Saturating,
+    mem::{size_of, ManuallyDrop, MaybeUninit},
+    num::{NonZeroU8, Saturating},
+    ops::ControlFlow,
     pin::Pin,
+    slice,
     sync::PoisonError,
+    task::{RawWaker, RawWakerVTable, Waker},
+    time::{Duration, Instant},
 };
 #[cfg(windows)]
 use windows_sys::Win32::Foundation::{HANDLE, INVALID_HANDLE_VALUE};
@@ -67,6 +71,68 @@ impl HandleOrErrno for HANDLE {
     #[inline]
     fn handle_or_errno(self) -> io::Result<Self> {
         (self != INVALID_HANDLE_VALUE).true_val_or_errno(self)
+    }
+}
+
+// FUTURE remove
+pub(crate) trait ControlFlowExt {
+    type B;
+    type C;
+    // "pf" means "polyfill"
+    fn break_value_pf(self) -> Option<Self::B>;
+    fn continue_value_pf(self) -> Option<Self::C>;
+    fn is_break_pf(&self) -> bool;
+    fn is_continue_pf(&self) -> bool;
+}
+impl<B, C> ControlFlowExt for ControlFlow<B, C> {
+    type B = B;
+    type C = C;
+    #[inline(always)]
+    fn break_value_pf(self) -> Option<B> {
+        match self {
+            Self::Break(v) => Some(v),
+            Self::Continue(_) => None,
+        }
+    }
+    #[inline(always)]
+    fn continue_value_pf(self) -> Option<C> {
+        match self {
+            Self::Break(_) => None,
+            Self::Continue(v) => Some(v),
+        }
+    }
+    #[inline(always)]
+    fn is_break_pf(&self) -> bool { matches!(self, Self::Break(..)) }
+    #[inline(always)]
+    fn is_continue_pf(&self) -> bool { matches!(self, Self::Continue(..)) }
+}
+
+pub(crate) trait OptionExt {
+    type Value;
+    fn break_some(self) -> ControlFlow<Self::Value>;
+}
+impl<T> OptionExt for Option<T> {
+    type Value = T;
+    fn break_some(self) -> ControlFlow<T> {
+        match self {
+            Some(v) => ControlFlow::Break(v),
+            None => ControlFlow::Continue(()),
+        }
+    }
+}
+
+pub(crate) trait OptionTimeoutExt {
+    type Output;
+    fn some_or_timeout(self) -> io::Result<Self::Output>;
+}
+impl<O> OptionTimeoutExt for Option<io::Result<O>> {
+    type Output = O;
+    #[inline(always)]
+    fn some_or_timeout(self) -> io::Result<O> {
+        match self {
+            Some(r) => r,
+            None => Err(io::Error::from(io::ErrorKind::TimedOut)),
+        }
     }
 }
 
@@ -144,7 +210,6 @@ macro_rules! impl_subsize {
     ($src:ident to usize) => {
         impl SubUsizeExt for $src {
             #[inline(always)]
-            #[allow(clippy::as_conversions)]
             fn to_usize(self) -> usize {
                 self as usize
             }
@@ -153,7 +218,8 @@ macro_rules! impl_subsize {
     ($src:ident to isize) => {
         impl SubIsizeExt for $src {
             #[inline(always)]
-            #[allow(clippy::as_conversions)]
+            // we don't run on 16-bit platforms
+            #[allow(clippy::cast_possible_wrap)]
             fn to_isize(self) -> isize {
                 self as isize
             }
@@ -175,13 +241,13 @@ impl_subsize! {
     u16 to isize
 }
 
-// TODO(2.3.0) find a more elegant way
+// TODO(2.4.0) find a more elegant way
 pub(crate) trait RawOsErrorExt {
     fn eeq(self, other: u32) -> bool;
 }
 impl RawOsErrorExt for Option<i32> {
     #[inline(always)]
-    #[allow(clippy::as_conversions)]
+    #[allow(clippy::cast_sign_loss)] // bitwise comparison
     fn eeq(self, other: u32) -> bool {
         match self {
             Some(n) => n as u32 == other,
@@ -190,31 +256,159 @@ impl RawOsErrorExt for Option<i32> {
     }
 }
 
-#[inline(always)]
-pub(crate) fn weaken_buf_init<T>(r: &[T]) -> &[MaybeUninit<T>] {
-    unsafe {
-        // SAFETY: same slice, weaker refinement
-        transmute(r)
+/// Crudely casts a slice without any checks, blindly presuming that the size of `T` is equal to
+/// that of `U`.
+pub(crate) const unsafe fn cast_slice<T, U>(s: &[T]) -> &[U] {
+    // FUTURE use const assertion
+    if size_of::<T>() != size_of::<U>() {
+        panic!("element sizes must be equal");
     }
+    unsafe { slice::from_raw_parts(s.as_ptr().cast(), s.len()) }
 }
-#[inline(always)]
-pub(crate) fn weaken_buf_init_mut<T>(r: &mut [T]) -> &mut [MaybeUninit<T>] {
-    unsafe {
-        // SAFETY: same here
-        transmute(r)
+/// Mutable version of [`cast_slice`].
+pub(crate) unsafe fn cast_slice_mut<T, U>(s: &mut [T]) -> &mut [U] {
+    // FUTURE use const assertion
+    if size_of::<T>() != size_of::<U>() {
+        panic!("element sizes must be equal");
     }
+    unsafe { slice::from_raw_parts_mut(s.as_mut_ptr().cast(), s.len()) }
 }
 
 #[inline(always)]
-pub(crate) unsafe fn assume_slice_init<T>(r: &[MaybeUninit<T>]) -> &[T] {
-    unsafe {
-        // SAFETY: same slice, stronger refinement
-        transmute(r)
+// SAFETY: weaker refinement
+pub(crate) fn weaken_buf_init<T>(s: &[T]) -> &[MaybeUninit<T>] { unsafe { cast_slice(s) } }
+
+#[inline(always)]
+pub(crate) unsafe fn assume_slice_init<T>(s: &[MaybeUninit<T>]) -> &[T] {
+    // SAFETY: same slice, stronger refinement
+    unsafe { cast_slice(s) }
+}
+#[inline(always)]
+pub(crate) unsafe fn assume_slice_init_mut<T>(s: &mut [MaybeUninit<T>]) -> &mut [T] {
+    // SAFETY: as above
+    unsafe { cast_slice_mut(s) }
+}
+
+#[inline(always)]
+pub(crate) fn contains_nuls(s: &[u8]) -> bool {
+    #[cfg(unix)]
+    {
+        unsafe { libc::strnlen(s.as_ptr().cast(), s.len()) != s.len() }
+    }
+    #[cfg(not(unix))]
+    {
+        s.contains(&0)
     }
 }
+#[inline(always)]
+pub(crate) const unsafe fn assume_nonzero_slice(s: &[u8]) -> &[NonZeroU8] {
+    unsafe { cast_slice(s) }
+}
+#[inline(always)]
+pub(crate) unsafe fn assume_nonzero_slice_mut(s: &mut [u8]) -> &mut [NonZeroU8] {
+    unsafe { cast_slice_mut(s) }
+}
+#[inline(always)]
+pub(crate) fn check_nonzero_slice(s: &[u8]) -> Option<&[NonZeroU8]> {
+    let false = contains_nuls(s) else { return None };
+    // SAFETY: we've just checked for nul bytes
+    Some(unsafe { assume_nonzero_slice(s) })
+}
+#[inline(always)]
+pub(crate) fn check_nonzero_slice_mut(s: &mut [u8]) -> Option<&mut [NonZeroU8]> {
+    let false = contains_nuls(s) else { return None };
+    // SAFETY: as above
+    Some(unsafe { cast_slice_mut(s) })
+}
+// SAFETY: weaker refinement
+#[inline(always)]
+pub(crate) fn weaken_nonzero_slice(s: &[NonZeroU8]) -> &[u8] { unsafe { cast_slice(s) } }
 
 pub(crate) trait UnpinExt: Unpin {
     #[inline]
     fn pin(&mut self) -> Pin<&mut Self> { Pin::new(self) }
 }
 impl<T: Unpin + ?Sized> UnpinExt for T {}
+
+/// Generalizes over `&mut [u8]` and `&mut [MaybeUninit<u8>]`.
+///
+/// # Safety
+/// The pointer returned by `as_ptr` must be valid for writes of length returned by a preceding
+/// call to `len` for at least as long as no methods other than those that are in this trait are
+/// called.
+pub(crate) unsafe trait AsBuf {
+    fn as_ptr(&mut self) -> *mut u8;
+    fn len(&mut self) -> usize;
+}
+unsafe impl AsBuf for [u8] {
+    #[inline(always)]
+    fn as_ptr(&mut self) -> *mut u8 { self.as_mut_ptr() }
+    #[inline(always)]
+    fn len(&mut self) -> usize { <[u8]>::len(self) }
+}
+unsafe impl AsBuf for [MaybeUninit<u8>] {
+    #[inline(always)]
+    fn as_ptr(&mut self) -> *mut u8 { self.as_mut_ptr().cast() }
+    #[inline(always)]
+    fn len(&mut self) -> usize { <[MaybeUninit<u8>]>::len(self) }
+}
+
+pub(crate) fn spin_with_timeout<S, R>(
+    state: &mut S,
+    timeout: Option<Duration>,
+    start: impl FnOnce(&mut S) -> ControlFlow<io::Result<R>>,
+    spin: impl FnMut(&mut S, Option<Duration>) -> ControlFlow<io::Result<R>>,
+    update_timeout: impl FnMut(&mut S, Duration),
+) -> Option<io::Result<R>> {
+    if let ControlFlow::Break(val) = start(state) {
+        Some(val)
+    } else {
+        spin_with_timeout_loop(state, timeout, spin, update_timeout)
+    }
+}
+#[cold]
+fn spin_with_timeout_loop<S, R>(
+    state: &mut S,
+    mut timeout: Option<Duration>,
+    mut spin: impl FnMut(&mut S, Option<Duration>) -> ControlFlow<io::Result<R>>,
+    mut update_timeout: impl FnMut(&mut S, Duration),
+) -> Option<io::Result<R>> {
+    let end = match timeout.map(timeout_expiry).transpose() {
+        Ok(end_or_none) => end_or_none,
+        Err(e) => return Some(Err(e)),
+    };
+
+    loop {
+        if let ControlFlow::Break(val) = spin(state, timeout) {
+            break Some(val);
+        }
+        if let Some(end) = end {
+            let cur = Instant::now();
+            if cur >= end {
+                update_timeout(state, Duration::ZERO);
+                break None;
+            }
+            let remain = end.saturating_duration_since(cur);
+            timeout = Some(remain);
+            update_timeout(state, remain);
+        }
+    }
+}
+
+// FUTURE remove in favor of Waker::noop
+#[inline(always)]
+pub(crate) fn noop_waker() -> ManuallyDrop<Waker> {
+    ManuallyDrop::new(unsafe { Waker::from_raw(noop_raw_waker()) })
+}
+#[inline(always)]
+fn noop_raw_waker() -> RawWaker {
+    static VTAB: RawWakerVTable = RawWakerVTable::new(|_| noop_raw_waker(), drop, drop, drop);
+    RawWaker::new(std::ptr::null(), &VTAB)
+}
+
+pub(crate) fn timeout_expiry(timeout: Duration) -> io::Result<Instant> {
+    let msg = "timeout expiry time overflowed std::time::Instant";
+    Instant::now()
+        .checked_add(timeout)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, msg))
+}

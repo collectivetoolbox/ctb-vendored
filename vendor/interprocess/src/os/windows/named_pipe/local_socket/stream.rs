@@ -3,7 +3,7 @@ use {
         error::{FromHandleError, ReuniteError},
         local_socket::{
             traits::{self, ReuniteResult},
-            Name, NameInner,
+            ConnectOptions, NameInner,
         },
         os::windows::named_pipe::{
             pipe_mode::Bytes, DuplexPipeStream, RecvPipeStream, SendPipeStream,
@@ -13,12 +13,17 @@ use {
     std::{
         io::{self, Write},
         os::windows::io::OwnedHandle,
+        time::Duration,
     },
 };
 
 type StreamImpl = DuplexPipeStream<Bytes>;
 type RecvHalfImpl = RecvPipeStream<Bytes>;
 type SendHalfImpl = SendPipeStream<Bytes>;
+
+fn no_timeouts() -> io::Result<()> {
+    Err(io::Error::new(io::ErrorKind::Unsupported, "named pipes do not support I/O timeouts"))
+}
 
 /// Wrapper around [`DuplexPipeStream`] that implements [`Stream`](traits::Stream).
 #[derive(Debug)]
@@ -29,15 +34,25 @@ impl traits::Stream for Stream {
     type RecvHalf = RecvHalf;
     type SendHalf = SendHalf;
 
-    fn connect(name: Name<'_>) -> io::Result<Self> {
-        let NameInner::NamedPipe(path) = name.0;
-        StreamImpl::connect_by_path(path).map(Self)
+    fn from_options(options: &ConnectOptions<'_>) -> io::Result<Self> {
+        let NameInner::NamedPipe(path) = &options.name.0;
+        let stream = StreamImpl::connect_by_path(path.as_ref()).map(Self)?;
+        if options.get_nonblocking_stream() {
+            stream.set_nonblocking(true)?;
+        }
+        Ok(stream)
     }
 
     #[inline]
     fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
         self.0.set_nonblocking(nonblocking)
     }
+
+    #[inline]
+    fn set_recv_timeout(&self, _: Option<Duration>) -> io::Result<()> { no_timeouts() }
+    #[inline]
+    fn set_send_timeout(&self, _: Option<Duration>) -> io::Result<()> { no_timeouts() }
+
     #[inline]
     fn split(self) -> (RecvHalf, SendHalf) {
         let (rh, sh) = self.0.split();
@@ -61,6 +76,18 @@ impl Write for &Stream {
     #[inline]
     fn flush(&mut self) -> io::Result<()> { Ok(()) }
     // FUTURE is_write_vectored
+}
+
+/// Access to the underlying implementation.
+impl Stream {
+    /// Borrows the [`DuplexPipeStream`] contained within, granting access to operations defined
+    /// on it.
+    #[inline(always)]
+    pub fn inner(&self) -> &StreamImpl { &self.0 }
+    /// Mutably borrows the [`DuplexPipeStream`] contained within, granting access to operations
+    /// defined on it.
+    #[inline(always)]
+    pub fn inner_mut(&mut self) -> &mut StreamImpl { &mut self.0 }
 }
 
 impl From<Stream> for OwnedHandle {
@@ -89,6 +116,8 @@ impl TryFrom<OwnedHandle> for Stream {
 multimacro! {
     Stream,
     forward_rbv(StreamImpl, &),
+    forward_as_ref(StreamImpl),
+    forward_as_mut(StreamImpl),
     forward_sync_read,
     forward_sync_ref_read,
     forward_as_handle,
@@ -102,6 +131,8 @@ pub struct RecvHalf(pub(super) RecvHalfImpl);
 multimacro! {
     RecvHalf,
     forward_rbv(RecvHalfImpl, &),
+    forward_as_ref(RecvHalfImpl),
+    forward_as_mut(RecvHalfImpl),
     forward_sync_read,
     forward_sync_ref_read,
     forward_as_handle,
@@ -113,6 +144,8 @@ multimacro! {
 pub struct SendHalf(pub(super) SendHalfImpl);
 multimacro! {
     SendHalf,
+    forward_as_ref(SendHalfImpl),
+    forward_as_mut(SendHalfImpl),
     forward_as_handle,
     forward_debug("local_socket::SendHalf"),
     derive_sync_mut_write,
@@ -135,8 +168,14 @@ impl Write for &SendHalf {
 impl Sealed for RecvHalf {}
 impl traits::RecvHalf for RecvHalf {
     type Stream = Stream;
+
+    #[inline]
+    fn set_timeout(&self, _: Option<Duration>) -> io::Result<()> { no_timeouts() }
 }
 impl Sealed for SendHalf {}
 impl traits::SendHalf for SendHalf {
     type Stream = Stream;
+
+    #[inline]
+    fn set_timeout(&self, _: Option<Duration>) -> io::Result<()> { no_timeouts() }
 }

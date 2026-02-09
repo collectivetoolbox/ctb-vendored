@@ -11,9 +11,9 @@
 
 [package]
 edition = "2021"
-rust-version = "1.88"
+rust-version = "1.92"
 name = "wgpu"
-version = "27.0.1"
+version = "28.0.0"
 authors = ["gfx-rs developers"]
 build = "build.rs"
 exclude = ["Cargo.lock"]
@@ -134,6 +134,13 @@ default-features = false
 [dependencies.bitflags]
 version = "2.9"
 
+[dependencies.bytemuck]
+version = "1.22"
+features = [
+    "extern_crate_alloc",
+    "min_const_generics",
+]
+
 [dependencies.cfg-if]
 version = "1"
 
@@ -152,7 +159,7 @@ default-features = false
 version = "0.4.21"
 
 [dependencies.naga]
-version = "27.0.0"
+version = "28.0.0"
 features = ["termcolor"]
 optional = true
 
@@ -173,11 +180,11 @@ default-features = false
 version = "1.1"
 
 [dependencies.wgpu-core]
-version = "27.0.0"
+version = "28.0.0"
 optional = true
 
 [dependencies.wgpu-types]
-version = "27.0.0"
+version = "28.0.0"
 default-features = false
 
 [dev-dependencies.bytemuck]
@@ -218,19 +225,19 @@ optional = true
 default-features = false
 
 [target.'cfg(all(target_arch = "wasm32", not(target_os = "emscripten")))'.dependencies.wgpu-core]
-version = "27.0.0"
+version = "28.0.0"
 features = ["raw-window-handle"]
 optional = true
 
 [target.'cfg(all(target_arch = "wasm32", not(target_os = "emscripten")))'.dependencies.wgpu-hal]
-version = "27.0.0"
+version = "28.0.0"
 optional = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies.smallvec]
 version = "1.14"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies.wgpu-core]
-version = "27.0.0"
+version = "28.0.0"
 features = [
     "raw-window-handle",
     "renderdoc",
@@ -239,7 +246,7 @@ features = [
 ]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies.wgpu-hal]
-version = "27.0.0"
+version = "28.0.0"
 
 [target.'cfg(not(target_has_atomic = "64"))'.dependencies.portable-atomic]
 version = "1.8"
@@ -248,8 +255,8 @@ version = "1.8"
 version = "1.14"
 
 [target.'cfg(target_os = "emscripten")'.dependencies.wgpu-core]
-version = "27.0.0"
+version = "28.0.0"
 features = ["raw-window-handle"]
 
 [target.'cfg(target_os = "emscripten")'.dependencies.wgpu-hal]
-version = "27.0.0"
+version = "28.0.0"

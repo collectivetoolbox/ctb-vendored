@@ -1,10 +1,7 @@
 use {
-    super::{name_to_addr, ReclaimGuard, Stream},
+    super::{listen_and_maybe_overwrite, ReclaimGuard, Stream},
     crate::{
-        local_socket::{
-            traits::{self, Stream as _},
-            ListenerNonblockingMode, ListenerOptions,
-        },
+        local_socket::{traits, ListenerNonblockingMode, ListenerOptions},
         os::unix::c_wrappers,
     },
     std::{
@@ -14,7 +11,10 @@ use {
             fd::{AsFd, BorrowedFd, OwnedFd},
             unix::net::UnixListener,
         },
-        sync::atomic::{AtomicBool, Ordering::SeqCst},
+        sync::atomic::{
+            AtomicBool,
+            Ordering::{Acquire, Release},
+        },
     },
 };
 
@@ -25,50 +25,35 @@ pub struct Listener {
     pub(super) reclaim: ReclaimGuard,
     pub(super) nonblocking_streams: AtomicBool,
 }
-impl Listener {
-    fn decode_listen_error(error: io::Error) -> io::Error {
-        io::Error::from(match error.kind() {
-            io::ErrorKind::AlreadyExists => io::ErrorKind::AddrInUse,
-            _ => return error,
-        })
-    }
-}
 impl crate::Sealed for Listener {}
 impl traits::Listener for Listener {
     type Stream = Stream;
 
-    fn from_options(options: ListenerOptions<'_>) -> io::Result<Self> {
-        let nonblocking = options.nonblocking.accept_nonblocking();
-
-        let listener = c_wrappers::create_server(
-            libc::SOCK_STREAM,
-            &name_to_addr(options.name.borrow(), true)?,
-            nonblocking,
-            options.mode,
-        )
-        .map(UnixListener::from)
-        .map_err(Self::decode_listen_error)?;
-
-        if !c_wrappers::CAN_CREATE_NONBLOCKING && nonblocking {
-            listener.set_nonblocking(true)?;
-        }
-
+    fn from_options(opts: ListenerOptions<'_>) -> io::Result<Self> {
+        let mut reclaim = ReclaimGuard::default();
+        let nonblocking_streams = AtomicBool::new(opts.get_nonblocking_stream());
         Ok(Self {
-            listener,
-            reclaim: options
-                .reclaim_name
-                .then(|| options.name.into_owned())
-                .map(ReclaimGuard::new)
-                .unwrap_or_default(),
-            nonblocking_streams: AtomicBool::new(options.nonblocking.stream_nonblocking()),
+            listener: listen_and_maybe_overwrite(opts, |addr, opts| {
+                let rslt = c_wrappers::create_listener(
+                    libc::SOCK_STREAM,
+                    addr,
+                    opts.get_nonblocking_accept(),
+                    opts.get_mode(),
+                )?;
+                reclaim = ReclaimGuard::new(opts.get_reclaim_name(), addr);
+                Ok(rslt)
+            })
+            .map(UnixListener::from)?,
+            reclaim,
+            nonblocking_streams,
         })
     }
     #[inline]
     fn accept(&self) -> io::Result<Stream> {
-        // TODO(2.3.0) make use of the second return value in some shape or form
+        // TODO do our own accept4 and pass SOCK_NONBLOCK on supported platforms
         let stream = self.listener.accept().map(|(s, _)| Stream::from(s))?;
-        if self.nonblocking_streams.load(SeqCst) {
-            stream.set_nonblocking(true)?;
+        if self.nonblocking_streams.load(Acquire) {
+            c_wrappers::fast_set_nonblocking(stream.as_fd(), true)?;
         }
         Ok(stream)
     }
@@ -76,7 +61,7 @@ impl traits::Listener for Listener {
     fn set_nonblocking(&self, nonblocking: ListenerNonblockingMode) -> io::Result<()> {
         use ListenerNonblockingMode::*;
         self.listener.set_nonblocking(matches!(nonblocking, Accept | Both))?;
-        self.nonblocking_streams.store(matches!(nonblocking, Stream | Both), SeqCst);
+        self.nonblocking_streams.store(matches!(nonblocking, Stream | Both), Release);
         Ok(())
     }
     fn do_not_reclaim_name_on_drop(&mut self) { self.reclaim.forget(); }
@@ -88,6 +73,37 @@ impl Iterator for Listener {
 }
 impl FusedIterator for Listener {}
 
+/// Unix-specific features.
+impl Listener {
+    /// Sets whether newly created streams will have the nonblocking flag set by default or not.
+    ///
+    /// This exists due to a quirk of local socket listener nonblocking mode on Windows.
+    pub fn set_new_stream_nonblocking(&self, nonblocking: bool) {
+        self.nonblocking_streams.store(nonblocking, Release);
+    }
+}
+
+/// Access to the underlying implementation.
+impl Listener {
+    /// Borrows the [`UnixListener`] contained within, granting access to operations defined on it.
+    #[inline(always)]
+    pub fn inner(&self) -> &UnixListener { &self.listener }
+    /// Mutably borrows the [`UnixListener`] contained within, granting access to operations
+    /// defined on it.
+    #[inline(always)]
+    pub fn inner_mut(&mut self) -> &mut UnixListener { &mut self.listener }
+}
+
+/// Has no name reclamation and defaults to blocking mode for resulting streams.
+impl From<UnixListener> for Listener {
+    fn from(listener: UnixListener) -> Self {
+        Self {
+            listener,
+            reclaim: ReclaimGuard::default(),
+            nonblocking_streams: AtomicBool::new(false),
+        }
+    }
+}
 impl From<Listener> for UnixListener {
     fn from(mut l: Listener) -> Self {
         l.reclaim.forget();

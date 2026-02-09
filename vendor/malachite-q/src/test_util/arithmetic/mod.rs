@@ -1,4 +1,4 @@
-// Copyright © 2025 Mikhail Hogrefe
+// Copyright © 2026 Mikhail Hogrefe
 //
 // This file is part of Malachite.
 //
@@ -9,6 +9,7 @@
 pub mod add;
 pub mod approximate;
 pub mod div;
+pub mod mod_op;
 pub mod mul;
 pub mod sign;
 pub mod simplest_rational_in_interval;

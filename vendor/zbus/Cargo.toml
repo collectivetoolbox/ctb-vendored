@@ -13,7 +13,7 @@
 edition = "2024"
 rust-version = "1.85"
 name = "zbus"
-version = "5.13.1"
+version = "5.13.2"
 authors = ["Zeeshan Ali Khan <zeeshanak@gnome.org>"]
 build = false
 autolib = false
@@ -204,13 +204,13 @@ optional = true
 version = "0.7"
 
 [dependencies.zbus_macros]
-version = "5.13.1"
+version = "5.13.2"
 
 [dependencies.zbus_names]
 version = "4.3.1"
 
 [dependencies.zvariant]
-version = "5.9.1"
+version = "5.9.2"
 features = ["enumflags2"]
 
 [dev-dependencies.criterion]

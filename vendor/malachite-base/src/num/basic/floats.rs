@@ -1,4 +1,4 @@
-// Copyright © 2025 Mikhail Hogrefe
+// Copyright © 2026 Mikhail Hogrefe
 //
 // This file is part of Malachite.
 //
@@ -16,8 +16,10 @@ use crate::num::arithmetic::traits::{
     SqrtAssign, Square, SquareAssign, SubMul, SubMulAssign,
 };
 use crate::num::basic::traits::{
-    Infinity, Ln2, Log2E, NaN, NegativeInfinity, NegativeOne, NegativeZero, One, OneHalf, Phi,
-    PrimeConstant, ProuhetThueMorseConstant, Sqrt2, Sqrt2Over2, Sqrt3, Sqrt3Over3, Two, Zero,
+    GaussConstant, Infinity, LemniscateConstant, Ln2, Log2E, NaN, NegativeInfinity, NegativeOne,
+    NegativeZero, One, OneHalf, OneOverPi, OneOverSqrtPi, OneOverSqrtTau, Phi, Pi, PiOver2,
+    PiOver3, PiOver4, PiOver6, PiOver8, PrimeConstant, ProuhetThueMorseConstant, Sqrt2, Sqrt2Over2,
+    Sqrt3, Sqrt3Over3, SqrtPi, Tau, Two, TwoOverPi, TwoOverSqrtPi, Zero,
 };
 use crate::num::comparison::traits::{EqAbs, PartialOrdAbs};
 use crate::num::conversion::traits::{
@@ -162,6 +164,7 @@ pub trait PrimitiveFloat:
     + PartialOrd<Self>
     + PartialOrdAbs<Self>
     + Phi
+    + Pi
     + Pow<i64, Output = Self>
     + Pow<Self, Output = Self>
     + PowAssign<i64>
@@ -604,7 +607,12 @@ macro_rules! impl_basic_traits_primitive_float {
         $prime_constant: expr,
         $sqrt_3: expr,
         $sqrt_3_over_3: expr,
-        $phi: expr
+        $phi: expr,
+        $sqrt_pi: expr,
+        $one_over_sqrt_pi: expr,
+        $one_over_sqrt_tau: expr,
+        $gauss_constant: expr,
+        $lemniscate_constant: expr
     ) => {
         impl PrimitiveFloat for $t {
             const WIDTH: u64 = $width;
@@ -767,6 +775,81 @@ macro_rules! impl_basic_traits_primitive_float {
         impl Phi for $t {
             const PHI: $t = $phi;
         }
+
+        /// $\pi$.
+        impl Pi for $t {
+            const PI: $t = core::$t::consts::PI;
+        }
+
+        /// $\tau=2\pi$.
+        impl Tau for $t {
+            const TAU: $t = core::$t::consts::TAU;
+        }
+
+        /// $\pi/2$.
+        impl PiOver2 for $t {
+            const PI_OVER_2: $t = core::$t::consts::FRAC_PI_2;
+        }
+
+        /// $\pi/3$.
+        impl PiOver3 for $t {
+            const PI_OVER_3: $t = core::$t::consts::FRAC_PI_3;
+        }
+
+        /// $\pi/4$.
+        impl PiOver4 for $t {
+            const PI_OVER_4: $t = core::$t::consts::FRAC_PI_4;
+        }
+
+        /// $\pi/6$.
+        impl PiOver6 for $t {
+            const PI_OVER_6: $t = core::$t::consts::FRAC_PI_6;
+        }
+
+        /// $\pi/8$.
+        impl PiOver8 for $t {
+            const PI_OVER_8: $t = core::$t::consts::FRAC_PI_8;
+        }
+
+        /// $1/\pi$.
+        impl OneOverPi for $t {
+            const ONE_OVER_PI: $t = core::$t::consts::FRAC_1_PI;
+        }
+
+        /// $\sqrt{\pi}$.
+        impl SqrtPi for $t {
+            const SQRT_PI: $t = $sqrt_pi;
+        }
+
+        /// $1/\sqrt{\pi}$.
+        impl OneOverSqrtPi for $t {
+            const ONE_OVER_SQRT_PI: $t = $one_over_sqrt_pi;
+        }
+
+        /// $1/\sqrt{\tau}$.
+        impl OneOverSqrtTau for $t {
+            const ONE_OVER_SQRT_TAU: $t = $one_over_sqrt_tau;
+        }
+
+        /// $2/\pi$.
+        impl TwoOverPi for $t {
+            const TWO_OVER_PI: $t = core::$t::consts::FRAC_2_PI;
+        }
+
+        /// $2/\sqrt{\pi}$.
+        impl TwoOverSqrtPi for $t {
+            const TWO_OVER_SQRT_PI: $t = core::$t::consts::FRAC_2_SQRT_PI;
+        }
+
+        /// $G=1/\mathrm{AGM}(1,\sqrt{2})$.
+        impl GaussConstant for $t {
+            const GAUSS_CONSTANT: $t = $gauss_constant;
+        }
+
+        /// $\varpi=\pi G$.
+        impl LemniscateConstant for $t {
+            const LEMNISCATE_CONSTANT: $t = $lemniscate_constant;
+        }
     };
 }
 impl_basic_traits_primitive_float!(
@@ -779,7 +862,12 @@ impl_basic_traits_primitive_float!(
     0.4146825,
     1.7320508,
     0.57735026,
-    1.618034
+    1.618034,
+    1.7724539,
+    0.5641896,
+    0.3989423,
+    0.83462685,
+    2.6220574
 );
 impl_basic_traits_primitive_float!(
     f64,
@@ -791,5 +879,10 @@ impl_basic_traits_primitive_float!(
     0.41468250985111166,
     1.7320508075688772,
     0.5773502691896257,
-    1.618033988749895
+    1.618033988749895,
+    1.772453850905516,
+    0.5641895835477563,
+    0.3989422804014327,
+    0.8346268416740732,
+    2.6220575542921196
 );

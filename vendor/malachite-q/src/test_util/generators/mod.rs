@@ -1,4 +1,4 @@
-// Copyright © 2025 Mikhail Hogrefe
+// Copyright © 2026 Mikhail Hogrefe
 //
 // This file is part of Malachite.
 //
@@ -510,6 +510,16 @@ pub fn rational_unsigned_pair_gen_var_7<T: PrimitiveUnsigned>() -> Generator<(Ra
     )
 }
 
+// All `(Rational, T)` where the `Rational` is non-negative and the `T` is small, unsigned, and
+// positive.
+pub fn rational_unsigned_pair_gen_var_8<T: PrimitiveUnsigned>() -> Generator<(Rational, T)> {
+    Generator::new(
+        &exhaustive_rational_unsigned_pair_gen_var_6,
+        &random_rational_unsigned_pair_gen_var_8,
+        &special_random_rational_unsigned_pair_gen_var_6,
+    )
+}
+
 // -- (Rational, PrimitiveUnsigned, PrimitiveUnsigned) --
 
 pub fn rational_unsigned_unsigned_triple_gen<T: PrimitiveUnsigned>() -> Generator<(Rational, T, T)>
@@ -584,6 +594,15 @@ pub fn rational_pair_gen_var_1_rm()
         &|| rational_pair_rm(exhaustive_rational_pair_gen_var_1()),
         &|config| rational_pair_rm(random_rational_pair_gen_var_1(config)),
         &|config| rational_pair_rm(special_random_rational_pair_gen_var_1(config)),
+    )
+}
+
+pub fn rational_pair_gen_var_1_nm() -> Generator<((BigRational, BigRational), (Rational, Rational))>
+{
+    Generator::new(
+        &|| rational_pair_nm(exhaustive_rational_pair_gen_var_1()),
+        &|config| rational_pair_nm(random_rational_pair_gen_var_1(config)),
+        &|config| rational_pair_nm(special_random_rational_pair_gen_var_1(config)),
     )
 }
 
@@ -733,6 +752,16 @@ pub fn rational_rational_unsigned_triple_gen_var_1<T: PrimitiveUnsigned>()
         &exhaustive_rational_rational_unsigned_triple_gen_var_1,
         &random_rational_rational_unsigned_triple_gen_var_1,
         &special_random_rational_rational_unsigned_triple_gen_var_1,
+    )
+}
+
+// All `(Rational, Rational, T)` where `T` is positive, unsigned, and small.
+pub fn rational_rational_unsigned_triple_gen_var_2<T: PrimitiveUnsigned>()
+-> Generator<(Rational, Rational, T)> {
+    Generator::new(
+        &exhaustive_rational_rational_primitive_int_triple_gen_var_1,
+        &random_rational_rational_unsigned_triple_gen_var_2,
+        &special_random_rational_rational_unsigned_triple_gen_var_2,
     )
 }
 

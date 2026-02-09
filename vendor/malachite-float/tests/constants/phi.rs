@@ -1,4 +1,4 @@
-// Copyright © 2025 Mikhail Hogrefe
+// Copyright © 2026 Mikhail Hogrefe
 //
 // This file is part of Malachite.
 //
@@ -130,6 +130,12 @@ pub fn test_phi_prec() {
     assert_eq!(phi_f64.to_string(), "1.6180339887498949");
     assert_eq!(to_hex_string(&phi_f64), "0x1.9e3779b97f4a8#53");
     assert_eq!(phi_f64, f64::PHI);
+}
+
+#[test]
+#[should_panic]
+fn phi_prec_fail_1() {
+    Float::phi_prec(0);
 }
 
 fn test_phi_prec_round_helper(

@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.71.0"
 name = "markup5ever"
-version = "0.36.1"
+version = "0.38.0"
 authors = ["The html5ever Project Developers"]
 build = false
 autolib = false
@@ -39,7 +39,10 @@ path = "lib.rs"
 version = "0.4"
 
 [dependencies.tendril]
-version = "0.4.3"
+version = "0.5"
 
 [dependencies.web_atoms]
-version = "0.2"
+version = "0.2.1"
+
+[features]
+serde = ["web_atoms/serde"]

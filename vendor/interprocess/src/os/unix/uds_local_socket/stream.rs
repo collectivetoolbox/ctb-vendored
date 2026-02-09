@@ -1,17 +1,20 @@
 use {
-    super::name_to_addr,
+    super::{dispatch_name, CONN_TIMEOUT_MSG},
     crate::{
         error::ReuniteError,
         local_socket::{
+            prelude::*,
             traits::{self, ReuniteResult},
-            ConcurrencyDetector, LocalSocketSite, Name,
+            ConcurrencyDetector, ConnectOptions, LocalSocketSite,
         },
-        Sealed, TryClone,
+        os::unix::{c_wrappers, unixprelude::*},
+        ConnectWaitMode, Sealed, TryClone,
     },
     std::{
         io::{self, prelude::*, IoSlice, IoSliceMut},
-        os::{fd::OwnedFd, unix::net::UnixStream},
+        os::unix::net::UnixStream,
         sync::Arc,
+        time::Duration,
     },
 };
 
@@ -23,13 +26,43 @@ impl traits::Stream for Stream {
     type RecvHalf = RecvHalf;
     type SendHalf = SendHalf;
 
-    fn connect(name: Name<'_>) -> io::Result<Self> {
-        UnixStream::connect_addr(&name_to_addr(name, false)?).map(Self::from)
+    fn from_options(mut opts: &ConnectOptions<'_>) -> io::Result<Self> {
+        let nonblocking_connect = matches!(
+            opts.get_wait_mode(),
+            ConnectWaitMode::Timeout(..) | ConnectWaitMode::Deferred
+        );
+        let (stream, inprog) = dispatch_name(
+            &mut opts,
+            false,
+            |&mut opts| opts.name.borrow(),
+            |_| None,
+            |addr, _| c_wrappers::create_client(addr, nonblocking_connect),
+        )?;
+        if let ConnectWaitMode::Timeout(timeout) = opts.get_wait_mode() {
+            if inprog {
+                c_wrappers::wait_for_connect(stream.as_fd(), Some(timeout), CONN_TIMEOUT_MSG)?;
+            }
+        }
+        if opts.get_nonblocking_stream() != nonblocking_connect {
+            c_wrappers::fast_set_nonblocking(stream.as_fd(), opts.get_nonblocking_stream())?;
+        }
+        Ok(stream.into())
     }
+
     #[inline]
     fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
-        self.0.set_nonblocking(nonblocking)
+        c_wrappers::set_nonblocking(self.as_fd(), nonblocking)
     }
+
+    #[inline]
+    fn set_recv_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
+        self.0.set_read_timeout(timeout)
+    }
+    #[inline]
+    fn set_send_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
+        self.0.set_write_timeout(timeout)
+    }
+
     #[inline]
     fn split(self) -> (RecvHalf, SendHalf) {
         let arc = Arc::new(self);
@@ -45,6 +78,10 @@ impl traits::Stream for Stream {
         let inner = Arc::into_inner(sh.0).expect("stream half inexplicably copied");
         Ok(inner)
     }
+}
+impl traits::StreamCommon for Stream {
+    #[inline]
+    fn take_error(&self) -> io::Result<Option<io::Error>> { c_wrappers::take_error(self.as_fd()) }
 }
 
 impl Read for &Stream {
@@ -72,6 +109,21 @@ impl Write for &Stream {
     // FUTURE is_write_vectored
 }
 
+/// Access to the underlying implementation.
+impl Stream {
+    /// Borrows the [`UnixStream`] contained within, granting access to operations defined on it.
+    #[inline(always)]
+    pub fn inner(&self) -> &UnixStream { &self.0 }
+    /// Mutably borrows the [`UnixStream`] contained within, granting access to operations defined
+    /// on it.
+    ///
+    /// This may allow for non-portable concurrent I/O. Please use [`inner`](Self::inner) instead
+    /// if you can.
+    #[inline(always)]
+    pub fn inner_mut(&mut self) -> &mut UnixStream { &mut self.0 }
+}
+
+/// Creates a fresh concurrency detector and thus may allow for non-portable concurrent I/O.
 impl From<UnixStream> for Stream {
     fn from(s: UnixStream) -> Self { Self(s, ConcurrencyDetector::new()) }
 }
@@ -91,31 +143,61 @@ multimacro! {
     derive_sync_mut_rw,
 }
 
+macro_rules! arc_accessors {
+    ($ty:ty) => {
+        /// [`Arc`] accessors.
+        impl $ty {
+            /// Borrows the [`Stream`] within the `Arc`.
+            #[inline]
+            pub fn as_stream(&self) -> &Stream { &self.0 }
+            /// Extracts the underlying `Arc<Stream>`.
+            #[inline]
+            pub fn into_arc(self) -> Arc<Stream> { self.0 }
+            /// Borrows the underlying `Arc<Stream>`, granting access to extra information about
+            /// the `Arc`.
+            #[inline]
+            pub fn as_arc(&self) -> &Arc<Stream> { &self.0 }
+        }
+    };
+}
+
 /// [`Stream`]'s receive half, implemented using [`Arc`].
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct RecvHalf(pub(super) Arc<Stream>);
 impl Sealed for RecvHalf {}
 impl traits::RecvHalf for RecvHalf {
     type Stream = Stream;
+
+    #[inline]
+    fn set_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
+        self.0.set_recv_timeout(timeout)
+    }
 }
 multimacro! {
     RecvHalf,
     forward_rbv(Stream, *),
+    arc_accessors,
     forward_sync_ref_read,
     forward_as_handle,
     derive_sync_mut_read,
 }
 
 /// [`Stream`]'s send half, implemented using [`Arc`].
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SendHalf(pub(super) Arc<Stream>);
 impl Sealed for SendHalf {}
 impl traits::SendHalf for SendHalf {
     type Stream = Stream;
+
+    #[inline]
+    fn set_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
+        self.0.set_send_timeout(timeout)
+    }
 }
 multimacro! {
     SendHalf,
     forward_rbv(Stream, *),
+    arc_accessors,
     forward_sync_ref_write,
     forward_as_handle,
     derive_sync_mut_write,

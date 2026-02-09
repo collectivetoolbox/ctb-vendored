@@ -13,7 +13,7 @@
 edition = "2024"
 rust-version = "1.85"
 name = "zvariant"
-version = "5.9.1"
+version = "5.9.2"
 authors = ["Zeeshan Ali Khan <zeeshanak@gnome.org>"]
 build = false
 autolib = false
@@ -220,7 +220,7 @@ optional = true
 version = "0.7"
 
 [dependencies.zvariant_derive]
-version = "5.9.1"
+version = "5.9.2"
 
 [dependencies.zvariant_utils]
 version = "3.3.0"

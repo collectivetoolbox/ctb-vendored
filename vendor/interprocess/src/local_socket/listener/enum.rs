@@ -15,15 +15,18 @@ mkenum!(
 ///
 /// This struct is created by [`ListenerOptions`](super::options::ListenerOptions).
 ///
+/// See the [module-level documentation](crate::local_socket) for more details.
+///
 /// # Name reclamation
 /// *This section only applies to Unix domain sockets.*
 ///
 /// When a Unix domain socket listener is closed, its associated socket file is not automatically
 /// deleted. Instead, it remains on the filesystem in a zombie state, neither accepting connections
 /// nor allowing a new listener to reuse it – [`create_sync()`] will return
-/// [`AddrInUse`](io::ErrorKind::AddrInUse) unless it is deleted manually.
+/// [`AddrInUse`](io::ErrorKind::AddrInUse) on some platforms unless the detached socket file is
+/// deleted manually.
 ///
-/// Interprocess implements *automatic name reclamation* via: when the local socket listener is
+/// Interprocess implements *automatic name reclamation*: when the local socket listener is
 /// dropped, it performs [`std::fs::remove_file()`] (i.e. `unlink()`) with the path that was
 /// originally passed to [`create_sync()`], allowing for subsequent reuse of the local socket name.
 ///
@@ -47,7 +50,7 @@ mkenum!(
 ///
 /// ## Basic server
 /// ```no_run
-#[doc = doctest_file::include_doctest!("examples/local_socket/sync/listener.rs")]
+#[cfg_attr(doc, doc = doctest_file::include_doctest!("examples/local_socket/sync/listener.rs"))]
 /// ```
 Listener);
 
@@ -56,7 +59,7 @@ impl r#trait::Listener for Listener {
 
     #[inline]
     fn from_options(options: ListenerOptions<'_>) -> io::Result<Self> {
-        dispatch::from_options(options)
+        dispatch::listen(options)
     }
     #[inline]
     fn accept(&self) -> io::Result<Stream> {

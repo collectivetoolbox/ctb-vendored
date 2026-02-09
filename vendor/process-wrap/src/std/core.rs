@@ -6,7 +6,7 @@ use std::{
 
 #[cfg(unix)]
 use nix::{
-	sys::signal::{kill, Signal},
+	sys::signal::{Signal, kill},
 	unistd::Pid,
 };
 
@@ -48,7 +48,7 @@ crate::generic_wrap::Wrap!(Command, Child, ChildWrapper, |child| child);
 ///     }
 /// }
 /// ```
-pub trait ChildWrapper: Any + std::fmt::Debug + Send {
+pub trait ChildWrapper: Any + std::fmt::Debug + Send + Sync {
 	/// Obtain a reference to the wrapped child.
 	fn inner(&self) -> &dyn ChildWrapper;
 
@@ -300,7 +300,7 @@ fn read2(
 	use nix::{
 		errno::Errno,
 		libc,
-		poll::{poll, PollFd, PollFlags, PollTimeout},
+		poll::{PollFd, PollFlags, PollTimeout, poll},
 	};
 	use std::{
 		io::Error,
@@ -359,7 +359,7 @@ fn read2(
 
 	#[cfg(not(target_os = "linux"))]
 	fn set_nonblocking(fd: BorrowedFd, nonblocking: bool) -> Result<()> {
-		use nix::fcntl::{fcntl, FcntlArg, OFlag};
+		use nix::fcntl::{FcntlArg, OFlag, fcntl};
 
 		let mut flags = OFlag::from_bits_truncate(fcntl(fd, FcntlArg::F_GETFL)?);
 		flags.set(OFlag::O_NONBLOCK, nonblocking);
@@ -383,3 +383,8 @@ fn read2(
 	err_r.read_to_end(err_v)?;
 	Ok(())
 }
+
+const _: () = {
+	const fn assert_sync<T: ?Sized + Sync>() {}
+	assert_sync::<dyn ChildWrapper>();
+};

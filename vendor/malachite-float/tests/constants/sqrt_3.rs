@@ -1,4 +1,4 @@
-// Copyright © 2025 Mikhail Hogrefe
+// Copyright © 2026 Mikhail Hogrefe
 //
 // This file is part of Malachite.
 //
@@ -141,6 +141,12 @@ pub fn test_sqrt_3_prec() {
     assert_eq!(sqrt_3_f64.to_string(), "1.7320508075688772");
     assert_eq!(to_hex_string(&sqrt_3_f64), "0x1.bb67ae8584caa#53");
     assert_eq!(sqrt_3_f64, f64::SQRT_3);
+}
+
+#[test]
+#[should_panic]
+fn sqrt_3_prec_fail_1() {
+    Float::sqrt_3_prec(0);
 }
 
 fn test_sqrt_3_prec_round_helper(

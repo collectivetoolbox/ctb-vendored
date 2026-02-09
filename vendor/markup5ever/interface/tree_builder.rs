@@ -260,6 +260,17 @@ pub trait TreeSink {
     ) -> bool {
         false
     }
+
+    /// Implements [`maybe clone an option into selectedcontent`](https://html.spec.whatwg.org/#maybe-clone-an-option-into-selectedcontent).
+    ///
+    /// The provided handle is guaranteed to be an `<option>` element.
+    ///
+    /// Leaving this method unimplemented will not cause panics, but will result in a (slightly) incorrect DOM tree.
+    ///
+    /// This method will never be called from `xml5ever`.
+    fn maybe_clone_an_option_into_selectedcontent(&self, option: &Self::Handle) {
+        _ = option;
+    }
 }
 
 /// Trace hooks for a garbage-collected DOM.

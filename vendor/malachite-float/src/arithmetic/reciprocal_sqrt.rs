@@ -1,4 +1,4 @@
-// Copyright © 2025 Mikhail Hogrefe
+// Copyright © 2026 Mikhail Hogrefe
 //
 // Uses code adopted from the GNU MPFR Library.
 //
@@ -278,7 +278,7 @@ impl Float {
     ///   0.
     /// - If $1/\sqrt{x}$ is finite and nonzero, and $m$ is not `Nearest`, then $|\varepsilon| <
     ///   2^{\lfloor\log_2 1/\sqrt{x}\rfloor-p+1}$.
-    /// - If $1/\sqrt{x}$ is finite and nonzero, and $m$ is `Nearest`, then $|\varepsilon| <
+    /// - If $1/\sqrt{x}$ is finite and nonzero, and $m$ is `Nearest`, then $|\varepsilon| \leq
     ///   2^{\lfloor\log_2 1/\sqrt{x}\rfloor-p}$.
     ///
     /// If the output has a precision, it is `prec`.
@@ -365,7 +365,7 @@ impl Float {
     ///   0.
     /// - If $1/\sqrt{x}$ is finite and nonzero, and $m$ is not `Nearest`, then $|\varepsilon| <
     ///   2^{\lfloor\log_2 1/\sqrt{x}\rfloor-p+1}$.
-    /// - If $1/\sqrt{x}$ is finite and nonzero, and $m$ is `Nearest`, then $|\varepsilon| <
+    /// - If $1/\sqrt{x}$ is finite and nonzero, and $m$ is `Nearest`, then $|\varepsilon| \leq
     ///   2^{\lfloor\log_2 1/\sqrt{x}\rfloor-p}$.
     ///
     /// If the output has a precision, it is `prec`.
@@ -427,7 +427,7 @@ impl Float {
     /// assert_eq!(o, Greater);
     /// ```
     ///
-    /// This is mpfr_mpn_rec_sqrt from rec_sqrt.c, MPFR 4.3.0.
+    /// This is mpfr_rec_sqrt from rec_sqrt.c, MPFR 4.3.0.
     #[inline]
     pub fn reciprocal_sqrt_prec_round_ref(&self, prec: u64, rm: RoundingMode) -> (Self, Ordering) {
         assert_ne!(prec, 0);
@@ -653,7 +653,7 @@ impl Float {
     ///   0.
     /// - If $1/\sqrt{x}$ is finite and nonzero, and $m$ is not `Nearest`, then $|\varepsilon| <
     ///   2^{\lfloor\log_2 1/\sqrt{x}\rfloor-p+1}$, where $p$ is the precision of the input.
-    /// - If $1/\sqrt{x}$ is finite and nonzero, and $m$ is `Nearest`, then $|\varepsilon| <
+    /// - If $1/\sqrt{x}$ is finite and nonzero, and $m$ is `Nearest`, then $|\varepsilon| \leq
     ///   2^{\lfloor\log_2 1/\sqrt{x}\rfloor-p}$, where $p$ is the precision of the input.
     ///
     /// If the output has a precision, it is the precision of the input.
@@ -728,7 +728,7 @@ impl Float {
     ///   0.
     /// - If $1/\sqrt{x}$ is finite and nonzero, and $m$ is not `Nearest`, then $|\varepsilon| <
     ///   2^{\lfloor\log_2 1/\sqrt{x}\rfloor-p+1}$, where $p$ is the precision of the input.
-    /// - If $1/\sqrt{x}$ is finite and nonzero, and $m$ is `Nearest`, then $|\varepsilon| <
+    /// - If $1/\sqrt{x}$ is finite and nonzero, and $m$ is `Nearest`, then $|\varepsilon| \leq
     ///   2^{\lfloor\log_2 1/\sqrt{x}\rfloor-p}$, where $p$ is the precision of the input.
     ///
     /// If the output has a precision, it is the precision of the input.
@@ -802,7 +802,7 @@ impl Float {
     ///   0.
     /// - If $1/\sqrt{x}$ is finite and nonzero, and $m$ is not `Nearest`, then $|\varepsilon| <
     ///   2^{\lfloor\log_2 |xy|\rfloor-p+1}$.
-    /// - If $1/\sqrt{x}$ is finite and nonzero, and $m$ is `Nearest`, then $|\varepsilon| <
+    /// - If $1/\sqrt{x}$ is finite and nonzero, and $m$ is `Nearest`, then $|\varepsilon| \leq
     ///   2^{\lfloor\log_2 1/\sqrt{x}\rfloor-p}$.
     ///
     /// If the output has a precision, it is `prec`.
@@ -944,7 +944,7 @@ impl Float {
     /// - If $1/\sqrt{x}$ is finite and nonzero, and $m$ is not `Nearest`, then $|\varepsilon| <
     ///   2^{\lfloor\log_2 1/\sqrt{x}\rfloor-p+1}$, where $p$ is the maximum precision of the
     ///   inputs.
-    /// - If $1/\sqrt{x}$ is finite and nonzero, and $m$ is `Nearest`, then $|\varepsilon| <
+    /// - If $1/\sqrt{x}$ is finite and nonzero, and $m$ is `Nearest`, then $|\varepsilon| \leq
     ///   2^{\lfloor\log_2 1/\sqrt{x}\rfloor-p}$, where $p$ is the maximum precision of the inputs.
     ///
     /// If the output has a precision, it is the precision of the input.
@@ -1010,7 +1010,7 @@ impl Float {
     ///   0.
     /// - If $1/\sqrt{x}$ is finite and nonzero, and $m$ is not `Nearest`, then $|\varepsilon| <
     ///   2^{\lfloor\log_2 1/\sqrt{x}\rfloor-p+1}$.
-    /// - If $\sqrt{x}$ is finite and nonzero, and $m$ is `Nearest`, then $|\varepsilon| <
+    /// - If $\sqrt{x}$ is finite and nonzero, and $m$ is `Nearest`, then $|\varepsilon| \leq
     ///   2^{\lfloor\log_2 1/\sqrt{x}\rfloor-p}$.
     ///
     /// If the output has a precision, it is `prec`.
@@ -1175,7 +1175,7 @@ impl Float {
     ///   0.
     /// - If $1/\sqrt{x}$ is finite and nonzero, and $m$ is not `Nearest`, then $|\varepsilon| <
     ///   2^{\lfloor\log_2 1/\sqrt{x}\rfloor-p+1}$.
-    /// - If $\sqrt{x}$ is finite and nonzero, and $m$ is `Nearest`, then $|\varepsilon| <
+    /// - If $\sqrt{x}$ is finite and nonzero, and $m$ is `Nearest`, then $|\varepsilon| \leq
     ///   2^{\lfloor\log_2 1/\sqrt{x}\rfloor-p}$.
     ///
     /// If the output has a precision, it is `prec`.

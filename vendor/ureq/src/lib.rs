@@ -156,14 +156,19 @@
 //!   library defaults to Rust's built in `utf-8`
 //! * **json** enables JSON sending and receiving via serde_json
 //! * **multipart** enables multipart/form-data sending via [`unversioned::multipart`]
+//! * **rustls-webpki-roots** enables the webpki-roots crate for root certificates when using rustls.
+//! * **native-tls-webpki-roots** enables the webpki-root-certs crate for root certificates when using native-tls.
 //!
 //! ### Unstable
 //!
 //! These features are unstable and might change in a minor version.
 //!
-//! * **rustls-no-provider** Enables rustls, but does not enable any [`CryptoProvider`] such as `ring`.
-//!   Providers other than the default (currently `ring`) are never picked up from feature flags alone.
-//!   It must be configured on the agent.
+//! * **rustls-no-provider** Enables rustls, but does not enable webpki and any [`CryptoProvider`] such as `ring`.
+//!   Root certs and providers other than the default (currently `ring`) are never picked up from feature flags alone.
+//!   They must be configured on the agent.
+//!
+//! * **native-tls-no-default** Enables native-tls, but does not enable webpki.
+//!   Root certs are never picked up from feature flags alone. They must be configured on the agent.
 //!
 //! * **vendored** compiles and statically links to a copy of non-Rust vendors (e.g. OpenSSL from `native-tls`)
 //!
@@ -1022,6 +1027,41 @@ pub(crate) mod test {
     }
 
     #[test]
+    #[cfg(feature = "_test")]
+    fn post_redirect_to_get_removes_content_length() {
+        // Regression test for issue #1135
+        // When a POST with body redirects to GET, Content-Length should not be sent
+        use crate::transport::{set_handler, set_handler_cb};
+        init_test_log();
+
+        // POST endpoint that redirects to GET
+        set_handler(
+            "/post-redirect",
+            301,
+            &[("Location", "http://example.com/get")],
+            &[],
+        );
+
+        // GET endpoint - verifies Content-Length header is NOT present
+        set_handler_cb("/get", 200, &[], b"success", |req| {
+            // Assert that Content-Length is not present on the GET request
+            assert!(
+                req.headers().get("content-length").is_none(),
+                "Content-Length header should not be present on GET request after redirect"
+            );
+        });
+
+        // POST with body that redirects to GET
+        let mut res = post("http://example.org/post-redirect")
+            .send("test body")
+            .unwrap();
+
+        assert_eq!(res.status(), 200);
+        let body = res.body_mut().read_to_string().unwrap();
+        assert_eq!(body, "success");
+    }
+
+    #[test]
     fn redirect_history_none() {
         init_test_log();
         let res = get("http://httpbin.org/redirect-to?url=%2Fget")
@@ -1117,6 +1157,7 @@ pub(crate) mod test {
     fn post_file_sends_file_length() {
         init_test_log();
 
+        let bytes = include_bytes!("../LICENSE-MIT");
         let file = std::fs::File::open("LICENSE-MIT").unwrap();
 
         let mut response = post("http://httpbin.org/post")
@@ -1125,7 +1166,7 @@ pub(crate) mod test {
             .expect("to send correctly");
 
         let ret = response.body_mut().read_to_string().unwrap();
-        assert!(ret.contains("\"Content-Length\": \"1072\""));
+        assert!(ret.contains(&format!("\"Content-Length\": \"{}\"", bytes.len())));
     }
 
     #[test]

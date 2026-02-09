@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.74"
 name = "webview2-com"
-version = "0.38.0"
+version = "0.38.2"
 build = false
 autolib = false
 autobins = false
@@ -48,10 +48,10 @@ name = "sample"
 path = "examples/sample.rs"
 
 [dependencies.webview2-com-macros]
-version = "0.8.0"
+version = "0.8.1"
 
 [dependencies.webview2-com-sys]
-version = "0.38.0"
+version = "0.38.2"
 
 [dependencies.windows]
 version = "0.61"

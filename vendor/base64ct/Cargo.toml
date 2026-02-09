@@ -13,7 +13,7 @@
 edition = "2024"
 rust-version = "1.85"
 name = "base64ct"
-version = "1.8.1"
+version = "1.8.3"
 authors = ["RustCrypto Developers"]
 build = false
 autolib = false
@@ -67,6 +67,10 @@ path = "tests/bcrypt.rs"
 [[test]]
 name = "crypt"
 path = "tests/crypt.rs"
+
+[[test]]
+name = "pbkdf2"
+path = "tests/pbkdf2.rs"
 
 [[test]]
 name = "proptests"

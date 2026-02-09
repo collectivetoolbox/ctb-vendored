@@ -522,7 +522,7 @@ impl RenderTableRow {
     }
     /// Return an iterator which returns cells by values (removing
     /// them from the row).
-    fn cells_drain(&mut self) -> impl Iterator<Item = RenderTableCell> {
+    fn cells_drain(&mut self) -> impl Iterator<Item = RenderTableCell> + use<> {
         std::mem::take(&mut self.cells).into_iter()
     }
     /// Count the number of cells in the row.
@@ -1983,9 +1983,11 @@ fn process_dom_node<T: Write>(
                 | expanded_name!(html "ins") => pending(input, move |_, cs| {
                     Some(RenderNode::new_styled(Em(cs), computed))
                 }),
-                expanded_name!(html "strong") => pending(input, move |_, cs| {
-                    Some(RenderNode::new_styled(Strong(cs), computed))
-                }),
+                expanded_name!(html "strong") | expanded_name!(html "b") => {
+                    pending(input, move |_, cs| {
+                        Some(RenderNode::new_styled(Strong(cs), computed))
+                    })
+                }
                 expanded_name!(html "s") | expanded_name!(html "del") => {
                     pending(input, move |_, cs| {
                         Some(RenderNode::new_styled(Strikeout(cs), computed))
@@ -2856,15 +2858,15 @@ pub mod config {
     use super::Error;
     use crate::css::types::Importance;
     use crate::css::{Ruleset, Selector, SelectorComponent, Style, StyleData};
+    #[cfg(feature = "css_ext")]
+    use crate::{HighlighterMap, SyntaxHighlighter};
     use crate::{
+        HtmlContext, MIN_WIDTH, RenderTree, Result,
         css::{PseudoContent, PseudoElement, StyleDecl},
         render::text_renderer::{
             PlainDecorator, RichAnnotation, RichDecorator, TaggedLine, TextDecorator,
         },
-        HtmlContext, RenderTree, Result, MIN_WIDTH,
     };
-    #[cfg(feature = "css_ext")]
-    use crate::{HighlighterMap, SyntaxHighlighter};
 
     /// Specify how images with missing or empty alt text are handled
     #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -3138,6 +3140,8 @@ pub mod config {
                 Self::make_surround_rule("dt", true, "*"),
                 Self::make_surround_rule("strong", false, "**"),
                 Self::make_surround_rule("strong", true, "**"),
+                Self::make_surround_rule("b", false, "**"),
+                Self::make_surround_rule("b", true, "**"),
                 Self::make_surround_rule("code", false, "`"),
                 Self::make_surround_rule("code", true, "`"),
             ]);

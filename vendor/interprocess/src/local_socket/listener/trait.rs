@@ -1,9 +1,11 @@
+#![allow(private_bounds)]
+
 use {
     crate::{
         local_socket::{stream::r#trait::Stream, ListenerOptions},
         Sealed,
     },
-    std::{io, iter::FusedIterator},
+    std::{fmt::Debug, io, iter::FusedIterator},
 };
 
 /// Local socket server implementations.
@@ -12,20 +14,26 @@ use {
 /// [`Listener` enum](super::enum::Listener). In addition, it is implemented on `Listener` itself,
 /// which makes it a trait object of sorts. See its documentation for more on the semantics of the
 /// methods seen here.
-#[allow(private_bounds)]
 pub trait Listener:
-    Iterator<Item = io::Result<Self::Stream>> + FusedIterator + Send + Sync + Sized + Sealed
+    Iterator<Item = io::Result<Self::Stream>> + FusedIterator + Debug + Send + Sync + Sized + Sealed
 {
     /// The stream type associated with this listener.
     type Stream: Stream;
-
-    /// Creates a socket server using the specified options.
-    fn from_options(options: ListenerOptions<'_>) -> io::Result<Self>;
 
     /// Listens for incoming connections to the socket, blocking until a client is connected.
     ///
     /// See [`.incoming()`](ListenerExt::incoming) for a convenient way to create a main loop for a
     /// server.
+    ///
+    /// ## Platform-specific behavior
+    /// ### Windows
+    /// As is the case with named pipe listeners (via which local sockets are implemented),
+    /// **neglecting to call this periodically may result in new clients being unable to
+    /// connect.** This is because a named pipe client connecting to a server immediately puts the
+    /// pipe into a connected state, contrary to the concept of *accepting* clients. If a client
+    /// connects to and disconnects from a named pipe without `accept` being called between those
+    /// two events, the named pipe instance will contain a dead-on-arrival connection that will
+    /// prevent new connections until it is removed by a call to `accept`.
     fn accept(&self) -> io::Result<Self::Stream>;
 
     /// Enables or disables the nonblocking mode for the listener. By default, it is disabled.
@@ -44,6 +52,13 @@ pub trait Listener:
 
     /// Disables [name reclamation](super::enum::Listener#name-reclamation) on the listener.
     fn do_not_reclaim_name_on_drop(&mut self);
+
+    /// Creates a socket server using the specified options.
+    ///
+    /// This method typically shouldn't be called directly – use the creation methods on
+    /// `ListenerOptions` (`create_sync`, `create_sync_as`, `create_tokio`, `create_tokio_as`)
+    /// instead.
+    fn from_options(options: ListenerOptions<'_>) -> io::Result<Self>;
 }
 
 /// The manner in which a [listener](Listener) is to be nonblocking.
@@ -60,6 +75,18 @@ pub enum ListenerNonblockingMode {
     Both,
 }
 impl ListenerNonblockingMode {
+    /// Constructs from two booleans which go on to become the return values of
+    /// [`accept_nonblocking`](Self::accept_nonblocking) and
+    /// [`stream_nonblocking`](Self::stream_nonblocking).
+    #[inline]
+    pub const fn from_bool(accept: bool, stream: bool) -> Self {
+        match (accept, stream) {
+            (false, false) => Self::Neither,
+            (true, false) => Self::Accept,
+            (false, true) => Self::Stream,
+            (true, true) => Self::Both,
+        }
+    }
     /// Returns `true` if `self` prescribes nonblocking `.accept()`, `false` otherwise.
     #[inline]
     pub const fn accept_nonblocking(self) -> bool { matches!(self, Self::Accept | Self::Both) }

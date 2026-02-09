@@ -1,6 +1,6 @@
 [package]
 name = "ureq"
-version = "3.1.4"
+version = "3.2.0"
 authors = ["Martin Algesten <martin@algesten.se>", "Jacob Hoffman-Andrews <ureq@hoffman-andrews.com>"]
 description = "Simple, safe HTTP client"
 license = "MIT OR Apache-2.0"
@@ -22,16 +22,19 @@ default = ["rustls", "gzip"]
 
 ######## SUPPORTED FEATURES
 
-rustls = ["rustls-no-provider", "_ring"]
-native-tls = ["dep:native-tls", "dep:der", "_tls", "dep:webpki-root-certs"]
+rustls = ["rustls-no-provider", "_ring", "rustls-webpki-roots"]
+native-tls = ["native-tls-no-default", "dep:der", "_tls", "native-tls-webpki-roots"]
 platform-verifier = ["dep:rustls-platform-verifier"]
 socks-proxy = ["dep:socks"]
+win-system-proxy = ["dep:winreg"]
 cookies = ["dep:cookie_store", "_url"]
 gzip = ["dep:flate2"]
 brotli = ["dep:brotli-decompressor"]
 charset = ["dep:encoding_rs"]
 json = ["dep:serde", "dep:serde_json", "cookie_store?/serde_json"]
 multipart = ["dep:mime_guess", "dep:getrandom"]
+rustls-webpki-roots = ["dep:webpki-roots"]
+native-tls-webpki-roots = ["dep:webpki-root-certs"]
 
 ######## UNSTABLE FEATURES.
 # Might be removed or changed in a minor version.
@@ -39,7 +42,13 @@ multipart = ["dep:mime_guess", "dep:getrandom"]
 # Rustls CryptoProviders are not picked up from feature flags alone. They must be
 # configured on Agent. This feature flag makes it possible to compile ureq with
 # rustls, but without ring.
-rustls-no-provider = ["dep:rustls", "_tls", "dep:webpki-roots", "_rustls"]
+# When webpki-roots is disabled you have to enable `platform-verifier` or provide root
+# certs manually.
+rustls-no-provider = ["dep:rustls", "_tls", "_rustls"]
+
+# When webpki-roots is disabled, you have to enable `platform-verifier` or provide root
+# certs manually.
+native-tls-no-default = ["dep:native-tls", "dep:der", "_tls"]
 
 # Supported as long as native-tls supports this.
 vendored = ["native-tls?/vendored"]
@@ -57,7 +66,7 @@ _doc = ["rustls?/aws-lc-rs"]
 
 [dependencies]
 base64 = "0.22.1"
-ureq-proto = { version = "0.5.2", default-features = false, features = ["client"] }
+ureq-proto = { version = "0.5.3", default-features = false, features = ["client"] }
 # ureq-proto = { path = "../ureq-proto", default-features = false, features = ["client"] }
 log = "0.4.25"
 utf-8 = "0.7.6"
@@ -92,6 +101,9 @@ serde_json = { version = "1.0.120", optional = true, default-features = false, f
 
 mime_guess = { version = "2.0.5", optional = true }
 getrandom = { version = "0.2.15", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+winreg = { version = "0.55", optional = true }
 
 [dev-dependencies]
 env_logger = "0.11.7"

@@ -478,7 +478,7 @@ dependencies = [
 
 [[package]]
 name = "futures-concurrency"
-version = "7.7.0"
+version = "7.7.1"
 dependencies = [
  "async-io 2.6.0",
  "async-std",

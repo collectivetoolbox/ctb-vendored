@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.81.0"
 name = "derive_more-impl"
-version = "2.1.0"
+version = "2.1.1"
 authors = ["Jelte Fennema <github-tech@jeltef.nl>"]
 build = false
 include = [

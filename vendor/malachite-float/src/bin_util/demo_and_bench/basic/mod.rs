@@ -1,4 +1,4 @@
-// Copyright © 2025 Mikhail Hogrefe
+// Copyright © 2026 Mikhail Hogrefe
 //
 // This file is part of Malachite.
 //
@@ -13,6 +13,7 @@ pub(crate) fn register(runner: &mut Runner) {
     complexity::register(runner);
     constants::register(runner);
     get_and_set::register(runner);
+    overflow_and_underflow::register(runner);
     ulp::register(runner);
 }
 
@@ -20,4 +21,5 @@ mod classification;
 mod complexity;
 mod constants;
 mod get_and_set;
+mod overflow_and_underflow;
 mod ulp;

@@ -1,4 +1,4 @@
-// Copyright © 2025 Mikhail Hogrefe
+// Copyright © 2026 Mikhail Hogrefe
 //
 // Uses code adopted from the GNU MPFR Library.
 //
@@ -82,14 +82,16 @@ fn sum(t: &mut [Integer], p: &mut [Integer], q: &mut [Integer], n1: u64, n2: u64
 }
 
 impl Float {
-    /// Returns an approximation to the natural logarithm of 2, with the given precision and rounded
+    /// Returns an approximation of the natural logarithm of 2, with the given precision and rounded
     /// using the given [`RoundingMode`]. An [`Ordering`] is also returned, indicating whether the
     /// rounded value is less than or greater than the exact value of the constant. (Since the
     /// constant is irrational, the rounded value is never equal to the exact value.)
     ///
     /// $$
-    /// L = \ln 2.
+    /// x = \ln 2+\varepsilon.
     /// $$
+    /// - If $m$ is not `Nearest`, then $|\varepsilon| < 2^{-p}$.
+    /// - If $m$ is `Nearest`, then $|\varepsilon| < 2^{-p-1}$.
     ///
     /// The constant is irrational and transcendental.
     ///
@@ -146,14 +148,15 @@ impl Float {
         }
     }
 
-    /// Returns an approximation to the natural logarithm of 2, with the given precision and rounded
+    /// Returns an approximation of the natural logarithm of 2, with the given precision and rounded
     /// to the nearest [`Float`] of that precision. An [`Ordering`] is also returned, indicating
     /// whether the rounded value is less than or greater than the exact value of the constant.
     /// (Since the constant is irrational, the rounded value is never equal to the exact value.)
     ///
     /// $$
-    /// L = \ln 2.
+    /// x = \ln 2+\varepsilon.
     /// $$
+    /// - $|\varepsilon| < 2^{-p-1}$.
     ///
     /// The constant is irrational and transcendental.
     ///

@@ -177,7 +177,7 @@ dependencies = [
 
 [[package]]
 name = "zvariant_derive"
-version = "5.9.1"
+version = "5.9.2"
 dependencies = [
  "enumflags2",
  "proc-macro-crate",

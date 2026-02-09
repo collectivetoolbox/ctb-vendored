@@ -11,8 +11,15 @@
 
 [package]
 edition = "2021"
+rust-version = "1.74"
 name = "webview2-com-macros"
-version = "0.8.0"
+version = "0.8.1"
+build = false
+autolib = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
 description = "Macros which generate callback implementations for WebView2 COM APIs"
 readme = "README.md"
 keywords = [
@@ -24,13 +31,15 @@ license = "MIT"
 repository = "https://github.com/wravery/webview2-rs"
 
 [lib]
+name = "webview2_com_macros"
+path = "src/lib.rs"
 proc-macro = true
 
 [dependencies.proc-macro2]
-version = "1.0"
+version = "1"
 
 [dependencies.quote]
-version = "1.0"
+version = "1"
 
 [dependencies.syn]
 version = "2.0"

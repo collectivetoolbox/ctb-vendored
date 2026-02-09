@@ -98,6 +98,7 @@ impl crate::Instance for Context {
             name: _,
             flags: _,
             memory_budget_thresholds: _,
+            telemetry: _,
         } = *desc;
         if enable {
             Ok(Context)
@@ -137,9 +138,13 @@ pub fn adapter_info() -> wgt::AdapterInfo {
         vendor: 0,
         device: 0,
         device_type: wgt::DeviceType::Cpu,
+        device_pci_bus_id: String::new(),
         driver: String::from("wgpu"),
         driver_info: String::new(),
         backend: wgt::Backend::Noop,
+        subgroup_min_size: wgt::MINIMUM_SUBGROUP_MIN_SIZE,
+        subgroup_max_size: wgt::MAXIMUM_SUBGROUP_MAX_SIZE,
+        transient_saves_memory: false,
     }
 }
 
@@ -187,20 +192,27 @@ pub const CAPABILITIES: crate::Capabilities = {
             max_compute_workgroup_size_y: ALLOC_MAX_U32,
             max_compute_workgroup_size_z: ALLOC_MAX_U32,
             max_compute_workgroups_per_dimension: ALLOC_MAX_U32,
-            min_subgroup_size: 1,
-            max_subgroup_size: ALLOC_MAX_U32,
-            max_push_constant_size: ALLOC_MAX_U32,
+            max_immediate_size: ALLOC_MAX_U32,
             max_non_sampler_bindings: ALLOC_MAX_U32,
 
-            max_task_workgroup_total_count: 0,
-            max_task_workgroups_per_dimension: 0,
-            max_mesh_multiview_count: 0,
-            max_mesh_output_layers: 0,
+            max_task_mesh_workgroup_total_count: ALLOC_MAX_U32,
+            max_task_mesh_workgroups_per_dimension: ALLOC_MAX_U32,
+            max_task_invocations_per_workgroup: ALLOC_MAX_U32,
+            max_task_invocations_per_dimension: ALLOC_MAX_U32,
+            max_mesh_invocations_per_workgroup: ALLOC_MAX_U32,
+            max_mesh_invocations_per_dimension: ALLOC_MAX_U32,
+            max_task_payload_size: ALLOC_MAX_U32,
+            max_mesh_output_vertices: ALLOC_MAX_U32,
+            max_mesh_output_primitives: ALLOC_MAX_U32,
+            max_mesh_output_layers: ALLOC_MAX_U32,
+            max_mesh_multiview_view_count: ALLOC_MAX_U32,
 
             max_blas_primitive_count: ALLOC_MAX_U32,
             max_blas_geometry_count: ALLOC_MAX_U32,
             max_tlas_instance_count: ALLOC_MAX_U32,
             max_acceleration_structures_per_shader_stage: ALLOC_MAX_U32,
+
+            max_multiview_view_count: ALLOC_MAX_U32,
         },
         alignments: crate::Alignments {
             // All maximally permissive

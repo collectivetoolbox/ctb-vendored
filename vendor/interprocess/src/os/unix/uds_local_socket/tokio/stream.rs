@@ -1,18 +1,19 @@
 use {
-    super::super::name_to_addr,
+    super::super::{dispatch_name, CONN_TIMEOUT_MSG},
     crate::{
         error::ReuniteError,
-        local_socket::{traits::tokio as traits, Name},
-        Sealed,
+        local_socket::{
+            traits::{tokio as traits, StreamCommon},
+            ConnectOptions,
+        },
+        os::unix::c_wrappers,
+        ConnectWaitMode, Sealed,
     },
     std::{
         io::{self, ErrorKind::WouldBlock},
         os::{
             fd::{AsFd, OwnedFd},
-            unix::{
-                net::{SocketAddr, UnixStream as SyncUnixStream},
-                prelude::BorrowedFd,
-            },
+            unix::{net::UnixStream as SyncUnixStream, prelude::BorrowedFd},
         },
         pin::Pin,
         task::{ready, Context, Poll},
@@ -31,35 +32,34 @@ use {
 pub struct Stream(pub(super) UnixStream);
 impl Sealed for Stream {}
 
-impl Stream {
-    #[allow(clippy::unwrap_used)]
-    async fn _connect(addr: SocketAddr) -> io::Result<UnixStream> {
-        #[cfg(any(target_os = "linux", target_os = "android"))]
-        {
-            #[cfg(target_os = "android")]
-            use std::os::android::net::SocketAddrExt;
-            #[cfg(target_os = "linux")]
-            use std::os::linux::net::SocketAddrExt;
-            if addr.as_abstract_name().is_some() {
-                return tokio::task::spawn_blocking(move || {
-                    let stream = SyncUnixStream::connect_addr(&addr)?;
-                    stream.set_nonblocking(true)?;
-                    Ok::<_, io::Error>(stream)
-                })
-                .await??
-                .try_into();
-            }
-        }
-        UnixStream::connect(addr.as_pathname().unwrap()).await
-    }
-}
-
 impl traits::Stream for Stream {
     type RecvHalf = RecvHalf;
     type SendHalf = SendHalf;
 
-    async fn connect(name: Name<'_>) -> io::Result<Self> {
-        Self::_connect(name_to_addr(name, false)?).await.map(Self::from)
+    async fn from_options(mut opts: &ConnectOptions<'_>) -> io::Result<Self> {
+        let (sock, inprog) = dispatch_name(
+            &mut opts,
+            false,
+            |&mut opts| opts.name.borrow(),
+            |_| None,
+            |addr, _| c_wrappers::create_client(addr, true),
+        )?;
+        let sock = UnixStream::from_std(SyncUnixStream::from(sock))?;
+        if inprog {
+            // disapprovingly points finger at Mio
+            match opts.get_wait_mode() {
+                ConnectWaitMode::Deferred => {}
+                ConnectWaitMode::Timeout(timeout) => tokio::select! {
+                    biased;
+                    rslt = sock.writable() => rslt,
+                    _ = tokio::time::sleep(timeout) => {
+                        Err(io::Error::new(io::ErrorKind::TimedOut, CONN_TIMEOUT_MSG))
+                    }
+                }?,
+                ConnectWaitMode::Unbounded => sock.writable().await?,
+            }
+        }
+        Ok(Self(sock))
     }
     fn split(self) -> (RecvHalf, SendHalf) {
         let (r, w) = self.0.into_split();
@@ -71,6 +71,21 @@ impl traits::Stream for Stream {
             ReuniteError { rh: RecvHalf(rh), sh: SendHalf(sh) }
         })
     }
+}
+impl StreamCommon for Stream {
+    #[inline]
+    fn take_error(&self) -> io::Result<Option<io::Error>> { c_wrappers::take_error(self.as_fd()) }
+}
+
+/// Access to the underlying implementation.
+impl Stream {
+    /// Borrows the [`UnixStream`] contained within, granting access to operations defined on it.
+    #[inline(always)]
+    pub fn inner(&self) -> &UnixStream { &self.0 }
+    /// Mutably borrows the [`UnixStream`] contained within, granting access to operations defined
+    /// on it.
+    #[inline(always)]
+    pub fn inner_mut(&mut self) -> &mut UnixStream { &mut self.0 }
 }
 
 fn ioloop(
@@ -144,6 +159,20 @@ impl TryFrom<OwnedFd> for Stream {
     }
 }
 
+macro_rules! tokio_accessors {
+    ($ty:ty, $inner:ty) => {
+        /// Tokio accessors.
+        impl $ty {
+            /// Borrows the underlying Tokio object, granting access to its methods.
+            #[inline]
+            pub fn as_tokio(&self) -> &$inner { &self.0 }
+            /// Extracts the underlying Tokio object.
+            #[inline]
+            pub fn into_tokio(self) -> $inner { self.0 }
+        }
+    };
+}
+
 /// [`Stream`]'s receive half, internally implemented using [`Arc`](std::sync::Arc) by Tokio.
 pub struct RecvHalf(RecvHalfImpl);
 impl Sealed for RecvHalf {}
@@ -153,6 +182,7 @@ impl traits::RecvHalf for RecvHalf {
 multimacro! {
     RecvHalf,
     pinproj_for_unpin(RecvHalfImpl),
+    tokio_accessors(RecvHalfImpl),
     forward_debug("local_socket::RecvHalf"),
     forward_tokio_read,
 }
@@ -181,6 +211,7 @@ impl traits::SendHalf for SendHalf {
 multimacro! {
     SendHalf,
     pinproj_for_unpin(SendHalfImpl),
+    tokio_accessors(SendHalfImpl),
     forward_rbv(SendHalfImpl, &),
     forward_debug("local_socket::SendHalf"),
     forward_tokio_write,

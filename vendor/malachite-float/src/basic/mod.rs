@@ -1,4 +1,4 @@
-// Copyright © 2025 Mikhail Hogrefe
+// Copyright © 2026 Mikhail Hogrefe
 //
 // This file is part of Malachite.
 //
@@ -15,6 +15,8 @@ pub mod complexity;
 /// which accept a precision.
 #[macro_use]
 pub mod constants;
+/// Floating-point numbers with a greater exponent range; for internal use only.
+pub mod extended;
 /// Getting and setting the components of a [`Float`](super::Float).
 pub mod get_and_set;
 /// Getting [`Float`](super::Float)'s ulp (unit in the last place).

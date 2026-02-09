@@ -2,7 +2,7 @@ use std::sync::{Arc, OnceLock};
 use std::{io, mem};
 
 use http::uri::Scheme;
-use http::{header, HeaderValue, Request, Response, Uri};
+use http::{header, HeaderValue, Method, Request, Response, Uri};
 use ureq_proto::client::state::{Await100, RecvBody, RecvResponse, Redirect, SendRequest};
 use ureq_proto::client::state::{Prepare, SendBody as SendBodyState};
 use ureq_proto::client::{Await100Result, RecvBodyResult};
@@ -82,6 +82,15 @@ pub(crate) fn run(
                 redirect_count += 1;
 
                 call = handle_redirect(rcall, &config)?;
+
+                // If the new method doesn't need a body, clear it.
+                // This prevents Content-Length/Transfer-Encoding headers from being added
+                // on methods like GET that don't send bodies (e.g., POST->GET redirects).
+                let method = call.method();
+                if !matches!(method, &Method::POST | &Method::PUT | &Method::PATCH) {
+                    body.remove();
+                }
+
                 timings = rtimings.new_call();
             }
 
@@ -90,7 +99,7 @@ pub(crate) fn run(
         }
     };
 
-    let (parts, _) = response.into_parts();
+    let (mut parts, _) = response.into_parts();
 
     let recv_body_mode = handler
         .call
@@ -99,6 +108,15 @@ pub(crate) fn run(
         .unwrap_or(BodyMode::NoBody);
 
     let info = ResponseInfo::new(&parts.headers, recv_body_mode);
+
+    // If the body will be decompressed, strip Content-Encoding and Content-Length
+    // from the response headers. The Content-Length no longer matches the
+    // decompressed body size, and Content-Encoding no longer applies since
+    // the body is delivered to the caller already decompressed (RFC 9110 §8.7).
+    if info.is_decompressing() {
+        parts.headers.remove(http::header::CONTENT_ENCODING);
+        parts.headers.remove(http::header::CONTENT_LENGTH);
+    }
 
     let body = Body::new(handler, info);
 
@@ -378,6 +396,7 @@ fn connect(
         request_level,
         now: timings.now(),
         timeout: timings.next_timeout(Timeout::Connect),
+        current_time: timings.current_time().clone(),
         run_connector: agent.run_connector.clone(),
     };
 

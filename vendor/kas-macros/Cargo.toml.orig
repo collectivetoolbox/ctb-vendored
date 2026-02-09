@@ -1,0 +1,52 @@
+[package]
+name = "kas-macros"
+version = "0.17.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "KAS GUI / macros"
+keywords = ["gui", "proc-macro"]
+categories = ["gui"]
+repository.workspace = true
+rust-version.workspace = true
+readme = "README.md"
+documentation = "https://docs.rs/kas-macros/"
+
+[lib]
+proc-macro = true
+
+[features]
+# Inject logging into macro-generated code.
+# Requires that all crates using these macros depend on the log crate.
+log = []
+
+# Enable reporting of warnings from proc-macros
+nightly = ["proc-macro-error2/nightly"]
+
+# Enable pedantic warnings. These should be replaced with individual lints,
+# depending on the outcome of RFC 1566 (proc macro diagnostics).
+nightly-pedantic = ["nightly"]
+
+[dependencies]
+quote = "1.0"
+proc-macro2 = { version = "1.0" }
+proc-macro-error2 = { version = "2.0", default-features = false }
+bitflags = "2.3.3"
+
+[dependencies.impl-tools-lib]
+version = "0.11.2" # version used in doc links
+
+[dependencies.syn]
+version = "2.0.22"
+# We need 'extra-traits' for equality testing
+# We need 'full' for parsing macros within macro arguments
+features = ["extra-traits", "full", "visit", "visit-mut"]
+
+[build-dependencies]
+version_check = "0.9"
+
+[lints.clippy]
+collapsible_if = "allow"
+collapsible_else_if = "allow"
+unit_arg = "allow"
+redundant_pattern_matching = "allow"

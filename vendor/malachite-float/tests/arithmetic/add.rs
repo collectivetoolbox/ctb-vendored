@@ -1,4 +1,4 @@
-// Copyright © 2025 Mikhail Hogrefe
+// Copyright © 2026 Mikhail Hogrefe
 //
 // This file is part of Malachite.
 //
@@ -10097,9 +10097,6 @@ fn add_properties_helper_2(x: Float, y: Float, extreme: bool) {
     assert_eq!(
         ComparableFloatRef(&Float::from(&rug_sum)),
         ComparableFloatRef(&sum),
-        "{:#x} {:#x}",
-        ComparableFloatRef(&x),
-        ComparableFloatRef(&y)
     );
 
     let sum_alt = &y + &x;

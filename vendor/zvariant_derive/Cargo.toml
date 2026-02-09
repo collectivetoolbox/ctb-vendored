@@ -13,7 +13,7 @@
 edition = "2024"
 rust-version = "1.85"
 name = "zvariant_derive"
-version = "5.9.1"
+version = "5.9.2"
 authors = ["Zeeshan Ali Khan <zeeshanak@gnome.org>"]
 build = false
 autolib = false

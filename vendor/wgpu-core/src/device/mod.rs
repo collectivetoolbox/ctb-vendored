@@ -61,7 +61,7 @@ impl<T: PartialEq> Eq for AttachmentData<T> {}
 pub(crate) struct RenderPassContext {
     pub attachments: AttachmentData<TextureFormat>,
     pub sample_count: u32,
-    pub multiview: Option<NonZeroU32>,
+    pub multiview_mask: Option<NonZeroU32>,
 }
 #[derive(Clone, Debug, Error)]
 #[non_exhaustive]
@@ -144,10 +144,10 @@ impl RenderPassContext {
                 res: res.error_ident(),
             });
         }
-        if self.multiview != other.multiview {
+        if self.multiview_mask != other.multiview_mask {
             return Err(RenderPassCompatibilityError::IncompatibleMultiview {
-                expected: self.multiview,
-                actual: other.multiview,
+                expected: self.multiview_mask,
+                actual: other.multiview_mask,
                 res: res.error_ident(),
             });
         }
@@ -400,8 +400,8 @@ pub fn create_validator(
     use naga::valid::Capabilities as Caps;
     let mut caps = Caps::empty();
     caps.set(
-        Caps::PUSH_CONSTANT,
-        features.contains(wgt::Features::PUSH_CONSTANTS),
+        Caps::IMMEDIATES,
+        features.contains(wgt::Features::IMMEDIATES),
     );
     caps.set(Caps::FLOAT64, features.contains(wgt::Features::SHADER_F64));
     caps.set(
@@ -417,21 +417,38 @@ pub fn create_validator(
         features.contains(wgt::Features::SHADER_PRIMITIVE_INDEX),
     );
     caps.set(
-        Caps::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING,
+        Caps::TEXTURE_AND_SAMPLER_BINDING_ARRAY,
+        features.contains(wgt::Features::TEXTURE_BINDING_ARRAY),
+    );
+    caps.set(
+        Caps::BUFFER_BINDING_ARRAY,
+        features.contains(wgt::Features::BUFFER_BINDING_ARRAY),
+    );
+    caps.set(
+        Caps::STORAGE_TEXTURE_BINDING_ARRAY,
+        features.contains(wgt::Features::TEXTURE_BINDING_ARRAY)
+            && features.contains(wgt::Features::STORAGE_RESOURCE_BINDING_ARRAY),
+    );
+    caps.set(
+        Caps::STORAGE_BUFFER_BINDING_ARRAY,
+        features.contains(wgt::Features::BUFFER_BINDING_ARRAY)
+            && features.contains(wgt::Features::STORAGE_RESOURCE_BINDING_ARRAY),
+    );
+    caps.set(
+        Caps::TEXTURE_AND_SAMPLER_BINDING_ARRAY_NON_UNIFORM_INDEXING,
         features
             .contains(wgt::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING),
     );
     caps.set(
-        Caps::STORAGE_TEXTURE_ARRAY_NON_UNIFORM_INDEXING,
+        Caps::BUFFER_BINDING_ARRAY_NON_UNIFORM_INDEXING,
+        features.contains(wgt::Features::UNIFORM_BUFFER_BINDING_ARRAYS),
+    );
+    caps.set(
+        Caps::STORAGE_TEXTURE_BINDING_ARRAY_NON_UNIFORM_INDEXING,
         features.contains(wgt::Features::STORAGE_TEXTURE_ARRAY_NON_UNIFORM_INDEXING),
     );
     caps.set(
-        Caps::UNIFORM_BUFFER_ARRAY_NON_UNIFORM_INDEXING,
-        features.contains(wgt::Features::UNIFORM_BUFFER_BINDING_ARRAYS),
-    );
-    // TODO: This needs a proper wgpu feature
-    caps.set(
-        Caps::SAMPLER_NON_UNIFORM_INDEXING,
+        Caps::STORAGE_BUFFER_BINDING_ARRAY_NON_UNIFORM_INDEXING,
         features
             .contains(wgt::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING),
     );
@@ -509,6 +526,18 @@ pub fn create_validator(
     caps.set(
         Caps::TEXTURE_EXTERNAL,
         features.intersects(wgt::Features::EXTERNAL_TEXTURE),
+    );
+    caps.set(
+        Caps::SHADER_BARYCENTRICS,
+        features.intersects(wgt::Features::SHADER_BARYCENTRICS),
+    );
+    caps.set(
+        Caps::MESH_SHADER,
+        features.intersects(wgt::Features::EXPERIMENTAL_MESH_SHADER),
+    );
+    caps.set(
+        Caps::MESH_SHADER_POINT_TOPOLOGY,
+        features.intersects(wgt::Features::EXPERIMENTAL_MESH_SHADER_POINTS),
     );
 
     naga::valid::Validator::new(flags, caps)

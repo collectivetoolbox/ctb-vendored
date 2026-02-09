@@ -3,10 +3,14 @@
 use {
     crate::{
         bound_util::{RefRead, RefWrite},
-        local_socket::Name,
+        local_socket::{ConnectOptions, Name},
         Sealed,
     },
-    std::io::{self, prelude::*},
+    std::{
+        fmt::Debug,
+        io::{self, prelude::*},
+        time::Duration,
+    },
 };
 
 /// Local socket stream implementations.
@@ -15,14 +19,20 @@ use {
 /// [`Stream` enum](super::enum::Stream). In addition, it is implemented on `Stream` itself, which
 /// makes it a trait object of sorts. See its documentation for more on the semantics of the methods
 /// seen here.
-pub trait Stream: Read + RefRead + Write + RefWrite + Send + Sync + Sized + Sealed {
+pub trait Stream: Read + RefRead + Write + RefWrite + StreamCommon {
+    // FUTURE move this to StreamCommon
     /// Receive half type returned by [`.split()`](Stream::split).
     type RecvHalf: RecvHalf<Stream = Self>;
     /// Send half type returned by [`.split()`](Stream::split).
     type SendHalf: SendHalf<Stream = Self>;
 
-    /// Connects to a remote local socket server.
-    fn connect(name: Name<'_>) -> io::Result<Self>;
+    /// Connects to a local socket server.
+    ///
+    /// This is equivalent to `ConnectOptions::new().name(name).connect_sync_as::<Self>()`.
+    #[inline]
+    fn connect(name: Name<'_>) -> io::Result<Self> {
+        ConnectOptions::new().name(name).connect_sync_as::<Self>()
+    }
 
     /// Enables or disables the nonblocking mode for the stream. By default, it is disabled.
     ///
@@ -34,6 +44,13 @@ pub trait Stream: Read + RefRead + Write + RefWrite + Send + Sync + Sized + Seal
     ///   received previously sent data.
     fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()>;
 
+    /// Sets the receive timeout to the specified value. If set to `None` (the default), reads
+    /// will block indefinitely if there is no data.
+    fn set_recv_timeout(&self, timeout: Option<Duration>) -> io::Result<()>;
+    /// Sets the send timeout to the specified value. If set to `None` (the default), writes
+    /// will block indefinitely if there is no space in the send buffer.
+    fn set_send_timeout(&self, timeout: Option<Duration>) -> io::Result<()>;
+
     /// Splits a stream into a receive half and a send half, which can be used to receive from and
     /// send to the stream concurrently from different threads, entailing a memory allocation.
     fn split(self) -> (Self::RecvHalf, Self::SendHalf);
@@ -43,9 +60,23 @@ pub trait Stream: Read + RefRead + Write + RefWrite + Send + Sync + Sized + Seal
     /// method on streams that haven't been split to begin with).
     fn reunite(rh: Self::RecvHalf, sh: Self::SendHalf) -> ReuniteResult<Self>;
 
+    /// Connects to a local socket server using the specified options.
+    ///
+    /// This method typically shouldn't be called directly – use the creation methods on
+    /// `ConnectOptions` (`connect_sync`, `connect_sync_as`) instead.
+    fn from_options(options: &ConnectOptions<'_>) -> io::Result<Self>;
+
     // Do not add methods to this trait that aren't directly tied to non-async streams. A new trait,
     // which should be called StreamExtra or StreamCommon or something along those lines, is to be
     // created for features like impersonation (ones that are instantaneous in nature).
+}
+
+/// Functionality common between [the `Stream` trait](Stream) and its async counterparts.
+pub trait StreamCommon: Debug + Send + Sync + Sized + Sealed + 'static {
+    /// Reads the stored error code from the socket, returning `None` if no error has happened
+    /// since the last call to a method that propagates stored errors. Subsequent calls will
+    /// return `None` until another error occurs.
+    fn take_error(&self) -> io::Result<Option<io::Error>>;
 }
 
 /// Receive halves of [`Stream`]s, obtained through [`.split()`](Stream::split).
@@ -53,9 +84,13 @@ pub trait Stream: Read + RefRead + Write + RefWrite + Send + Sync + Sized + Seal
 /// Types on which this trait is implemented are variants of the
 /// [`RecvHalf` enum](super::enum::RecvHalf). In addition, it is implemented on `RecvHalf` itself,
 /// which makes it a trait object of sorts.
-pub trait RecvHalf: Sized + Read + RefRead + Sealed {
+pub trait RecvHalf: Read + RefRead + Send + Sync + Sized + Sealed + 'static {
     /// The stream type the half is split from.
     type Stream: Stream;
+
+    /// Sets the receive timeout to the specified value. If set to `None` (the default), reads
+    /// will block indefinitely if there is no data.
+    fn set_timeout(&self, timeout: Option<Duration>) -> io::Result<()>;
 }
 
 /// Send halves of [`Stream`]s, obtained through [`.split()`](Stream::split).
@@ -63,9 +98,13 @@ pub trait RecvHalf: Sized + Read + RefRead + Sealed {
 /// Types on which this trait is implemented are variants of the
 /// [`SendHalf` enum](super::enum::SendHalf). In addition, it is implemented on `SendHalf` itself,
 /// which makes it a trait object of sorts.
-pub trait SendHalf: Sized + Write + RefWrite + Sealed {
+pub trait SendHalf: Write + RefWrite + Send + Sync + Sized + Sealed + 'static {
     /// The stream type the half is split from.
     type Stream: Stream;
+
+    /// Sets the send timeout to the specified value. If set to `None` (the default), writes
+    /// will block indefinitely if there is no space in the send buffer.
+    fn set_timeout(&self, timeout: Option<Duration>) -> io::Result<()>;
 }
 
 /// [`ReuniteResult`](crate::error::ReuniteResult) for the [`Stream` trait](Stream).

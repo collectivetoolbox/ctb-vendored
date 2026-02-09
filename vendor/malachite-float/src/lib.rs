@@ -1,4 +1,4 @@
-// Copyright © 2025 Mikhail Hogrefe
+// Copyright © 2026 Mikhail Hogrefe
 //
 // This file is part of Malachite.
 //
@@ -104,6 +104,7 @@ use malachite_base::num::arithmetic::traits::DivisibleByPowerOf2;
 use malachite_base::num::arithmetic::traits::IsPowerOf2;
 use malachite_base::num::basic::floats::PrimitiveFloat;
 use malachite_base::num::basic::integers::PrimitiveInt;
+use malachite_base::num::basic::traits::{Infinity, NegativeInfinity};
 use malachite_base::num::conversion::traits::{ExactFrom, RoundingFrom, SciMantissaAndExponent};
 #[cfg(feature = "test_build")]
 use malachite_base::num::logic::traits::SignificantBits;
@@ -120,7 +121,7 @@ use malachite_q::Rational;
 /// be changed in the future to match MPFR's behavior.
 ///
 /// `Float`s are similar to the primitive floats defined by the IEEE 754 standard. They include NaN,
-/// positive and $-\infty$, and positive and negative zero. There is only one NaN; there is no
+/// $\infty$ and $-\infty$, and positive and negative zero. There is only one NaN; there is no
 /// concept of a NaN payload.
 ///
 /// All the finite `Float`s are dyadic rationals (rational numbers whose denominator is a power of
@@ -131,7 +132,7 @@ use malachite_q::Rational;
 /// - an exponent, which is one more than the floor of the base-2 logarithm of the `Float`'s
 ///   absolute value;
 /// - and finally, a precision, which is greater than zero and indicates the number of significant
-///   bits. It is common to think of a `Float` as an approximation to some real number, and the
+///   bits. It is common to think of a `Float` as an approximation of some real number, and the
 ///   precision indicates how good the approximation is intended to be.
 ///
 /// `Float`s inherit some odd behavior from the IEEE 754 standard regarding comparison. A `NaN` is
@@ -427,6 +428,133 @@ where
     } else {
         T::exact_from(&result)
     }
+}
+
+#[allow(clippy::type_repetition_in_bounds)]
+#[doc(hidden)]
+pub fn emulate_rational_rational_to_float_fn<
+    T: PrimitiveFloat,
+    F: Fn(&Rational, &Rational, u64) -> (Float, Ordering),
+>(
+    f: F,
+    x: &Rational,
+    y: &Rational,
+) -> T
+where
+    Float: PartialOrd<T>,
+    for<'a> T: ExactFrom<&'a Float> + RoundingFrom<&'a Float>,
+{
+    let (mut result, o) = f(x, y, T::MANTISSA_WIDTH + 1);
+    if !result.is_normal() {
+        return T::exact_from(&result);
+    }
+    let e = i64::from(<&Float as SciMantissaAndExponent<Float, i32, _>>::sci_exponent(&result));
+    if e < T::MIN_NORMAL_EXPONENT {
+        if e < T::MIN_EXPONENT {
+            let rm =
+                if e == T::MIN_EXPONENT - 1 && result.significand_ref().unwrap().is_power_of_2() {
+                    let down = if result > T::ZERO { Less } else { Greater };
+                    if o == down { Up } else { Down }
+                } else {
+                    Nearest
+                };
+            return T::rounding_from(&result, rm).0;
+        }
+        result = f(x, y, T::max_precision_for_sci_exponent(e)).0;
+    }
+    if result > T::MAX_FINITE {
+        T::INFINITY
+    } else if result < -T::MAX_FINITE {
+        T::NEGATIVE_INFINITY
+    } else {
+        T::exact_from(&result)
+    }
+}
+
+/// Given the `(Float, Ordering)` result of an operation, determines whether an overflow occurred.
+///
+/// We're defining an overflow to occur whenever the actual result is outside the representable
+/// finite range, and is rounded to either infinity or to the maximum or minimum representable
+/// finite value. An overflow can present itself in four ways:
+/// - The result is $\infty$ and the `Ordering` is `Greater`
+/// - The result is $-\infty$ and the `Ordering` is `Less`
+/// - The result is the largest finite value (of any `Float` with its precision) and the `Ordering`
+///   is `Less`
+/// - The result is the smallest (most negative) finite value (of any `Float` with its precision)
+///   and the `Ordering` is `Greater`
+///
+/// # Worst-case complexity
+/// $T(n) = O(n)$
+///
+/// $M(n) = O(1)$
+///
+/// where $T$ is time, $M$ is additional memory, and $n$ is `self.significant_bits()`.
+///
+/// # Examples
+/// ```
+/// use malachite_base::num::basic::traits::{Infinity, NegativeInfinity, One};
+/// use malachite_float::{test_overflow, Float};
+/// use std::cmp::Ordering::*;
+///
+/// assert!(test_overflow(&Float::INFINITY, Greater));
+/// assert!(test_overflow(&Float::NEGATIVE_INFINITY, Less));
+/// assert!(test_overflow(&Float::max_finite_value_with_prec(10), Less));
+/// assert!(test_overflow(
+///     &-Float::max_finite_value_with_prec(10),
+///     Greater
+/// ));
+///
+/// assert!(!test_overflow(&Float::INFINITY, Equal));
+/// assert!(!test_overflow(&Float::ONE, Less));
+/// ```
+pub fn test_overflow(result: &Float, o: Ordering) -> bool {
+    if o == Equal {
+        return false;
+    }
+    *result == Float::INFINITY && o == Greater
+        || *result == Float::NEGATIVE_INFINITY && o == Less
+        || *result > 0u32 && result.abs_is_max_finite_value_with_prec() && o == Less
+        || *result < 0u32 && result.abs_is_max_finite_value_with_prec() && o == Greater
+}
+
+/// Given the `(Float, Ordering)` result of an operation, determines whether an underflow occurred.
+///
+/// We're defining an underflow to occur whenever the actual result is outside the representable
+/// finite range, and is rounded to zero, to the minimum positive value, or to the maximum negative
+/// value. An underflow can present itself in four ways:
+/// - The result is $0.0$ or $-0.0$ and the `Ordering` is `Less`
+/// - The result is $0.0$ or $-0.0$ and the `Ordering` is `Greater`
+/// - The result is the smallest positive value and the `Ordering` is `Greater`
+/// - The result is the largest (least negative) negative value and the `Ordering` is `Less`
+///
+/// # Worst-case complexity
+/// $T(n) = O(n)$
+///
+/// $M(n) = O(1)$
+///
+/// where $T$ is time, $M$ is additional memory, and $n$ is `self.significant_bits()`.
+///
+/// # Examples
+/// ```
+/// use malachite_base::num::basic::traits::{One, Zero};
+/// use malachite_float::{test_underflow, Float};
+/// use std::cmp::Ordering::*;
+///
+/// assert!(test_underflow(&Float::ZERO, Less));
+/// assert!(test_underflow(&Float::ZERO, Greater));
+/// assert!(test_underflow(&Float::min_positive_value_prec(10), Greater));
+/// assert!(test_underflow(&-Float::min_positive_value_prec(10), Less));
+///
+/// assert!(!test_underflow(&Float::ZERO, Equal));
+/// assert!(!test_underflow(&Float::ONE, Less));
+/// ```
+pub fn test_underflow(result: &Float, o: Ordering) -> bool {
+    if o == Equal {
+        return false;
+    }
+    *result == 0u32
+        || *result > 0u32 && result.abs_is_min_positive_value() && o == Greater
+        || *result < 0u32 && result.abs_is_min_positive_value() && o == Less
 }
 
 /// Traits for arithmetic.
