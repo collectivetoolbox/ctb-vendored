@@ -15,9 +15,9 @@ mod sys;
 mod sys;
 
 #[cfg(feature = "std")]
-pub use sys::{get_display_size, EventIter, Window};
-#[cfg(all(feature = "std", target_os = "redox"))]
 pub use sys::Surface;
+#[cfg(feature = "std")]
+pub use sys::{get_display_size, EventIter, Window};
 
 #[cfg(feature = "unifont")]
 pub static FONT: &[u8] = include_bytes!("../res/unifont.font");
@@ -32,6 +32,8 @@ mod blur;
 pub mod color;
 pub mod event;
 pub mod graphicspath;
+pub mod image;
+pub mod rect;
 pub mod renderer;
 
 #[derive(Clone, Copy, Debug)]

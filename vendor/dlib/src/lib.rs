@@ -6,6 +6,8 @@
 //! dlib defines the `external_library!` macro, which can be invoked in this way:
 //!
 //! ```rust
+//! # use dlib::external_library;
+//! # use std::ffi::{c_float, c_int};
 //! external_library!(feature="dlopen-foo", Foo, "foo",
 //!     statics:
 //!         me: c_int,
@@ -28,7 +30,8 @@
 //! this macro will expand to an extern block defining each of the items, using the third argument
 //! of the macro as a link name:
 //!
-//! ```rust
+//! ```rust no_run
+//! # use std::ffi::{c_float, c_int, c_void};
 //! #[link(name = "foo")]
 //! extern "C" {
 //!     pub static me: c_int;
@@ -47,6 +50,8 @@
 //! and a method `open`, which tries to load the library from the name or path given as an argument.
 //!
 //! ```rust
+//! # use dlib::DlError;
+//! # use std::ffi::{c_float, c_int, c_void};
 //! pub struct Foo {
 //!     pub me: &'static c_int,
 //!     pub you: &'static c_float,
@@ -59,7 +64,10 @@
 //!
 //!
 //! impl Foo {
-//!     pub unsafe fn open(name: &str) -> Result<Foo, DlError> { /* ... */ }
+//!     pub unsafe fn open(name: &str) -> Result<Foo, DlError> {
+//!         /* ... */
+//!         # todo!()
+//!     }
 //! }
 //! ```
 //!
@@ -90,7 +98,9 @@
 //!
 //! Then give the name of that feature as the `feature` argument to dlib's macros:
 //!
-//! ```rust
+//! ```rust no_run
+//! # use dlib::external_library;
+//! # use std::ffi::c_int;
 //! external_library!(feature="dlopen-foo", Foo, "foo",
 //!     functions:
 //!         fn foo() -> c_int,
@@ -99,7 +109,12 @@
 //!
 //! `dlib` provides helper macros to dispatch the access to foreign symbols:
 //!
-//! ```rust
+//! ```rust no_run
+//! # use dlib::{ffi_dispatch, ffi_dispatch_static};
+//! # let arg1 = todo!();
+//! # let arg2 = todo!();
+//! # let function: fn(u32, u32) = todo!();
+//! # let my_static_var = todo!();
 //! ffi_dispatch!(feature="dlopen-foo", Foo, function, arg1, arg2);
 //! ffi_dispatch_static!(feature="dlopen-foo", Foo, my_static_var);
 //! ```
@@ -122,6 +137,8 @@
 //! Then, it can become as simple as putting this on top of all modules using the FFI:
 //!
 //! ```rust
+//! # #![allow(unexpected_cfgs)]
+//! # mod ffi {}
 //! #[cfg(feature = "dlopen-foo")]
 //! use ffi::FOO_STATIC;
 //! #[cfg(not(feature = "dlopen-foo"))]
@@ -209,19 +226,22 @@ macro_rules! ffi_dispatch_static(
 #[macro_export]
 macro_rules! link_external_library(
     ($link: expr,
-        $(statics: $($sname: ident: $stype: ty),+,)|*
-        $(functions: $(fn $fname: ident($($farg: ty),*) -> $fret:ty),+,)|*
-        $(varargs: $(fn $vname: ident($($vargs: ty),+) -> $vret: ty),+,)|*
+        $(statics: $($(#[$sattr:meta])* $sname: ident: $stype: ty),+,)|*
+        $(functions: $($(#[$fattr:meta])* fn $fname: ident($($farg: ty),*) -> $fret:ty),+,)|*
+        $(varargs: $($(#[$vattr:meta])* fn $vname: ident($($vargs: ty),+) -> $vret: ty),+,)|*
     ) => (
         #[link(name = $link)]
         extern "C" {
             $($(
+                $(#[$sattr])*
                 pub static $sname: $stype;
             )+)*
             $($(
+                $(#[$fattr])*
                 pub fn $fname($(_: $farg),*) -> $fret;
             )+)*
             $($(
+                $(#[$vattr])*
                 pub fn $vname($(_: $vargs),+ , ...) -> $vret;
             )+)*
         }
@@ -262,27 +282,30 @@ impl std::fmt::Display for DlError {
 #[macro_export]
 macro_rules! dlopen_external_library(
     (__struct, $structname: ident,
-        $(statics: $($sname: ident: $stype: ty),+,)|*
-        $(functions: $(fn $fname: ident($($farg: ty),*) -> $fret:ty),+,)|*
-        $(varargs: $(fn $vname: ident($($vargs: ty),+) -> $vret: ty),+,)|*
+        $(statics: $($(#[$sattr:meta])* $sname: ident: $stype: ty),+,)|*
+        $(functions: $($(#[$fattr:meta])* fn $fname: ident($($farg: ty),*) -> $fret:ty),+,)|*
+        $(varargs: $($(#[$vattr:meta])* fn $vname: ident($($vargs: ty),+) -> $vret: ty),+,)|*
     ) => (
         pub struct $structname {
             __lib: $crate::Library,
             $($(
+                $(#[$sattr])*
                 pub $sname: $crate::Symbol<'static, &'static $stype>,
             )+)*
             $($(
+                $(#[$fattr])*
                 pub $fname: $crate::Symbol<'static, unsafe extern "C" fn($($farg),*) -> $fret>,
             )+)*
             $($(
+                $(#[$vattr])*
                 pub $vname: $crate::Symbol<'static, unsafe extern "C" fn($($vargs),+ , ...) -> $vret>,
             )+)*
         }
     );
     (__impl, $structname: ident,
-        $(statics: $($sname: ident: $stype: ty),+,)|*
-        $(functions: $(fn $fname: ident($($farg: ty),*) -> $fret:ty),+,)|*
-        $(varargs: $(fn $vname: ident($($vargs: ty),+) -> $vret: ty),+,)|*
+        $(statics: $($(#[$sattr:meta])* $sname: ident: $stype: ty),+,)|*
+        $(functions: $($(#[$fattr:meta])* fn $fname: ident($($farg: ty),*) -> $fret:ty),+,)|*
+        $(varargs: $($(#[$vattr:meta])* fn $vname: ident($($vargs: ty),+) -> $vret: ty),+,)|*
     ) => (
     impl $structname {
         pub unsafe fn open(name: &str) -> Result<$structname, $crate::DlError> {
@@ -290,7 +313,7 @@ macro_rules! dlopen_external_library(
             use std::mem::transmute;
             let lib = $crate::Library::new(name).map_err($crate::DlError::CantOpen)?;
             let s = $structname {
-                $($($sname: {
+                $($($(#[$sattr])* $sname: {
                     let s_name = concat!(stringify!($sname), "\0");
                     transmute(match lib.get::<&'static $stype>(s_name.as_bytes()) {
                         Ok(s) => s,
@@ -298,7 +321,7 @@ macro_rules! dlopen_external_library(
                     })
                 },
                 )+)*
-                $($($fname: {
+                $($($(#[$fattr])* $fname: {
                     let s_name = concat!(stringify!($fname), "\0");
                     transmute(match lib.get::<unsafe extern "C" fn($($farg),*) -> $fret>(s_name.as_bytes()) {
                         Ok(s) => s,
@@ -306,7 +329,7 @@ macro_rules! dlopen_external_library(
                     })
                 },
                 )+)*
-                $($($vname: {
+                $($($(#[$vattr])* $vname: {
                     let s_name = concat!(stringify!($vname), "\0");
                     transmute(match lib.get::<unsafe extern "C" fn($($vargs),+ , ...) -> $vret>(s_name.as_bytes()) {
                         Ok(s) => s,
@@ -321,19 +344,19 @@ macro_rules! dlopen_external_library(
     }
     );
     ($structname: ident,
-        $(statics: $($sname: ident: $stype: ty),+,)|*
-        $(functions: $(fn $fname: ident($($farg: ty),*) -> $fret:ty),+,)|*
-        $(varargs: $(fn $vname: ident($($vargs: ty),+) -> $vret: ty),+,)|*
+        $(statics: $($(#[$sattr:meta])* $sname: ident: $stype: ty),+,)|*
+        $(functions: $($(#[$fattr:meta])* fn $fname: ident($($farg: ty),*) -> $fret:ty),+,)|*
+        $(varargs: $($(#[$vattr:meta])* fn $vname: ident($($vargs: ty),+) -> $vret: ty),+,)|*
     ) => (
         $crate::dlopen_external_library!(__struct,
-            $structname, $(statics: $($sname: $stype),+,)|*
-            $(functions: $(fn $fname($($farg),*) -> $fret),+,)|*
-            $(varargs: $(fn $vname($($vargs),+) -> $vret),+,)|*
+            $structname, $(statics: $($(#[$sattr])* $sname: $stype),+,)|*
+            $(functions: $($(#[$fattr])* fn $fname($($farg),*) -> $fret),+,)|*
+            $(varargs: $($(#[$vattr])* fn $vname($($vargs),+) -> $vret),+,)|*
         );
         $crate::dlopen_external_library!(__impl,
-            $structname, $(statics: $($sname: $stype),+,)|*
-            $(functions: $(fn $fname($($farg),*) -> $fret),+,)|*
-            $(varargs: $(fn $vname($($vargs),+) -> $vret),+,)|*
+            $structname, $(statics: $($(#[$sattr])* $sname: $stype),+,)|*
+            $(functions: $($(#[$fattr])* fn $fname($($farg),*) -> $fret),+,)|*
+            $(varargs: $($(#[$vattr])* fn $vname($($vargs),+) -> $vret),+,)|*
         );
         unsafe impl Sync for $structname { }
     );
@@ -353,34 +376,34 @@ macro_rules! dlopen_external_library(
 #[macro_export]
 macro_rules! external_library(
     (feature=$feature: expr, $structname: ident, $link: expr,
-        $(statics: $($sname: ident: $stype: ty),+,)|*
-        $(functions: $(fn $fname: ident($($farg: ty),*) -> $fret:ty),+,)|*
-        $(varargs: $(fn $vname: ident($($vargs: ty),+) -> $vret: ty),+,)|*
+        $(statics: $($(#[$sattr:meta])* $sname: ident: $stype: ty),+,)|*
+        $(functions: $($(#[$fattr:meta])* fn $fname: ident($($farg: ty),*) -> $fret:ty),+,)|*
+        $(varargs: $($(#[$vattr:meta])* fn $vname: ident($($vargs: ty),+) -> $vret: ty),+,)|*
     ) => (
         #[cfg(feature = $feature)]
         $crate::dlopen_external_library!(
-            $structname, $(statics: $($sname: $stype),+,)|*
-            $(functions: $(fn $fname($($farg),*) -> $fret),+,)|*
-            $(varargs: $(fn $vname($($vargs),+) -> $vret),+,)|*
+            $structname, $(statics: $($(#[$sattr])* $sname: $stype),+,)|*
+            $(functions: $($(#[$fattr])* fn $fname($($farg),*) -> $fret),+,)|*
+            $(varargs: $($(#[$vattr])* fn $vname($($vargs),+) -> $vret),+,)|*
         );
 
         #[cfg(not(feature = $feature))]
         $crate::link_external_library!(
-            $link, $(statics: $($sname: $stype),+,)|*
-            $(functions: $(fn $fname($($farg),*) -> $fret),+,)|*
-            $(varargs: $(fn $vname($($vargs),+) -> $vret),+,)|*
+            $link, $(statics: $($(#[$sattr])* $sname: $stype),+,)|*
+            $(functions: $($(#[$fattr])* fn $fname($($farg),*) -> $fret),+,)|*
+            $(varargs: $($(#[$vattr])* fn $vname($($vargs),+) -> $vret),+,)|*
         );
     );
     ($structname: ident, $link: expr,
-        $(statics: $($sname: ident: $stype: ty),+,)|*
-        $(functions: $(fn $fname: ident($($farg: ty),*) -> $fret:ty),+,)|*
-        $(varargs: $(fn $vname: ident($($vargs: ty),+) -> $vret: ty),+,)|*
+        $(statics: $($(#[$sattr:meta])* $sname: ident: $stype: ty),+,)|*
+        $(functions: $($(#[$fattr:meta])* fn $fname: ident($($farg: ty),*) -> $fret:ty),+,)|*
+        $(varargs: $($(#[$vattr:meta])* fn $vname: ident($($vargs: ty),+) -> $vret: ty),+,)|*
     ) => (
         $crate::external_library!(
             feature="dlopen", $structname, $link,
-            $(statics: $($sname: $stype),+,)|*
-            $(functions: $(fn $fname($($farg),*) -> $fret),+,)|*
-            $(varargs: $(fn $vname($($vargs),+) -> $vret),+,)|*
+            $(statics: $($(#[$sattr])* $sname: $stype),+,)|*
+            $(functions: $($(#[$fattr])* fn $fname($($farg),*) -> $fret),+,)|*
+            $(varargs: $($(#[$vattr])* fn $vname($($vargs),+) -> $vret),+,)|*
         );
     );
 );

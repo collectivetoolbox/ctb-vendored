@@ -18,6 +18,8 @@ pub mod ping;
 #[cfg(all(target_os = "linux", feature = "signals"))]
 #[cfg_attr(docsrs, doc(cfg(target_os = "linux")))]
 pub mod signals;
+#[cfg(feature = "stream")]
+pub mod stream;
 pub mod timer;
 pub mod transient;
 
@@ -441,8 +443,8 @@ impl AdditionalLifecycleEventsSet {
 
 // An internal trait to erase the `F` type parameter of `DispatcherInner`
 trait ErasedDispatcher<'a, S, Data> {
-    fn as_source_ref(&self) -> Ref<S>;
-    fn as_source_mut(&self) -> RefMut<S>;
+    fn as_source_ref(&self) -> Ref<'_, S>;
+    fn as_source_mut(&self) -> RefMut<'_, S>;
     fn into_source_inner(self: Rc<Self>) -> S;
     fn into_event_dispatcher(self: Rc<Self>) -> Rc<dyn EventDispatcher<Data> + 'a>;
 }
@@ -452,11 +454,11 @@ where
     S: EventSource + 'a,
     F: FnMut(S::Event, &mut S::Metadata, &mut Data) -> S::Ret + 'a,
 {
-    fn as_source_ref(&self) -> Ref<S> {
+    fn as_source_ref(&self) -> Ref<'_, S> {
         Ref::map(self.borrow(), |inner| &inner.source)
     }
 
-    fn as_source_mut(&self) -> RefMut<S> {
+    fn as_source_mut(&self) -> RefMut<'_, S> {
         RefMut::map(self.borrow_mut(), |inner| &mut inner.source)
     }
 
@@ -516,7 +518,7 @@ where
     ///
     /// The dispatcher being mutably borrowed while its events are dispatched,
     /// this method will panic if invoked from within the associated dispatching closure.
-    pub fn as_source_ref(&self) -> Ref<S> {
+    pub fn as_source_ref(&self) -> Ref<'_, S> {
         self.0.as_source_ref()
     }
 
@@ -528,7 +530,7 @@ where
     ///
     /// The dispatcher being mutably borrowed while its events are dispatched,
     /// this method will panic if invoked from within the associated dispatching closure.
-    pub fn as_source_mut(&self) -> RefMut<S> {
+    pub fn as_source_mut(&self) -> RefMut<'_, S> {
         self.0.as_source_mut()
     }
 

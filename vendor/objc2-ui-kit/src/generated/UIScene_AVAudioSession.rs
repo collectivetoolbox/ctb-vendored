@@ -4,8 +4,8 @@ use objc2::__framework_prelude::*;
 
 use crate::*;
 
-/// AVAudioSession.
-#[cfg(all(feature = "UIResponder", feature = "UIScene"))]
-impl UIScene {
-    extern_methods!();
-}
+extern_methods!(
+    /// AVAudioSession
+    #[cfg(all(feature = "UIResponder", feature = "UIScene"))]
+    unsafe impl UIScene {}
+);

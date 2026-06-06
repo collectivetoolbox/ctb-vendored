@@ -3,46 +3,44 @@
 
 use crate::soft;
 use cipher::{
+    AlgorithmName, BlockCipherDecClosure, BlockCipherDecrypt, BlockCipherEncClosure,
+    BlockCipherEncrypt, BlockSizeUser, Key, KeyInit, KeySizeUser,
     consts::{U16, U24, U32},
-    AlgorithmName, BlockCipher, BlockClosure, BlockDecrypt, BlockEncrypt, BlockSizeUser, Key,
-    KeyInit, KeySizeUser,
 };
 use core::fmt;
 use core::mem::ManuallyDrop;
 
-#[cfg(all(target_arch = "aarch64", aes_armv8))]
-use crate::armv8 as intrinsics;
+#[cfg(target_arch = "aarch64")]
+use crate::armv8 as arch;
 
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
-use crate::ni as intrinsics;
-
-cpufeatures::new!(aes_intrinsics, "aes");
+use crate::x86 as arch;
 
 macro_rules! define_aes_impl {
     (
-        $name:ident,
-        $name_enc:ident,
-        $name_dec:ident,
-        $module:tt,
-        $key_size:ty,
-        $doc:expr $(,)?
+        name = $name:ident,
+        name_enc = $name_enc:ident,
+        name_dec = $name_dec:ident,
+        module = $module:tt,
+        key_size = $key_size:ty,
+        doc = $doc:expr,
     ) => {
         mod $module {
-            use super::{intrinsics, soft};
+            use super::{arch, soft};
             use core::mem::ManuallyDrop;
 
             pub(super) union Inner {
-                pub(super) intrinsics: ManuallyDrop<intrinsics::$name>,
+                pub(super) arch: ManuallyDrop<arch::$name>,
                 pub(super) soft: ManuallyDrop<soft::$name>,
             }
 
             pub(super) union InnerEnc {
-                pub(super) intrinsics: ManuallyDrop<intrinsics::$name_enc>,
+                pub(super) arch: ManuallyDrop<arch::$name_enc>,
                 pub(super) soft: ManuallyDrop<soft::$name_enc>,
             }
 
             pub(super) union InnerDec {
-                pub(super) intrinsics: ManuallyDrop<intrinsics::$name_dec>,
+                pub(super) arch: ManuallyDrop<arch::$name_dec>,
                 pub(super) soft: ManuallyDrop<soft::$name_dec>,
             }
         }
@@ -51,7 +49,7 @@ macro_rules! define_aes_impl {
         #[doc = "block cipher"]
         pub struct $name {
             inner: $module::Inner,
-            token: aes_intrinsics::InitToken,
+            token: arch::features::aes::InitToken,
         }
 
         impl KeySizeUser for $name {
@@ -69,9 +67,7 @@ macro_rules! define_aes_impl {
                 use core::ops::Deref;
                 let inner = if enc.token.get() {
                     $module::Inner {
-                        intrinsics: ManuallyDrop::new(unsafe {
-                            enc.inner.intrinsics.deref().into()
-                        }),
+                        arch: ManuallyDrop::new(unsafe { enc.inner.arch.deref().into() }),
                     }
                 } else {
                     $module::Inner {
@@ -89,11 +85,11 @@ macro_rules! define_aes_impl {
         impl KeyInit for $name {
             #[inline]
             fn new(key: &Key<Self>) -> Self {
-                let (token, aesni_present) = aes_intrinsics::init_get();
+                let (token, aes_features) = arch::features::aes::init_get();
 
-                let inner = if aesni_present {
+                let inner = if aes_features {
                     $module::Inner {
-                        intrinsics: ManuallyDrop::new(intrinsics::$name::new(key)),
+                        arch: ManuallyDrop::new(arch::$name::new(key)),
                     }
                 } else {
                     $module::Inner {
@@ -109,7 +105,7 @@ macro_rules! define_aes_impl {
             fn clone(&self) -> Self {
                 let inner = if self.token.get() {
                     $module::Inner {
-                        intrinsics: unsafe { self.inner.intrinsics.clone() },
+                        arch: unsafe { self.inner.arch.clone() },
                     }
                 } else {
                     $module::Inner {
@@ -128,42 +124,22 @@ macro_rules! define_aes_impl {
             type BlockSize = U16;
         }
 
-        impl BlockCipher for $name {}
-
-        impl BlockEncrypt for $name {
-            fn encrypt_with_backend(&self, f: impl BlockClosure<BlockSize = U16>) {
-                unsafe {
-                    if self.token.get() {
-                        #[target_feature(enable = "aes")]
-                        unsafe fn inner(
-                            state: &intrinsics::$name,
-                            f: impl BlockClosure<BlockSize = U16>,
-                        ) {
-                            f.call(&mut state.get_enc_backend());
-                        }
-                        inner(&self.inner.intrinsics, f);
-                    } else {
-                        f.call(&mut self.inner.soft.get_enc_backend());
-                    }
+        impl BlockCipherEncrypt for $name {
+            fn encrypt_with_backend(&self, f: impl BlockCipherEncClosure<BlockSize = U16>) {
+                if self.token.get() {
+                    unsafe { &self.inner.arch }.encrypt_with_backend(f)
+                } else {
+                    unsafe { &self.inner.soft }.encrypt_with_backend(f)
                 }
             }
         }
 
-        impl BlockDecrypt for $name {
-            fn decrypt_with_backend(&self, f: impl BlockClosure<BlockSize = U16>) {
-                unsafe {
-                    if self.token.get() {
-                        #[target_feature(enable = "aes")]
-                        unsafe fn inner(
-                            state: &intrinsics::$name,
-                            f: impl BlockClosure<BlockSize = U16>,
-                        ) {
-                            f.call(&mut state.get_dec_backend());
-                        }
-                        inner(&self.inner.intrinsics, f);
-                    } else {
-                        f.call(&mut self.inner.soft.get_dec_backend());
-                    }
+        impl BlockCipherDecrypt for $name {
+            fn decrypt_with_backend(&self, f: impl BlockCipherDecClosure<BlockSize = U16>) {
+                if self.token.get() {
+                    unsafe { &self.inner.arch }.decrypt_with_backend(f)
+                } else {
+                    unsafe { &self.inner.soft }.decrypt_with_backend(f)
                 }
             }
         }
@@ -184,7 +160,7 @@ macro_rules! define_aes_impl {
             #[inline]
             fn drop(&mut self) {
                 if self.token.get() {
-                    unsafe { ManuallyDrop::drop(&mut self.inner.intrinsics) };
+                    unsafe { ManuallyDrop::drop(&mut self.inner.arch) };
                 } else {
                     unsafe { ManuallyDrop::drop(&mut self.inner.soft) };
                 };
@@ -198,7 +174,7 @@ macro_rules! define_aes_impl {
         #[doc = "block cipher (encrypt-only)"]
         pub struct $name_enc {
             inner: $module::InnerEnc,
-            token: aes_intrinsics::InitToken,
+            token: arch::features::aes::InitToken,
         }
 
         impl KeySizeUser for $name_enc {
@@ -208,11 +184,11 @@ macro_rules! define_aes_impl {
         impl KeyInit for $name_enc {
             #[inline]
             fn new(key: &Key<Self>) -> Self {
-                let (token, aesni_present) = aes_intrinsics::init_get();
+                let (token, aes_features) = arch::features::aes::init_get();
 
-                let inner = if aesni_present {
+                let inner = if aes_features {
                     $module::InnerEnc {
-                        intrinsics: ManuallyDrop::new(intrinsics::$name_enc::new(key)),
+                        arch: ManuallyDrop::new(arch::$name_enc::new(key)),
                     }
                 } else {
                     $module::InnerEnc {
@@ -228,7 +204,7 @@ macro_rules! define_aes_impl {
             fn clone(&self) -> Self {
                 let inner = if self.token.get() {
                     $module::InnerEnc {
-                        intrinsics: unsafe { self.inner.intrinsics.clone() },
+                        arch: unsafe { self.inner.arch.clone() },
                     }
                 } else {
                     $module::InnerEnc {
@@ -247,23 +223,12 @@ macro_rules! define_aes_impl {
             type BlockSize = U16;
         }
 
-        impl BlockCipher for $name_enc {}
-
-        impl BlockEncrypt for $name_enc {
-            fn encrypt_with_backend(&self, f: impl BlockClosure<BlockSize = U16>) {
-                unsafe {
-                    if self.token.get() {
-                        #[target_feature(enable = "aes")]
-                        unsafe fn inner(
-                            state: &intrinsics::$name_enc,
-                            f: impl BlockClosure<BlockSize = U16>,
-                        ) {
-                            f.call(&mut state.get_enc_backend());
-                        }
-                        inner(&self.inner.intrinsics, f);
-                    } else {
-                        f.call(&mut self.inner.soft.get_enc_backend());
-                    }
+        impl BlockCipherEncrypt for $name_enc {
+            fn encrypt_with_backend(&self, f: impl BlockCipherEncClosure<BlockSize = U16>) {
+                if self.token.get() {
+                    unsafe { &self.inner.arch }.encrypt_with_backend(f)
+                } else {
+                    unsafe { &self.inner.soft }.encrypt_with_backend(f)
                 }
             }
         }
@@ -284,7 +249,7 @@ macro_rules! define_aes_impl {
             #[inline]
             fn drop(&mut self) {
                 if self.token.get() {
-                    unsafe { ManuallyDrop::drop(&mut self.inner.intrinsics) };
+                    unsafe { ManuallyDrop::drop(&mut self.inner.arch) };
                 } else {
                     unsafe { ManuallyDrop::drop(&mut self.inner.soft) };
                 };
@@ -298,7 +263,7 @@ macro_rules! define_aes_impl {
         #[doc = "block cipher (decrypt-only)"]
         pub struct $name_dec {
             inner: $module::InnerDec,
-            token: aes_intrinsics::InitToken,
+            token: arch::features::aes::InitToken,
         }
 
         impl KeySizeUser for $name_dec {
@@ -317,9 +282,7 @@ macro_rules! define_aes_impl {
                 use core::ops::Deref;
                 let inner = if enc.token.get() {
                     $module::InnerDec {
-                        intrinsics: ManuallyDrop::new(unsafe {
-                            enc.inner.intrinsics.deref().into()
-                        }),
+                        arch: ManuallyDrop::new(unsafe { enc.inner.arch.deref().into() }),
                     }
                 } else {
                     $module::InnerDec {
@@ -337,11 +300,11 @@ macro_rules! define_aes_impl {
         impl KeyInit for $name_dec {
             #[inline]
             fn new(key: &Key<Self>) -> Self {
-                let (token, aesni_present) = aes_intrinsics::init_get();
+                let (token, aes_features) = arch::features::aes::init_get();
 
-                let inner = if aesni_present {
+                let inner = if aes_features {
                     $module::InnerDec {
-                        intrinsics: ManuallyDrop::new(intrinsics::$name_dec::new(key)),
+                        arch: ManuallyDrop::new(arch::$name_dec::new(key)),
                     }
                 } else {
                     $module::InnerDec {
@@ -357,7 +320,7 @@ macro_rules! define_aes_impl {
             fn clone(&self) -> Self {
                 let inner = if self.token.get() {
                     $module::InnerDec {
-                        intrinsics: unsafe { self.inner.intrinsics.clone() },
+                        arch: unsafe { self.inner.arch.clone() },
                     }
                 } else {
                     $module::InnerDec {
@@ -376,23 +339,12 @@ macro_rules! define_aes_impl {
             type BlockSize = U16;
         }
 
-        impl BlockCipher for $name_dec {}
-
-        impl BlockDecrypt for $name_dec {
-            fn decrypt_with_backend(&self, f: impl BlockClosure<BlockSize = U16>) {
-                unsafe {
-                    if self.token.get() {
-                        #[target_feature(enable = "aes")]
-                        unsafe fn inner(
-                            state: &intrinsics::$name_dec,
-                            f: impl BlockClosure<BlockSize = U16>,
-                        ) {
-                            f.call(&mut state.get_dec_backend());
-                        }
-                        inner(&self.inner.intrinsics, f);
-                    } else {
-                        f.call(&mut self.inner.soft.get_dec_backend());
-                    }
+        impl BlockCipherDecrypt for $name_dec {
+            fn decrypt_with_backend(&self, f: impl BlockCipherDecClosure<BlockSize = U16>) {
+                if self.token.get() {
+                    unsafe { &self.inner.arch }.decrypt_with_backend(f)
+                } else {
+                    unsafe { &self.inner.soft }.decrypt_with_backend(f)
                 }
             }
         }
@@ -413,7 +365,7 @@ macro_rules! define_aes_impl {
             #[inline]
             fn drop(&mut self) {
                 if self.token.get() {
-                    unsafe { ManuallyDrop::drop(&mut self.inner.intrinsics) };
+                    unsafe { ManuallyDrop::drop(&mut self.inner.arch) };
                 } else {
                     unsafe { ManuallyDrop::drop(&mut self.inner.soft) };
                 };
@@ -425,6 +377,27 @@ macro_rules! define_aes_impl {
     };
 }
 
-define_aes_impl!(Aes128, Aes128Enc, Aes128Dec, aes128, U16, "AES-128");
-define_aes_impl!(Aes192, Aes192Enc, Aes192Dec, aes192, U24, "AES-192");
-define_aes_impl!(Aes256, Aes256Enc, Aes256Dec, aes256, U32, "AES-256");
+define_aes_impl!(
+    name = Aes128,
+    name_enc = Aes128Enc,
+    name_dec = Aes128Dec,
+    module = aes128,
+    key_size = U16,
+    doc = "AES-128",
+);
+define_aes_impl!(
+    name = Aes192,
+    name_enc = Aes192Enc,
+    name_dec = Aes192Dec,
+    module = aes192,
+    key_size = U24,
+    doc = "AES-192",
+);
+define_aes_impl!(
+    name = Aes256,
+    name_enc = Aes256Enc,
+    name_dec = Aes256Dec,
+    module = aes256,
+    key_size = U32,
+    doc = "AES-256",
+);

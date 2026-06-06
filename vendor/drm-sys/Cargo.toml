@@ -11,11 +11,12 @@
 
 [package]
 edition = "2021"
-rust-version = "1.66"
+rust-version = "1.70"
 name = "drm-sys"
-version = "0.8.0"
+version = "0.8.1"
 authors = ["Tyler Slabinski <tslabinski@slabity.net>"]
 build = "build.rs"
+autolib = false
 autobins = false
 autoexamples = false
 autotests = false
@@ -25,18 +26,6 @@ readme = "README.md"
 license = "MIT"
 repository = "https://github.com/Smithay/drm-rs"
 
-[lib]
-name = "drm_sys"
-path = "src/lib.rs"
-
-[build-dependencies.bindgen]
-version = "0.69.1"
-optional = true
-
-[build-dependencies.pkg-config]
-version = "0.3.19"
-optional = true
-
 [features]
 default = []
 update_bindings = ["use_bindgen"]
@@ -45,8 +34,20 @@ use_bindgen = [
     "pkg-config",
 ]
 
+[lib]
+name = "drm_sys"
+path = "src/lib.rs"
+
+[build-dependencies.bindgen]
+version = "0.70"
+optional = true
+
+[build-dependencies.pkg-config]
+version = "0.3.19"
+optional = true
+
 [target.'cfg(any(target_os = "android", target_os = "linux"))'.dependencies.linux-raw-sys]
-version = "0.6"
+version = "0.9"
 features = [
     "general",
     "no_std",

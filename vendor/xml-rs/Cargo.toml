@@ -10,52 +10,42 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
-edition = "2021"
-rust-version = "1.70"
+edition = "2024"
+rust-version = "1.85"
 name = "xml-rs"
-version = "0.8.28"
-authors = ["Vladimir Matveev <vmatveev@citrine.cc>"]
-build = false
-include = [
-    "src/**",
-    "LICENSE",
-    "README.md",
+version = "1.0.0"
+authors = [
+    "Vladimir Matveev <vmatveev@citrine.cc>",
+    "Kornel (https://github.com/kornelski)",
 ]
+build = false
+include = ["src/lib.rs"]
 autolib = false
 autobins = false
 autoexamples = false
 autotests = false
 autobenches = false
-description = "An XML library in pure Rust"
-homepage = "https://lib.rs/crates/xml"
+description = """
+A simple XML library in pure Rust
+(this crate has been renamed to `xml`)"""
+homepage = "https://github.com/kornelski/xml-rs"
 documentation = "https://docs.rs/xml/"
 readme = "README.md"
 keywords = [
     "xml",
-    "parser",
     "sax",
-    "parsing",
-    "writer",
+    "parser",
+    "event-reader",
+    "event-writer",
 ]
 categories = ["parser-implementations"]
 license = "MIT"
-repository = "https://github.com/kornelski/xml-rs"
-
-[package.metadata.docs.rs]
-targets = ["x86_64-unknown-linux-gnu"]
-rustdoc-args = ["--generate-link-to-definition"]
-
-[package.metadata.release]
-tag-name = "{{version}}"
-tag-message = ""
-
-[badges.maintenance]
-status = "actively-developed"
+repository = "https://github.com/netvl/xml-rs"
 
 [lib]
 name = "xml"
 path = "src/lib.rs"
 
-[[bin]]
-name = "xml-analyze"
-path = "src/analyze.rs"
+[dependencies.xml1]
+version = "1.0.0"
+package = "xml"

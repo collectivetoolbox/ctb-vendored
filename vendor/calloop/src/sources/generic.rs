@@ -85,12 +85,12 @@ impl<T: AsRawFd> ops::DerefMut for FdWrapper<T> {
 
 impl<T: AsRawFd> AsFd for FdWrapper<T> {
     #[cfg(unix)]
-    fn as_fd(&self) -> BorrowedFd {
+    fn as_fd(&self) -> BorrowedFd<'_> {
         unsafe { BorrowedFd::borrow_raw(self.0.as_raw_fd()) }
     }
 
     #[cfg(windows)]
-    fn as_socket(&self) -> BorrowedFd {
+    fn as_socket(&self) -> BorrowedFd<'_> {
         unsafe { BorrowedFd::borrow_raw(self.0.as_raw_socket()) }
     }
 }

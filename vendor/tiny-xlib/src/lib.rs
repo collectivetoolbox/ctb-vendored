@@ -23,26 +23,26 @@
 //! primary issues.
 //!
 //! 1. **You should not be using Xlib in 2023.** [Xlib] is legacy code, and even that doesn't get across
-//!     how poor the API decisions that it's locked itself into are. It has a global error hook for
-//!     some reason, thread-safety is a mess, and it has so many soundness holes it might as well be made
-//!     out of swiss cheese. You should not be using [Xlib]. If you *have* to use [Xlib], you should just
-//!     run all of your logic using the much more sound [XCB] library, or, even more ideally, something
-//!     like [`x11rb`]. Then, you take the `Display` pointer and use it for whatever legacy API you've
-//!     locked yourself into, and use [XCB] or [`x11rb`] for everything else. Yes, I just called [GLX]
-//!     a legacy API. It's the 2020's now. [Vulkan] and [`wgpu`] run everywhere aside from legacy machines.
-//!     Not to mention, they support [XCB].
+//!    how poor the API decisions that it's locked itself into are. It has a global error hook for
+//!    some reason, thread-safety is a mess, and it has so many soundness holes it might as well be made
+//!    out of swiss cheese. You should not be using [Xlib]. If you *have* to use [Xlib], you should just
+//!    run all of your logic using the much more sound [XCB] library, or, even more ideally, something
+//!    like [`x11rb`]. Then, you take the `Display` pointer and use it for whatever legacy API you've
+//!    locked yourself into, and use [XCB] or [`x11rb`] for everything else. Yes, I just called [GLX]
+//!    a legacy API. It's the 2020's now. [Vulkan] and [`wgpu`] run everywhere aside from legacy machines.
+//!    Not to mention, they support [XCB].
 //!
 //! 2. Even if you manage to use [`x11-dl`] without tripping over the legacy API, it is a massive crate.
-//!     [Xlib] comes with quite a few functions, most of which are unnecessary in the 21st century.
-//!     Even if you don't use any of these and just stick to [XCB], you still pay the price for it.
-//!     Binaries that use [`x11-dl`] need to dedicate a significant amount of their binary and memory
-//!     space to the library. Even on Release builds, I have recorded [`x11-dl`] taking up to seven
-//!     percent of the binary.
+//!    [Xlib] comes with quite a few functions, most of which are unnecessary in the 21st century.
+//!    Even if you don't use any of these and just stick to [XCB], you still pay the price for it.
+//!    Binaries that use [`x11-dl`] need to dedicate a significant amount of their binary and memory
+//!    space to the library. Even on Release builds, I have recorded [`x11-dl`] taking up to seven
+//!    percent of the binary.
 //!
 //! 3. Global error handling. [Xlib] has a single global error hook. This is reminiscent of the Unix
-//!     signal handling API, in that it makes it difficult to create well-modularized programs
-//!     since they will fight with each-other over the error handlers. However, unlike the signal
-//!     handling API, there is no way to tell if you're replacing an existing error hook.
+//!    signal handling API, in that it makes it difficult to create well-modularized programs
+//!    since they will fight with each-other over the error handlers. However, unlike the signal
+//!    handling API, there is no way to tell if you're replacing an existing error hook.
 //!
 //! `tiny-xlib` aims to solve all of these problems. It provides a safe API around [Xlib] that is
 //! conducive to being handed off to both [XCB] APIs and legacy [Xlib] APIs. The library only
@@ -118,7 +118,7 @@
 //! [`libloading`]: https://crates.io/crates/libloading
 
 #![allow(unused_unsafe)]
-#![cfg_attr(coverage, feature(no_coverage))]
+#![cfg_attr(coverage, feature(coverage_attribute))]
 
 mod ffi;
 
@@ -135,7 +135,7 @@ use std::sync::{Mutex, MutexGuard, Once, PoisonError};
 macro_rules! lock {
     ($e:expr) => {{
         // Make sure this isn't flagged with coverage.
-        #[cfg_attr(coverage, no_coverage)]
+        #[cfg_attr(coverage, coverage(off))]
         fn unwrapper<T>(guard: PoisonError<MutexGuard<'_, T>>) -> MutexGuard<'_, T> {
             guard.into_inner()
         }
@@ -144,9 +144,10 @@ macro_rules! lock {
     }};
 }
 
-ctor_lite::ctor! {
-    unsafe static XLIB: io::Result<ffi::Xlib> = {
-        #[cfg_attr(coverage, no_coverage)]
+ctor::declarative::ctor! {
+    #[ctor(unsafe)]
+    static XLIB: io::Result<ffi::Xlib> = {
+        #[cfg_attr(coverage, coverage(off))]
         unsafe fn load_xlib_with_error_hook() -> io::Result<ffi::Xlib> {
             // Here's a puzzle: how do you *safely* add an error hook to Xlib? Like signal handling, there
             // is a single global error hook. Therefore, we need to make sure that we economize on the
@@ -163,14 +164,14 @@ ctor_lite::ctor! {
             // sets the error hook to a dummy function, reads the resulting error hook into a static
             // variable, and then resets the error hook to the default function. This allows us to read
             // the default error hook and compare it to the one that we're setting.
-            #[cfg_attr(coverage, no_coverage)]
+            #[cfg_attr(coverage, coverage(off))]
             fn error(e: impl std::error::Error) -> io::Error {
                 io::Error::new(io::ErrorKind::Other, format!("failed to load Xlib: {}", e))
             }
             let xlib = ffi::Xlib::load().map_err(error)?;
 
             // Dummy function we use to set the error hook.
-            #[cfg_attr(coverage, no_coverage)]
+            #[cfg_attr(coverage, coverage(off))]
             unsafe extern "C" fn dummy(
                 _display: *mut ffi::Display,
                 _error: *mut ffi::XErrorEvent,
@@ -199,7 +200,7 @@ ctor_lite::ctor! {
 #[inline]
 fn get_xlib(sym: &io::Result<ffi::Xlib>) -> io::Result<&ffi::Xlib> {
     // Eat coverage on the error branch.
-    #[cfg_attr(coverage, no_coverage)]
+    #[cfg_attr(coverage, coverage(off))]
     fn error(e: &io::Error) -> io::Error {
         io::Error::new(e.kind(), e.to_string())
     }
@@ -224,7 +225,7 @@ unsafe extern "C" fn error_handler(
     // Abort the program if the error hook panics.
     struct AbortOnPanic;
     impl Drop for AbortOnPanic {
-        #[cfg_attr(coverage, no_coverage)]
+        #[cfg_attr(coverage, coverage(off))]
         #[cold]
         #[inline(never)]
         fn drop(&mut self) {
@@ -304,6 +305,8 @@ fn setup_error_handler(xlib: &ffi::Xlib) {
         // If it isn't the default error handler, then we need to store it.
         // SAFETY: DEFAULT_ERROR_HOOK is not set after the program starts, so this is safe.
         let default_hook = unsafe { DEFAULT_ERROR_HOOK.get() };
+        // TODO(MSRV 1.85): Use core::ptr::fn_addr_eq
+        #[allow(unpredictable_function_pointer_comparisons)]
         if prev != default_hook.flatten() && prev != Some(error_handler) {
             lock!(ERROR_HANDLERS).prev = prev;
         }
@@ -501,7 +504,7 @@ enum Slot {
 
 impl HandlerList {
     /// Create a new handler list.
-    #[cfg_attr(coverage, no_coverage)]
+    #[cfg_attr(coverage, coverage(off))]
     const fn new() -> Self {
         Self {
             slots: vec![],
@@ -516,7 +519,7 @@ impl HandlerList {
     /// Returns the index of the handler.
     fn insert(&mut self, handler: ErrorHook) -> usize {
         // Eat the coverage for the unreachable branch.
-        #[cfg_attr(coverage, no_coverage)]
+        #[cfg_attr(coverage, coverage(off))]
         #[inline(always)]
         fn unwrapper(slot: &Slot) -> usize {
             match slot {
@@ -570,7 +573,7 @@ struct ErrorHookSlot(Cell<Option<ffi::XErrorHook>>);
 unsafe impl Sync for ErrorHookSlot {}
 
 impl ErrorHookSlot {
-    #[cfg_attr(coverage, no_coverage)]
+    #[cfg_attr(coverage, coverage(off))]
     const fn new() -> Self {
         Self(Cell::new(None))
     }
@@ -579,7 +582,7 @@ impl ErrorHookSlot {
         self.0.get()
     }
 
-    #[cfg_attr(coverage, no_coverage)]
+    #[cfg_attr(coverage, coverage(off))]
     unsafe fn set(&self, hook: ffi::XErrorHook) {
         self.0.set(Some(hook));
     }

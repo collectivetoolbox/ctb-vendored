@@ -11,9 +11,21 @@
 
 [package]
 edition = "2021"
-rust-version = "1.69.0"
+rust-version = "1.85.0"
 name = "android-activity"
-version = "0.6.0"
+version = "0.6.1"
+build = "build.rs"
+include = [
+    "/build.rs",
+    "/android-games-sdk",
+    "/LICENSE*",
+    "/src",
+]
+autolib = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
 description = "Glue for building Rust applications on Android with NativeActivity or GameActivity"
 homepage = "https://github.com/rust-mobile/android-activity"
 documentation = "https://docs.rs/android-activity"
@@ -26,16 +38,26 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/rust-mobile/android-activity"
 
 [package.metadata.docs.rs]
-rustdoc-args = [
-    "--cfg",
-    "docsrs",
-]
 targets = [
     "aarch64-linux-android",
     "armv7-linux-androideabi",
     "i686-linux-android",
     "x86_64-linux-android",
 ]
+rustdoc-args = [
+    "--cfg",
+    "docsrs",
+]
+
+[features]
+api-level-30 = ["ndk/api-level-30"]
+default = []
+game-activity = ["simd_cesu8"]
+native-activity = []
+
+[lib]
+name = "android_activity"
+path = "src/lib.rs"
 
 [dependencies.android-properties]
 version = "0.2"
@@ -43,17 +65,11 @@ version = "0.2"
 [dependencies.bitflags]
 version = "2.0"
 
-[dependencies.cesu8]
-version = "1"
-
 [dependencies.jni]
-version = "0.21"
-
-[dependencies.jni-sys]
-version = "0.3"
+version = "0.22.4"
 
 [dependencies.libc]
-version = "0.2"
+version = "0.2.139"
 
 [dependencies.log]
 version = "0.4"
@@ -63,7 +79,7 @@ version = "0.9.0"
 default-features = false
 
 [dependencies.ndk-context]
-version = "0.1"
+version = "0.1.1"
 
 [dependencies.ndk-sys]
 version = "0.6.0"
@@ -71,14 +87,16 @@ version = "0.6.0"
 [dependencies.num_enum]
 version = "0.7"
 
+[dependencies.simd_cesu8]
+version = "1.0.1"
+optional = true
+
 [dependencies.thiserror]
-version = "1"
+version = "2"
+
+[dev-dependencies.jni]
+version = "0.22.4"
 
 [build-dependencies.cc]
-version = "1.0"
+version = "1.0.42"
 features = ["parallel"]
-
-[features]
-default = []
-game-activity = []
-native-activity = []

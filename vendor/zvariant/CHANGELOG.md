@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 5.12.0 - 2026-05-27
+
+### Dependencies
+- ⬆️ Bump zvariant_utils requirement to 3.4.
+
+### Documentation
+- 📝 Document D-Bus FD encoding on `Fd`.
+- 📝 Show catch-all enum variant in docs.
+
+### Other
+- 🦺 Add 2 debug asserts.
+
+### Performance
+- ⚡️ Use Fields::get(i) for O(1) field signature lookup.
+
+## 5.11.0 - 2026-05-03
+
+### Added
+- ✨ Support nested dictionaries in *Dict derives. #312
+
+### Fixed
+- 🐛 Accept ObjectPath/Signature as map identifier keys.
+
+## 5.10.1 - 2026-04-26
+
+### Documentation
+- 📝 Configure docs.rs to build for all supported targets.
+
+## 5.10.0 - 2026-02-22
+
+### Added
+- ✨ Implement Basic for more types. #1681
+
+### Changed
+- 🚚 Rename an internal macro.
+
+### Dependencies
+- ⬆️ Update libfuzzer-sys to v0.4.12 (#1709).
+
+### Fixed
+- 🐛 Encode bool as single byte in GVariant.
+
+### Testing
+- ✅ Add test case for bool encoding.
+
 ## 5.9.2 - 2026-01-18
 
 ### Other

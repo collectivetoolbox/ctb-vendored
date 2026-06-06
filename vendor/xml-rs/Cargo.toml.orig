@@ -1,34 +1,24 @@
 [package]
 name = "xml-rs"
-version = "0.8.28"
-authors = ["Vladimir Matveev <vmatveev@citrine.cc>"]
+version = "1.0.0"
+authors = ["Vladimir Matveev <vmatveev@citrine.cc>", "Kornel (https://github.com/kornelski)"]
 license = "MIT"
-description = "An XML library in pure Rust"
-repository = "https://github.com/kornelski/xml-rs"
-homepage = "https://lib.rs/crates/xml"
+description = "A simple XML library in pure Rust\n(this crate has been renamed to `xml`)"
+repository = "https://github.com/netvl/xml-rs"
+homepage = "https://github.com/kornelski/xml-rs"
 documentation = "https://docs.rs/xml/"
 readme = "README.md"
-keywords = ["xml", "parser", "sax", "parsing", "writer"]
+keywords = ["xml", "sax", "parser", "event-reader", "event-writer"]
 categories = ["parser-implementations"]
-edition = "2021"
-rust-version = "1.70"
-include = ["src/**", "LICENSE", "README.md"]
+edition = "2024"
+rust-version = "1.85"
+include = ["src/lib.rs"]
 
 [lib]
 name = "xml"
 path = "src/lib.rs"
 
-[[bin]]
-name = "xml-analyze"
-path = "src/analyze.rs"
+[dependencies]
+xml1 = { package = "xml", version = "1.0.0" }
 
-[badges]
-maintenance = { status = "actively-developed" }
-
-[package.metadata.docs.rs]
-targets = ["x86_64-unknown-linux-gnu"]
-rustdoc-args = ["--generate-link-to-definition"]
-
-[package.metadata.release]
-tag-name = "{{version}}"
-tag-message = ""
+[workspace]

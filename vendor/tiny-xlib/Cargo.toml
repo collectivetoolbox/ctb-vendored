@@ -11,21 +11,26 @@
 
 [package]
 edition = "2021"
-rust-version = "1.63"
+rust-version = "1.70"
 name = "tiny-xlib"
-version = "0.2.4"
+version = "0.2.5"
 authors = ["John Nunley <dev@notgull.net>"]
 build = "build.rs"
+autolib = false
 autobins = false
 autoexamples = false
 autotests = false
 autobenches = false
 description = "A tiny Xlib wrapper for Rust"
-homepage = "https://github.com/notgull/tiny-xlib"
+homepage = "https://github.com/rust-windowing/tiny-xlib"
 documentation = "https://docs.rs/tiny-xlib"
 readme = "README.md"
 license = "MIT OR Apache-2.0 OR Zlib"
-repository = "https://github.com/notgull/tiny-xlib"
+repository = "https://github.com/rust-windowing/tiny-xlib"
+
+[features]
+default = ["tracing"]
+dlopen = ["libloading"]
 
 [lib]
 name = "tiny_xlib"
@@ -42,8 +47,10 @@ path = "tests/prev.rs"
 [dependencies.as-raw-xcb-connection]
 version = "1.0.0"
 
-[dependencies.ctor-lite]
-version = "0.1.0"
+[dependencies.ctor]
+version = "0.10.0"
+features = ["std"]
+default-features = false
 
 [dependencies.libloading]
 version = "0.8.0"
@@ -69,10 +76,6 @@ features = ["allow-unsafe-code"]
 
 [build-dependencies.pkg-config]
 version = "0.3.27"
-
-[features]
-default = ["tracing"]
-dlopen = ["libloading"]
 
 [lints.rust.unexpected_cfgs]
 level = "warn"

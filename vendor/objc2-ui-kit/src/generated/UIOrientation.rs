@@ -4,7 +4,6 @@ use objc2::__framework_prelude::*;
 
 use crate::*;
 
-/// [Apple's documentation](https://developer.apple.com/documentation/uikit/uideviceorientation?language=objc)
 // NS_ENUM
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -34,17 +33,14 @@ unsafe impl RefEncode for UIDeviceOrientation {
     const ENCODING_REF: Encoding = Encoding::Pointer(&Self::ENCODING);
 }
 
-impl UIDeviceOrientation {
-    // TODO: pub fn UIDeviceOrientationIsPortrait(orientation: UIDeviceOrientation,) -> Bool;
+// TODO: pub fn UIDeviceOrientationIsPortrait(orientation: UIDeviceOrientation,) -> Bool;
 
-    // TODO: pub fn UIDeviceOrientationIsLandscape(orientation: UIDeviceOrientation,) -> Bool;
+// TODO: pub fn UIDeviceOrientationIsLandscape(orientation: UIDeviceOrientation,) -> Bool;
 
-    // TODO: pub fn UIDeviceOrientationIsFlat(orientation: UIDeviceOrientation,) -> Bool;
+// TODO: pub fn UIDeviceOrientationIsFlat(orientation: UIDeviceOrientation,) -> Bool;
 
-    // TODO: pub fn UIDeviceOrientationIsValidInterfaceOrientation(orientation: UIDeviceOrientation,) -> Bool;
-}
+// TODO: pub fn UIDeviceOrientationIsValidInterfaceOrientation(orientation: UIDeviceOrientation,) -> Bool;
 
-/// [Apple's documentation](https://developer.apple.com/documentation/uikit/uiinterfaceorientation?language=objc)
 // NS_ENUM
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -70,7 +66,6 @@ unsafe impl RefEncode for UIInterfaceOrientation {
     const ENCODING_REF: Encoding = Encoding::Pointer(&Self::ENCODING);
 }
 
-/// [Apple's documentation](https://developer.apple.com/documentation/uikit/uiinterfaceorientationmask?language=objc)
 // NS_OPTIONS
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -102,8 +97,6 @@ unsafe impl RefEncode for UIInterfaceOrientationMask {
     const ENCODING_REF: Encoding = Encoding::Pointer(&Self::ENCODING);
 }
 
-impl UIInterfaceOrientation {
-    // TODO: pub fn UIInterfaceOrientationIsPortrait(orientation: UIInterfaceOrientation,) -> Bool;
+// TODO: pub fn UIInterfaceOrientationIsPortrait(orientation: UIInterfaceOrientation,) -> Bool;
 
-    // TODO: pub fn UIInterfaceOrientationIsLandscape(orientation: UIInterfaceOrientation,) -> Bool;
-}
+// TODO: pub fn UIInterfaceOrientationIsLandscape(orientation: UIInterfaceOrientation,) -> Bool;

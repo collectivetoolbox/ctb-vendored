@@ -12,7 +12,7 @@
 [package]
 edition = "2018"
 name = "orbclient"
-version = "0.3.50"
+version = "0.3.55"
 authors = ["Jeremy Soller <jackpot51@gmail.com>"]
 build = "build.rs"
 autolib = false
@@ -42,6 +42,11 @@ default = [
     "sdl",
     "unifont",
 ]
+image = [
+    "std",
+    "dep:image",
+    "dep:resize",
+]
 sdl = ["dep:sdl2"]
 std = []
 unifont = []
@@ -61,6 +66,14 @@ path = "examples/rect_bench.rs"
 [[example]]
 name = "simple"
 path = "examples/simple.rs"
+
+[dependencies.image]
+version = "0.21.0"
+optional = true
+
+[dependencies.resize]
+version = "0.3.0"
+optional = true
 
 [target.'cfg(not(target_os = "redox"))'.dependencies.raw-window-handle]
 version = "0.5.2"

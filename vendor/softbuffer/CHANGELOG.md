@@ -2,6 +2,10 @@
 
 # 0.4.7
 
+- Fix documentation building on `docs.rs`.
+
+# 0.4.7
+
 - Added support for Android using the `ndk` crate.
 - Added support for `wasm64-*` targets.
 - Improved examples.

@@ -348,7 +348,9 @@ impl<'de, #[cfg(unix)] F: AsFd, #[cfg(not(unix))] F> de::Deserializer<'de>
         V: Visitor<'de>,
     {
         match self.0.signature {
-            Signature::Str => self.deserialize_str(visitor),
+            Signature::Str | Signature::ObjectPath | Signature::Signature => {
+                self.deserialize_str(visitor)
+            }
             Signature::U32 => self.deserialize_u32(visitor),
             Signature::Structure(fields) => {
                 let mut fields = fields.iter();
@@ -597,7 +599,7 @@ impl<'de, #[cfg(unix)] F: AsFd, #[cfg(not(unix))] F> SeqAccess<'de>
         let signature = self.de.0.signature;
         let field_signature = match signature {
             Signature::Structure(fields) => {
-                let signature = fields.iter().nth(self.field_idx).ok_or_else(|| {
+                let signature = fields.get(self.field_idx).ok_or_else(|| {
                     Error::SignatureMismatch(signature.clone(), "a struct".to_string())
                 })?;
                 self.field_idx += 1;

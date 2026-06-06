@@ -35,6 +35,39 @@ impl<'a> Builder<'a> {
         crate::connection::Builder::system().map(Self)
     }
 
+    /// Create a builder for an IBus connection.
+    ///
+    /// IBus (Intelligent Input Bus) is an input method framework. This method creates a builder
+    /// that will query the IBus daemon for its D-Bus address using the `ibus address` command.
+    ///
+    /// # Platform Support
+    ///
+    /// This method is available on Unix-like systems where IBus is installed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The `ibus` command is not found or fails to execute
+    /// - The IBus daemon is not running
+    /// - The command output cannot be parsed as a valid D-Bus address
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use std::error::Error;
+    /// # use zbus::blocking::connection;
+    /// #
+    /// let _conn = connection::Builder::ibus()?
+    ///     .build()?;
+    ///
+    /// // Use the connection to interact with IBus services.
+    /// # Ok::<_, Box<dyn Error + Send + Sync>>(())
+    /// ```
+    #[cfg(unix)]
+    pub fn ibus() -> Result<Self> {
+        crate::connection::Builder::ibus().map(Self)
+    }
+
     /// Create a builder for a connection that will use the given [D-Bus bus address].
     ///
     /// [D-Bus bus address]: https://dbus.freedesktop.org/doc/dbus-specification.html#addresses
@@ -230,5 +263,24 @@ impl<'a> Builder<'a> {
     /// result in a [`Error::Unsupported`] error.
     pub fn build(self) -> Result<Connection> {
         block_on(self.0.build()).map(Into::into)
+    }
+
+    /// Build the connection and return a [`MessageIterator`] to receive messages from it.
+    ///
+    /// This is the blocking counterpart of [`crate::connection::Builder::build_message_stream`].
+    /// The iterator is set up **before** the socket-reader task is started, so no messages can
+    /// be lost in the window between the connection being built and the iterator being created.
+    /// Use this when the peer may pipeline traffic right after authentication — e.g. a bus
+    /// implementation reading a `Hello` method call from a just-connected client.
+    ///
+    /// To get the [`Connection`] out of the returned iterator, use `Connection::from(&iter)`.
+    ///
+    /// This method is only available when the `bus-impl` feature is enabled.
+    ///
+    /// [`MessageIterator`]: crate::blocking::MessageIterator
+    #[cfg(feature = "bus-impl")]
+    pub fn build_message_iterator(self) -> Result<crate::blocking::MessageIterator> {
+        block_on(self.0.build_message_stream())
+            .map(|azync| crate::blocking::MessageIterator { azync: Some(azync) })
     }
 }

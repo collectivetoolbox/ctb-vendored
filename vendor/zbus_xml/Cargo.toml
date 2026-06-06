@@ -11,9 +11,9 @@
 
 [package]
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.87"
 name = "zbus_xml"
-version = "5.1.0"
+version = "5.1.1"
 authors = ["Zeeshan Ali Khan <zeeshanak@gnome.org>"]
 build = false
 autolib = false
@@ -32,11 +32,17 @@ keywords = [
 categories = ["parsing"]
 license = "MIT"
 repository = "https://github.com/z-galaxy/zbus/"
-resolver = "2"
 
 [package.metadata.docs.rs]
 all-features = true
-targets = ["x86_64-unknown-linux-gnu"]
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-gnu",
+    "x86_64-apple-darwin",
+    "x86_64-unknown-freebsd",
+    "x86_64-unknown-netbsd",
+    "aarch64-linux-android",
+]
 
 [lib]
 name = "zbus_xml"
@@ -47,7 +53,7 @@ name = "tests"
 path = "tests/tests.rs"
 
 [dependencies.quick-xml]
-version = "0.38"
+version = "0.39"
 features = [
     "serialize",
     "overlapped-lists",
@@ -58,10 +64,10 @@ version = "1.0.200"
 features = ["derive"]
 
 [dependencies.zbus_names]
-version = "4.3.0"
+version = "4.3.2"
 
 [dependencies.zvariant]
-version = "5.9.0"
+version = "5.10.1"
 
 [dev-dependencies.doc-comment]
 version = "0.3.3"

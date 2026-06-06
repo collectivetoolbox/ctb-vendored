@@ -11,16 +11,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rust: ['1.40.0', 'stable', 'beta']
+        rust: ['1.56.0', 'stable', 'beta']
       
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Cargo cache
-        uses: actions/cache@v1
+        uses: actions/cache@v5
         with:
           path: ~/.cargo
           key: cargo-${{ matrix.rust }}
@@ -30,6 +30,10 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
           override: true
+
+      - name: Downgrade libloading
+        if: ${{ matrix.rust == '1.56.0' }}
+        run: cargo update -p libloading --precise 0.8.7
 
       - name: Test link
         uses: actions-rs/cargo@v1

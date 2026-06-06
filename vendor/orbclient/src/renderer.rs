@@ -10,6 +10,8 @@ use crate::graphicspath::GraphicsPath;
 use crate::graphicspath::PointType;
 use crate::Mode;
 
+/// The trait to allow rendering code to be placed.
+/// All rendering in this trait is done in software.
 pub trait Renderer {
     /// Get width
     fn width(&self) -> u32;
@@ -23,8 +25,14 @@ pub trait Renderer {
     /// Access the pixel buffer mutably
     fn data_mut(&mut self) -> &mut [Color];
 
-    /// Flip the buffer
+    /// Update the hardware buffer
     fn sync(&mut self) -> bool;
+
+    /// Update the software buffer
+    fn update(&mut self) -> bool;
+
+    /// Update the specified software buffer region (x, y, w, h)
+    fn update_rects(&mut self, rects: &[(i32, i32, u32, u32)]) -> bool;
 
     /// Set/get drawing mode
     fn mode(&self) -> &Cell<Mode>;
@@ -566,7 +574,6 @@ pub trait Renderer {
         start_color: Color,
         end_color: Color,
     ) {
-
         fn clamp(proj: f64) -> f64 {
             if proj < 0.0 {
                 0.0
@@ -601,7 +608,7 @@ pub trait Renderer {
         } else {
             // Non axis-aligned gradient
             // Gradient vector
-            let grad_x = (end_x - start_x )as f64;
+            let grad_x = (end_x - start_x) as f64;
             let grad_y = (end_y - start_y) as f64;
             let grad_len = 1.0 / (grad_x * grad_x + grad_y * grad_y);
 

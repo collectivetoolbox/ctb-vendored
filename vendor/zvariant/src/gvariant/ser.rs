@@ -127,7 +127,6 @@ where
     type SerializeStruct = StructSeqSerializer<'ser, 'b, W>;
     type SerializeStructVariant = StructSeqSerializer<'ser, 'b, W>;
 
-    serialize_basic!(serialize_bool, bool);
     serialize_basic!(serialize_i16, i16);
     serialize_basic!(serialize_i32, i32);
     serialize_basic!(serialize_i64, i64);
@@ -138,6 +137,13 @@ where
     serialize_basic!(serialize_u64, u64);
 
     serialize_basic!(serialize_f64, f64);
+
+    fn serialize_bool(self, v: bool) -> Result<()> {
+        // bool is encoded as a single byte in GVariant
+        self.0
+            .write_all(&[v as u8])
+            .map_err(|e| Error::InputOutput(e.into()))
+    }
 
     fn serialize_i8(self, v: i8) -> Result<()> {
         // No i8 type in GVariant, let's pretend it's i16
@@ -500,7 +506,7 @@ where
                 "a struct".to_string(),
             ));
         };
-        let struct_field = fields.iter().nth(1).and_then(|f| {
+        let struct_field = fields.get(1).and_then(|f| {
             if matches!(f, Signature::Structure(_)) {
                 Some(f)
             } else {
@@ -540,7 +546,7 @@ where
                 }
             }
             Signature::Structure(fields) => {
-                let signature = fields.iter().nth(self.field_idx).ok_or_else(|| {
+                let signature = fields.get(self.field_idx).ok_or_else(|| {
                     Error::SignatureMismatch(signature.clone(), "a struct".to_string())
                 })?;
                 self.field_idx += 1;

@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.71.0"
 name = "softbuffer"
-version = "0.4.7"
+version = "0.4.8"
 build = false
 exclude = ["examples"]
 autolib = false
