@@ -13,7 +13,7 @@
 edition = "2018"
 rust-version = "1.63.0"
 name = "tracing-appender"
-version = "0.2.4"
+version = "0.2.5"
 authors = [
     "Zeki Sherif <zekshi@amazon.com>",
     "Tokio Contributors <team@tokio.rs>",
@@ -58,6 +58,9 @@ version = "0.5.6"
 [dependencies.parking_lot]
 version = "0.12.1"
 optional = true
+
+[dependencies.symlink]
+version = "0.1.0"
 
 [dependencies.thiserror]
 version = "2"

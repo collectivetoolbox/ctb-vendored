@@ -19,6 +19,16 @@
 //! instructions to complete the task. In the worst case, the code just becomes
 //! totally scalar (though the math is still correct, at least).
 //!
+//! ## Casting
+//!
+//! The SIMD types implement the [`bytemuck::Pod`] trait, which means that it
+//! is possible to do bitwise casts between SIMD types of the same size with
+//! the [`bytemuck::cast()`] function and others. `bytemuck` is re-exported by
+//! this crate for convenience.
+//!
+//! This typically does not have much, if any, runtime overhead in optimized
+//! builds.
+//!
 //! ## Crate Features
 //!
 //! * `std`: This causes the feature to link to `std`.
@@ -47,8 +57,11 @@ use safe_arch::*;
 
 use bytemuck::*;
 
+// Re-export so that users don't need to add a bytemuck dependency of their own
+pub use bytemuck;
+
 #[cfg(feature = "serde")]
-use serde::{ser::SerializeTuple, Deserialize, Serialize};
+use serde_core::{Deserialize, Serialize, ser::SerializeTuple};
 
 #[macro_use]
 mod macros;
@@ -160,6 +173,18 @@ macro_rules! polynomial_6n {
   }};
 }
 
+macro_rules! polynomial_7 {
+  ($x:expr, $c0:expr, $c1:expr, $c2:expr, $c3:expr, $c4:expr, $c5:expr, $c6:expr, $c7:expr $(,)?) => {{
+    let x = $x;
+    let x2 = x * x;
+    let x4 = x2 * x2;
+    x4.mul_add(
+      x2.mul_add(x.mul_add($c7, $c6), x.mul_add($c5, $c4)),
+      x2.mul_add(x.mul_add($c3, $c2), x.mul_add($c1, $c0)),
+    )
+  }};
+}
+
 macro_rules! polynomial_8 {
   ($x:expr, $c0:expr, $c1:expr, $c2:expr, $c3:expr, $c4:expr, $c5:expr,  $c6:expr, $c7:expr, $c8:expr $(,)?) => {{
     let x = $x;
@@ -180,28 +205,6 @@ macro_rules! polynomial_13 {
     let x2 = x * x;
     let x4 = x2 * x2;
     let x8 = x4 * x4;
-    x8.mul_add(
-      x4.mul_add(
-        x.mul_add($c13, $c12),
-        x2.mul_add(x.mul_add($c11, $c10), x.mul_add($c9, $c8)),
-      ),
-      x4.mul_add(
-        x2.mul_add(x.mul_add($c7, $c6), x.mul_add($c5, $c4)),
-        x2.mul_add(x.mul_add($c3, $c2), x),
-      ),
-    )
-  }};
-}
-
-macro_rules! polynomial_13m {
-  // return  ((c8+c9*x) + (c10+c11*x)*x2 + (c12+c13*x)*x4)*x8 + (((c6+c7*x)*x2 +
-  // (c4+c5*x))*x4 + ((c2+c3*x)*x2 + x));
-  ($x:expr,  $c2:expr, $c3:expr, $c4:expr, $c5:expr,$c6:expr, $c7:expr, $c8:expr,$c9:expr, $c10:expr, $c11:expr, $c12:expr, $c13:expr  $(,)?) => {{
-    let x = $x;
-    let x2 = x * x;
-    let x4 = x2 * x2;
-    let x8 = x4 * x4;
-
     x8.mul_add(
       x4.mul_add(
         x.mul_add($c13, $c12),
@@ -405,19 +408,32 @@ macro_rules! impl_simple_not {
           self ^ cast::<u128, $t>(u128::MAX)
         }
       }
-      impl Not for &'_ $t {
-        type Output = $t;
-        #[inline]
-        fn not(self) -> Self::Output {
-          *self ^ cast::<u128, $t>(u128::MAX)
-        }
-      }
     )+
   };
 }
 
 impl_simple_not! {
   f32x4, i8x16, i16x8, i32x4, i64x2, u8x16, u16x8, u32x4, u64x2,
+}
+
+macro_rules! impl_not_ref {
+  ($($t:ty),+ $(,)?) => {
+    $(
+      impl Not for &'_ $t {
+        type Output = $t;
+        #[inline]
+        fn not(self) -> Self::Output {
+          !*self
+        }
+      }
+    )+
+  };
+}
+
+impl_not_ref! {
+  f32x4, f32x8, f32x16, f64x2, f64x4, f64x8, i8x16, i8x32, i16x8, i16x16, i16x32, i32x4, i32x8,
+  i32x16, i64x2, i64x4, i64x8, u8x16, u8x32, u16x8, u16x16, u16x32, u32x4, u32x8, u32x16, u64x2,
+  u64x4, u64x8,
 }
 
 macro_rules! impl_simple_sum {
@@ -438,7 +454,7 @@ macro_rules! impl_simple_sum {
 }
 
 impl_simple_sum! {
-  f32x16, f32x4, f64x8, f64x4, f64x2, i8x32, i8x16, i16x8, i16x16, i16x32, i32x8, i32x4, i32x16, i64x4, i64x2, i64x8, u8x32, u8x16, u16x8, u16x16, u16x32, u32x8, u32x4, u32x16, u64x2, u64x4, u64x8
+  f32x16, f32x8, f32x4, f64x8, f64x4, f64x2, i8x32, i8x16, i16x8, i16x16, i16x32, i32x8, i32x4, i32x16, i64x4, i64x2, i64x8, u8x32, u8x16, u16x8, u16x16, u16x32, u32x8, u32x4, u32x16, u64x2, u64x4, u64x8
 }
 
 macro_rules! impl_floating_product {
@@ -696,29 +712,51 @@ macro_rules! from_array {
       }
     }
   };
+  ($ty:ty,$dst:ty,$dst_wide:ident,2) => {
+    impl From<&[$ty]> for $dst_wide {
+      #[inline]
+      fn from(src: &[$ty]) -> $dst_wide {
+        match src.len() {
+          2 => $dst_wide::from([src[0] as $dst, src[1] as $dst]),
+          1 => $dst_wide::from([src[0] as $dst,0 as $dst]),
+          _ => panic!(
+            "Converting from an array larger than what can be stored in $dst_wide"
+          ),
+        }
+      }
+    }
+  };
 }
 
-from_array!(i8, i8, i8x32, 32);
+from_array!(f32, f32, f32x4, 4);
+from_array!(f32, f32, f32x8, 8);
+from_array!(f32, f32, f32x16, 16);
+from_array!(f64, f64, f64x2, 2);
+from_array!(f64, f64, f64x4, 4);
+from_array!(f64, f64, f64x8, 8);
 from_array!(i8, i8, i8x16, 16);
-from_array!(i8, i32, i32x8, 8);
+from_array!(i8, i8, i8x32, 32);
+from_array!(i16, i16, i16x8, 8);
+from_array!(i16, i16, i16x16, 16);
+from_array!(i16, i16, i16x32, 32);
+from_array!(i32, i32, i32x4, 4);
+from_array!(i32, i32, i32x8, 8);
+from_array!(i32, i32, i32x16, 16);
+from_array!(i64, i64, i64x2, 2);
+from_array!(i64, i64, i64x4, 4);
+from_array!(i64, i64, i64x8, 8);
 from_array!(u8, u8, u8x16, 16);
 from_array!(u8, u8, u8x32, 32);
-from_array!(i16, i16, i16x16, 16);
+from_array!(u16, u16, u16x8, 8);
 from_array!(u16, u16, u16x16, 16);
-from_array!(i32, i32, i32x8, 8);
-from_array!(f32, f32, f32x8, 8);
-from_array!(f32, f32, f32x4, 4);
-from_array!(f64, f64, f64x4, 4);
-from_array!(u64, u64, u64x4, 4);
-from_array!(i64, i64, i64x4, 4);
-from_array!(u64, u64, u64x8, 8);
-from_array!(i64, i64, i64x8, 8);
-from_array!(i16, i16, i16x32, 32);
 from_array!(u16, u16, u16x32, 32);
-from_array!(i32, i32, i32x16, 16);
+from_array!(u32, u32, u32x4, 4);
+from_array!(u32, u32, u32x8, 8);
 from_array!(u32, u32, u32x16, 16);
-from_array!(f32, f32, f32x16, 16);
-from_array!(f64, f64, f64x8, 8);
+from_array!(u64, u64, u64x2, 2);
+from_array!(u64, u64, u64x4, 4);
+from_array!(u64, u64, u64x8, 8);
+from_array!(i8, i32, i32x8, 8);
 
 #[allow(unused)]
 fn software_sqrt(x: f64) -> f64 {
@@ -903,31 +941,37 @@ fn test_software_sqrt() {
   assert_eq!(software_sqrt(5000.0 * 5000.0), 5000.0);
 }
 
+#[deprecated(since = "1.5.0", note = "use inherit function instead")]
 pub trait CmpEq<Rhs = Self> {
   type Output;
   fn simd_eq(self, rhs: Rhs) -> Self::Output;
 }
 
+#[deprecated(since = "1.5.0", note = "use inherit function instead")]
 pub trait CmpGt<Rhs = Self> {
   type Output;
   fn simd_gt(self, rhs: Rhs) -> Self::Output;
 }
 
+#[deprecated(since = "1.5.0", note = "use inherit function instead")]
 pub trait CmpGe<Rhs = Self> {
   type Output;
   fn simd_ge(self, rhs: Rhs) -> Self::Output;
 }
 
+#[deprecated(since = "1.5.0", note = "use inherit function instead")]
 pub trait CmpNe<Rhs = Self> {
   type Output;
   fn simd_ne(self, rhs: Rhs) -> Self::Output;
 }
 
+#[deprecated(since = "1.5.0", note = "use inherit function instead")]
 pub trait CmpLt<Rhs = Self> {
   type Output;
   fn simd_lt(self, rhs: Rhs) -> Self::Output;
 }
 
+#[deprecated(since = "1.5.0", note = "use inherit function instead")]
 pub trait CmpLe<Rhs = Self> {
   type Output;
   fn simd_le(self, rhs: Rhs) -> Self::Output;
@@ -955,8 +999,9 @@ where
 }
 
 macro_rules! bulk_impl_const_rhs_op {
-  (($op:ident,$method:ident) => [$(($lhs:ty,$rhs:ty),)+]) => {
+  (($op:ident, $method:ident) => [$(($lhs:ty, $rhs:ty)),+ $(,)?]) => {
     $(
+    #[expect(deprecated)]
     impl $op<$rhs> for $lhs {
       type Output = Self;
       #[inline]
@@ -968,12 +1013,47 @@ macro_rules! bulk_impl_const_rhs_op {
   };
 }
 
-bulk_impl_const_rhs_op!((CmpEq, simd_eq) => [(f64x8, f64), (f64x4, f64), (f64x2, f64), (f32x4,f32), (f32x8,f32), (f32x16,f32),]);
-bulk_impl_const_rhs_op!((CmpLt, simd_lt) => [(f64x8, f64), (f64x4, f64), (f64x2, f64), (f32x4,f32), (f32x8,f32), (f32x16,f32),]);
-bulk_impl_const_rhs_op!((CmpGt, simd_gt) => [(f64x8, f64), (f64x4, f64), (f64x2, f64), (f32x4,f32), (f32x8,f32), (f32x16,f32),]);
-bulk_impl_const_rhs_op!((CmpNe, simd_ne) => [(f64x8, f64), (f64x4, f64), (f64x2, f64), (f32x4,f32), (f32x8,f32), (f32x16,f32),]);
-bulk_impl_const_rhs_op!((CmpLe, simd_le) => [(f64x8, f64), (f64x4, f64), (f64x2, f64), (f32x4,f32), (f32x8,f32), (f32x16,f32),]);
-bulk_impl_const_rhs_op!((CmpGe, simd_ge) => [(f64x8, f64), (f64x4, f64), (f64x2, f64), (f32x4,f32), (f32x8,f32), (f32x16,f32),]);
+macro_rules! bulk_impl_const_rhs_ops {
+  ([$(($lhs:ty, $rhs:ty)),+ $(,)?]) => {
+    bulk_impl_const_rhs_op!((CmpEq, simd_eq) => [$(($lhs, $rhs)),+]);
+    bulk_impl_const_rhs_op!((CmpNe, simd_ne) => [$(($lhs, $rhs)),+]);
+    bulk_impl_const_rhs_op!((CmpLt, simd_lt) => [$(($lhs, $rhs)),+]);
+    bulk_impl_const_rhs_op!((CmpGt, simd_gt) => [$(($lhs, $rhs)),+]);
+    bulk_impl_const_rhs_op!((CmpLe, simd_le) => [$(($lhs, $rhs)),+]);
+    bulk_impl_const_rhs_op!((CmpGe, simd_ge) => [$(($lhs, $rhs)),+]);
+  };
+}
+
+bulk_impl_const_rhs_ops!([
+  (f32x4, f32),
+  (f32x8, f32),
+  (f32x16, f32),
+  (f64x2, f64),
+  (f64x4, f64),
+  (f64x8, f64),
+  (i8x16, i8),
+  (i8x32, i8),
+  (i16x8, i16),
+  (i16x16, i16),
+  (i16x32, i16),
+  (i32x4, i32),
+  (i32x8, i32),
+  (i32x16, i32),
+  (i64x2, i64),
+  (i64x4, i64),
+  (i64x8, i64),
+  (u8x16, u8),
+  (u8x32, u8),
+  (u16x8, u16),
+  (u16x16, u16),
+  (u16x32, u16),
+  (u32x4, u32),
+  (u32x8, u32),
+  (u32x16, u32),
+  (u64x2, u64),
+  (u64x4, u64),
+  (u64x8, u64),
+]);
 
 macro_rules! impl_serde {
   ($i:ident, [$t:ty; $len:expr]) => {
@@ -982,7 +1062,7 @@ macro_rules! impl_serde {
       #[inline]
       fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
       where
-        S: serde::Serializer,
+        S: serde_core::Serializer,
       {
         let array = self.as_array();
         let mut seq = serializer.serialize_tuple($len)?;
@@ -998,7 +1078,7 @@ macro_rules! impl_serde {
       #[inline]
       fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
       where
-        D: serde::Deserializer<'de>,
+        D: serde_core::Deserializer<'de>,
       {
         Ok(<[$t; $len]>::deserialize(deserializer)?.into())
       }

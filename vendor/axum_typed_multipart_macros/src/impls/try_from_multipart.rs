@@ -1,10 +1,9 @@
 use crate::case_conversion::RenameCase;
+use crate::limit_bytes::LimitBytes;
 use crate::util::{matches_option_signature, matches_vec_signature, strip_leading_rawlit};
 use darling::{FromDeriveInput, FromField};
 use proc_macro::TokenStream;
-use proc_macro_error2::abort;
 use quote::quote;
-use ubyte::ByteUnit;
 
 #[derive(Debug, FromDeriveInput)]
 #[darling(attributes(try_from_multipart), supports(struct_named))]
@@ -17,7 +16,7 @@ struct InputData {
     strict: bool,
 
     #[darling(default)]
-    rename_all: Option<String>,
+    rename_all: Option<RenameCase>,
 
     #[darling(default)]
     state: Option<syn::Path>,
@@ -33,7 +32,7 @@ struct FieldData {
     field_name: Option<String>,
 
     #[darling(default)]
-    limit: Option<String>,
+    limit: LimitBytes,
 
     #[darling(default)]
     default: bool,
@@ -56,17 +55,6 @@ impl FieldData {
             field_in_struct
         }
     }
-
-    /// Parse the supplied human-readable size limit into a byte limit.
-    fn limit_bytes(&self) -> Option<usize> {
-        match self.limit.as_deref() {
-            None | Some("unlimited") => None,
-            Some(limit) => match limit.parse::<ByteUnit>() {
-                Ok(limit) => Some(limit.as_u64() as usize),
-                Err(_) => abort!(self.ident.as_ref().unwrap(), "limit must be a valid byte unit"),
-            },
-        }
-    }
 }
 
 /// Derive the `TryFromMultipart` trait for arbitrary named structs.
@@ -76,30 +64,27 @@ pub fn macro_impl(input: TokenStream) -> TokenStream {
     let InputData { ident, data, strict, rename_all, state } =
         match InputData::from_derive_input(&input) {
             Ok(input) => input,
-            Err(err) => abort!(input, err.to_string()),
+            Err(err) => return err.write_errors().into(),
         };
-    let rename_all = RenameCase::from_option_fallible(&ident, rename_all);
 
     let fields = data.take_struct().unwrap();
 
     let declarations = fields.iter().map(|FieldData { ident, ty, .. }| {
         if matches_vec_signature(ty) {
-            quote! { let mut #ident: #ty = std::vec::Vec::new(); }
+            quote! { let mut #ident: #ty = ::std::vec::Vec::new(); }
         } else if matches_option_signature(ty) {
-            quote! { let mut #ident: #ty = std::option::Option::None; }
+            quote! { let mut #ident: #ty = ::core::option::Option::None; }
         } else {
-            quote! { let mut #ident: std::option::Option<#ty> = std::option::Option::None; }
+            quote! { let mut #ident: ::core::option::Option<#ty> = ::core::option::Option::None; }
         }
     });
 
     let mut assignments = fields
         .iter()
-        .map(|field @ FieldData { ident, ty, .. }| {
+        .map(|field @ FieldData { ident, ty, limit, .. }| {
             let name = field.name(rename_all);
-            let limit_bytes =
-                field.limit_bytes().map(|limit| quote! { Some(#limit) }).unwrap_or(quote! { None });
             let value = quote! {
-                <_ as axum_typed_multipart::TryFromFieldWithState<_>>::try_from_field_with_state(__field__, #limit_bytes, state).await?
+                <_ as ::axum_typed_multipart::TryFromFieldWithState<_>>::try_from_field_with_state(__field__, #limit, state).await?
             };
 
             let assignment = if matches_vec_signature(ty) {
@@ -107,17 +92,17 @@ pub fn macro_impl(input: TokenStream) -> TokenStream {
             } else if strict {
                 quote! {
                     if #ident.is_none() {
-                        #ident = Some(#value);
+                        #ident = ::core::option::Option::Some(#value);
                     } else {
-                        return Err(
-                            axum_typed_multipart::TypedMultipartError::DuplicateField {
-                                field_name: String::from(#name)
+                        return ::core::result::Result::Err(
+                            ::axum_typed_multipart::TypedMultipartError::DuplicateField {
+                                field_name: <::std::string::String as ::core::convert::From<&str>>::from(#name)
                             }
                         );
                     }
                 }
             } else {
-                quote! { #ident = Some(#value); }
+                quote! { #ident = ::core::option::Option::Some(#value); }
             };
 
             quote! {
@@ -131,8 +116,8 @@ pub fn macro_impl(input: TokenStream) -> TokenStream {
     if strict {
         assignments.push(quote! {
             {
-                return Err(
-                    axum_typed_multipart::TypedMultipartError::UnknownField {
+                return ::core::result::Result::Err(
+                    ::axum_typed_multipart::TypedMultipartError::UnknownField {
                         field_name: __field_name__
                     }
                 );
@@ -146,7 +131,7 @@ pub fn macro_impl(input: TokenStream) -> TokenStream {
     let default_fields = required_fields.clone().filter(|FieldData { default, .. }| *default);
     let default_assignments = default_fields.map(|FieldData { ident, ty, .. }| {
         quote! {
-            let #ident: Option<#ty> = #ident.or_else(|| Some(#ty::default()));
+            let #ident: ::core::option::Option<#ty> = #ident.or_else(|| ::core::option::Option::Some(<#ty as ::core::default::Default>::default()));
         }
     });
 
@@ -154,8 +139,8 @@ pub fn macro_impl(input: TokenStream) -> TokenStream {
         let field_name = field.name(rename_all);
         quote! {
             let #ident = #ident.ok_or(
-                axum_typed_multipart::TypedMultipartError::MissingField {
-                    field_name: String::from(#field_name)
+                ::axum_typed_multipart::TypedMultipartError::MissingField {
+                    field_name: <::std::string::String as ::core::convert::From<&str>>::from(#field_name)
                 }
             )?;
         }
@@ -164,25 +149,25 @@ pub fn macro_impl(input: TokenStream) -> TokenStream {
     let idents = fields.iter().map(|FieldData { ident, .. }| ident);
 
     let missing_field_name_fallback = if strict {
-        quote! { return Err(axum_typed_multipart::TypedMultipartError::NamelessField) }
+        quote! { return ::core::result::Result::Err(::axum_typed_multipart::TypedMultipartError::NamelessField) }
     } else {
         quote! { continue }
     };
 
-    let generic = state.is_none().then(|| quote! { <S: Sync> });
+    let generic = state.is_none().then(|| quote! { <S: ::core::marker::Sync> });
     let state = state.map(|state| quote! { #state }).unwrap_or(quote! { S });
 
     let output = quote! {
-        #[axum_typed_multipart::async_trait]
-        impl #generic axum_typed_multipart::TryFromMultipartWithState<#state> for #ident {
-            async fn try_from_multipart_with_state(multipart: &mut axum::extract::multipart::Multipart, state: &#state) -> Result<Self, axum_typed_multipart::TypedMultipartError> {
+        #[::axum_typed_multipart::async_trait]
+        impl #generic ::axum_typed_multipart::TryFromMultipartWithState<#state> for #ident {
+            async fn try_from_multipart_with_state(multipart: &mut ::axum::extract::multipart::Multipart, state: &#state) -> ::core::result::Result<Self, ::axum_typed_multipart::TypedMultipartError> {
                 #(#declarations)*
 
-                while let Some(__field__) = multipart.next_field().await? {
+                while let ::core::option::Option::Some(__field__) = multipart.next_field().await? {
                     let __field_name__ = match __field__.name() {
-                        | Some("")
-                        | None => #missing_field_name_fallback,
-                        | Some(name) => name.to_string(),
+                        | ::core::option::Option::Some("")
+                        | ::core::option::Option::None => #missing_field_name_fallback,
+                        | ::core::option::Option::Some(name) => <::std::string::String as ::core::convert::From<&str>>::from(name),
                     };
 
                     #(#assignments) else *
@@ -192,7 +177,7 @@ pub fn macro_impl(input: TokenStream) -> TokenStream {
 
                 #(#checks)*
 
-                Ok(Self { #(#idents),* })
+                ::core::result::Result::Ok(Self { #(#idents),* })
             }
         }
     };

@@ -4,10 +4,7 @@ mod options;
 
 use {
     super::{c_wrappers, PipeModeTag, PipeStream, PipeStreamRole, RawPipeStream},
-    crate::{
-        os::windows::{winprelude::*, FileHandle},
-        poison_error, OrErrno, RawOsErrorExt, LOCK_POISON,
-    },
+    crate::{os::windows::winprelude::*, poison_error, OrErrno, RawOsErrorExt, LOCK_POISON},
     std::{
         fmt::{self, Debug, Formatter},
         io,
@@ -46,7 +43,7 @@ pub struct PipeListener<Rm: PipeModeTag, Sm: PipeModeTag> {
     config: PipeListenerOptions<'static>, // We need the options to create new instances
     nonblocking: AtomicBool,
     // TODO implement a handover mechanism for the case of having an instance limit of 1
-    stored_instance: Mutex<FileHandle>,
+    stored_instance: Mutex<OwnedHandle>,
     _phantom: PhantomData<(Rm, Sm)>,
 }
 impl<Rm: PipeModeTag, Sm: PipeModeTag> PipeListener<Rm, Sm> {
@@ -118,15 +115,13 @@ impl<Rm: PipeModeTag, Sm: PipeModeTag> PipeListener<Rm, Sm> {
         Self {
             nonblocking: AtomicBool::new(options.nonblocking),
             config: options,
-            stored_instance: Mutex::new(FileHandle::from(handle)),
+            stored_instance: Mutex::new(handle),
             _phantom: PhantomData,
         }
     }
 
-    fn create_instance(&self, nonblocking: bool) -> io::Result<FileHandle> {
-        self.config
-            .create_instance(false, nonblocking, false, Self::STREAM_ROLE, Rm::MODE)
-            .map(FileHandle::from)
+    fn create_instance(&self, nonblocking: bool) -> io::Result<OwnedHandle> {
+        self.config.create_instance(false, nonblocking, Self::STREAM_ROLE, Rm::MODE)
     }
 }
 impl<Rm: PipeModeTag, Sm: PipeModeTag> Debug for PipeListener<Rm, Sm> {
@@ -152,7 +147,7 @@ impl<Rm: PipeModeTag, Sm: PipeModeTag> AsRawHandle for PipeListener<Rm, Sm> {
 
 impl<Rm: PipeModeTag, Sm: PipeModeTag> From<PipeListener<Rm, Sm>> for OwnedHandle {
     fn from(p: PipeListener<Rm, Sm>) -> Self {
-        p.stored_instance.into_inner().expect(LOCK_POISON).into()
+        p.stored_instance.into_inner().expect(LOCK_POISON)
     }
 }
 
@@ -166,7 +161,7 @@ fn block_on_connect_clearing_empty_conns(handle: BorrowedHandle<'_>) -> io::Resu
 }
 
 fn block_on_connect(handle: BorrowedHandle<'_>) -> io::Result<()> {
-    unsafe { ConnectNamedPipe(handle.as_int_handle(), ptr::null_mut()) != 0 }
+    unsafe { ConnectNamedPipe(handle.as_raw_handle(), ptr::null_mut()) != 0 }
         .true_val_or_errno(())
         .or_else(thunk_accept_error)
 }
@@ -182,7 +177,7 @@ fn thunk_accept_error(e: io::Error) -> io::Result<()> {
 }
 
 fn disconnect_if_connected(handle: BorrowedHandle<'_>) -> io::Result<()> {
-    unsafe { DisconnectNamedPipe(handle.as_int_handle()) != 0 }
+    unsafe { DisconnectNamedPipe(handle.as_raw_handle()) != 0 }
         .true_val_or_errno(())
         .or_else(|e| if e.raw_os_error().eeq(ERROR_PIPE_NOT_CONNECTED) { Ok(()) } else { Err(e) })
 }

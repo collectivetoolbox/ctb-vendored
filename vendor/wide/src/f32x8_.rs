@@ -4,11 +4,11 @@ pick! {
   if #[cfg(target_feature="avx")] {
     #[derive(Default, Clone, Copy, PartialEq)]
     #[repr(C, align(32))]
-    pub struct f32x8 { avx: m256 }
+    pub struct f32x8 { pub(crate) avx: m256 }
   } else {
     #[derive(Default, Clone, Copy, PartialEq)]
     #[repr(C, align(32))]
-    pub struct f32x8 { a : f32x4, b : f32x4 }
+    pub struct f32x8 { pub(crate) a : f32x4, pub(crate) b : f32x4 }
   }
 }
 
@@ -23,6 +23,13 @@ impl f32x8 {
   const_f32_as_f32x8!(ONE, 1.0);
   const_f32_as_f32x8!(HALF, 0.5);
   const_f32_as_f32x8!(ZERO, 0.0);
+  const_f32_as_f32x8!(EPSILON, f32::EPSILON);
+  const_f32_as_f32x8!(MIN, f32::MIN);
+  const_f32_as_f32x8!(MIN_POSITIVE, f32::MIN_POSITIVE);
+  const_f32_as_f32x8!(MAX, f32::MAX);
+  const_f32_as_f32x8!(NAN, f32::NAN);
+  const_f32_as_f32x8!(INFINITY, f32::INFINITY);
+  const_f32_as_f32x8!(NEG_INFINITY, f32::NEG_INFINITY);
   const_f32_as_f32x8!(E, core::f32::consts::E);
   const_f32_as_f32x8!(FRAC_1_PI, core::f32::consts::FRAC_1_PI);
   const_f32_as_f32x8!(FRAC_2_PI, core::f32::consts::FRAC_2_PI);
@@ -119,6 +126,23 @@ impl Div for f32x8 {
   }
 }
 
+impl Rem for f32x8 {
+  type Output = Self;
+  #[inline]
+  fn rem(self, rhs: Self) -> Self::Output {
+    Self::new([
+      self.to_array()[0] % rhs.to_array()[0],
+      self.to_array()[1] % rhs.to_array()[1],
+      self.to_array()[2] % rhs.to_array()[2],
+      self.to_array()[3] % rhs.to_array()[3],
+      self.to_array()[4] % rhs.to_array()[4],
+      self.to_array()[5] % rhs.to_array()[5],
+      self.to_array()[6] % rhs.to_array()[6],
+      self.to_array()[7] % rhs.to_array()[7],
+    ])
+  }
+}
+
 impl Neg for f32x8 {
   type Output = Self;
   #[inline]
@@ -168,6 +192,14 @@ impl Div<f32> for f32x8 {
   }
 }
 
+impl Rem<f32> for f32x8 {
+  type Output = Self;
+  #[inline]
+  fn rem(self, rhs: f32) -> Self::Output {
+    self.rem(Self::splat(rhs))
+  }
+}
+
 impl Add<f32x8> for f32 {
   type Output = f32x8;
   #[inline]
@@ -197,6 +229,14 @@ impl Div<f32x8> for f32 {
   #[inline]
   fn div(self, rhs: f32x8) -> Self::Output {
     f32x8::splat(self).div(rhs)
+  }
+}
+
+impl Rem<f32x8> for f32 {
+  type Output = f32x8;
+  #[inline]
+  fn rem(self, rhs: f32x8) -> Self::Output {
+    f32x8::splat(self).rem(rhs)
   }
 }
 
@@ -251,6 +291,7 @@ impl BitXor for f32x8 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpEq for f32x8 {
   type Output = Self;
   #[inline]
@@ -268,6 +309,7 @@ impl CmpEq for f32x8 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpGe for f32x8 {
   type Output = Self;
   #[inline]
@@ -285,6 +327,7 @@ impl CmpGe for f32x8 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpGt for f32x8 {
   type Output = Self;
   #[inline]
@@ -302,13 +345,14 @@ impl CmpGt for f32x8 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpNe for f32x8 {
   type Output = Self;
   #[inline]
   fn simd_ne(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx")] {
-        Self { avx: cmp_op_mask_m256::<{cmp_op!(NotEqualOrdered)}>(self.avx, rhs.avx) }
+        Self { avx: cmp_op_mask_m256::<{cmp_op!(NotEqualUnordered)}>(self.avx, rhs.avx) }
       } else {
         Self {
           a : self.a.simd_ne(rhs.a),
@@ -319,6 +363,7 @@ impl CmpNe for f32x8 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpLe for f32x8 {
   type Output = Self;
   #[inline]
@@ -336,6 +381,7 @@ impl CmpLe for f32x8 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpLt for f32x8 {
   type Output = Self;
   #[inline]
@@ -359,6 +405,9 @@ impl f32x8 {
   pub const fn new(array: [f32; 8]) -> Self {
     unsafe { core::mem::transmute(array) }
   }
+
+  simd_comparison_fns!();
+
   #[inline]
   #[must_use]
   pub fn blend(self, t: Self, f: Self) -> Self {
@@ -388,6 +437,15 @@ impl f32x8 {
       }
     }
   }
+
+  #[inline]
+  #[must_use]
+  pub fn signum(self) -> Self {
+    let result = Self::ONE | self & -Self::ZERO;
+
+    self.is_nan().blend(self, result)
+  }
+
   #[inline]
   #[must_use]
   pub fn floor(self) -> Self {
@@ -494,6 +552,48 @@ impl f32x8 {
       }
     }
   }
+
+  /// Restrict a value to a certain interval unless it is NaN.
+  ///
+  /// If `self` is NaN, or `min` is NaN, or `max` is NaN, the result is NaN.
+  /// If `min > max`, the result is `min`, since `fast_max(min)` dominates.
+  #[inline]
+  #[must_use]
+  pub fn clamp(self, min: Self, max: Self) -> Self {
+    let is_nan = self.is_nan() | min.is_nan() | max.is_nan();
+    let clamped = self.fast_min(max).fast_max(min);
+    is_nan.blend(Self::splat(f32::NAN), clamped)
+  }
+
+  /// Restrict a value to a certain interval unless it is NaN.
+  ///
+  /// Avoids NaN detection; same speed as the old `clamp` prior to IEEE 754-2019
+  /// compliance. Does not specify any
+  /// behavior if NaNs are involved, and if `min > max` the result is
+  /// unspecified.
+  #[inline]
+  #[must_use]
+  pub fn fast_clamp(self, min: Self, max: Self) -> Self {
+    pick! {
+      if #[cfg(target_feature="avx")] {
+        // For both `min_m256` and `max_m256` if any input is NaN, `rhs` gets
+        // chosen. For `self` to be chosen, `self` must be the second argument.
+        Self { avx: min_m256(max.avx, max_m256(min.avx, self.avx)) }
+      } else {
+        Self {
+          a: self.a.fast_clamp(min.a, max.a),
+          b: self.b.fast_clamp(min.b, max.b),
+        }
+      }
+    }
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn midpoint(self, other: Self) -> Self {
+    (self + other) * 0.5
+  }
+
   #[inline]
   #[must_use]
   pub fn is_nan(self) -> Self {
@@ -583,6 +683,21 @@ impl f32x8 {
     }
   }
 
+  #[inline]
+  #[must_use]
+  pub fn trunc(self) -> Self {
+    pick! {
+      if #[cfg(target_feature="avx")] {
+        Self { avx: round_m256::<{round_op!(Zero)}>(self.avx) }
+      } else {
+        Self {
+          a : self.a.trunc(),
+          b : self.b.trunc(),
+        }
+      }
+    }
+  }
+
   /// Truncates each lane into an integer. This is a faster implementation than
   /// `trunc_int`, but it doesn't handle out of range values or NaNs. For those
   /// values you get implementation defined behavior.
@@ -623,6 +738,13 @@ impl f32x8 {
       }
     }
   }
+
+  #[inline]
+  #[must_use]
+  pub fn fract(self) -> Self {
+    self - self.trunc()
+  }
+
   /// Performs a multiply-add operation: `self * m + a`
   ///
   /// When hardware FMA support is available, this computes the result with a
@@ -793,6 +915,22 @@ impl f32x8 {
 
   #[inline]
   #[must_use]
+  pub fn div_euclid(self, rhs: Self) -> Self {
+    let q = (self / rhs).trunc();
+    (self % rhs)
+      .simd_lt(Self::ZERO)
+      .blend(rhs.simd_gt(Self::ZERO).blend(q - Self::ONE, q + Self::ONE), q)
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn rem_euclid(self, rhs: Self) -> Self {
+    let r = self % rhs;
+    r.simd_lt(Self::ZERO).blend(r + rhs.abs(), r)
+  }
+
+  #[inline]
+  #[must_use]
   pub fn flip_signs(self, signs: Self) -> Self {
     self ^ (signs & Self::from(-0.0))
   }
@@ -946,7 +1084,7 @@ impl f32x8 {
     re = re.mul_add(zz * z, z) + s;
 
     // get sign bit
-    re = (self.sign_bit()).blend(-re, re);
+    re = (self.is_sign_negative()).blend(-re, re);
 
     re
   }
@@ -999,10 +1137,10 @@ impl f32x8 {
     // move back in place
     re = swapxy.blend(Self::FRAC_PI_2 - re, re);
     re = ((x | y).simd_eq(Self::ZERO)).blend(Self::ZERO, re);
-    re = (x.sign_bit()).blend(Self::PI - re, re);
+    re = (x.is_sign_negative()).blend(Self::PI - re, re);
 
     // get sign bit
-    re = (y.sign_bit()).blend(-re, re);
+    re = (y.is_sign_negative()).blend(-re, re);
 
     re
   }
@@ -1057,7 +1195,13 @@ impl f32x8 {
     let sign_cos: i32x8 = ((q + i32x8::from(1)) & i32x8::from(2)) << 30;
     cos1 ^= cast::<_, f32x8>(sign_cos);
 
-    (sin1, cos1)
+    // IEEE 754: sin/cos(±∞) = NaN, sin/cos(NaN) = NaN
+    let finite = self.is_finite();
+    let nan = Self::splat(f32::NAN);
+    let sin_final = finite.blend(sin1, nan);
+    let cos_final = finite.blend(cos1, nan);
+
+    (sin_final, cos_final)
   }
   #[inline]
   #[must_use]
@@ -1077,6 +1221,132 @@ impl f32x8 {
     let (s, c) = self.sin_cos();
     s / c
   }
+
+  /// Calculates hyperbolic sine: `(e^self - e^(-self))/2`.
+  #[inline]
+  #[must_use]
+  pub fn sinh(self) -> Self {
+    const_f32_as_f32x8!(P0, 1.0);
+    const_f32_as_f32x8!(P1, 1.0 / 6.0);
+    const_f32_as_f32x8!(P2, 1.0 / 120.0);
+    const_f32_as_f32x8!(P3, 1.0 / 5040.0);
+    let a = self.abs();
+    // |x| < 0.5: Taylor poly; last truncation term < 1 ULP at x=0.5 for both types
+    let small = a.simd_lt(f32x8::from(0.5));
+    let t = a * a;
+    let poly = a * polynomial_3!(t, P0, P1, P2, P3);
+    let exp_based = {
+      let e = a.exp();
+      (e - Self::ONE / e) * Self::HALF
+    };
+    let result = small.blend(poly, exp_based);
+    result.flip_signs(self)
+  }
+
+  /// Calculates hyperbolic cosine: `(e^self + e^(-self))/2`.
+  #[inline]
+  #[must_use]
+  pub fn cosh(self) -> Self {
+    const_f32_as_f32x8!(P0, 1.0);
+    const_f32_as_f32x8!(P1, 1.0 / 2.0);
+    const_f32_as_f32x8!(P2, 1.0 / 24.0);
+    const_f32_as_f32x8!(P3, 1.0 / 720.0);
+    let a = self.abs();
+    // |x| < 0.5: Taylor poly; last truncation term < 1 ULP at x=0.5 for both types
+    let small = a.simd_lt(f32x8::from(0.5));
+    let t = a * a;
+    let poly = polynomial_3!(t, P0, P1, P2, P3);
+    let exp_based = {
+      let e = a.exp();
+      (e + Self::ONE / e) * Self::HALF
+    };
+    small.blend(poly, exp_based)
+  }
+
+  /// Calculates hyperbolic tangent: `sinh(self)/cosh(self)`.
+  #[inline]
+  #[must_use]
+  pub fn tanh(self) -> Self {
+    // |x| < 2e-4: tanh(x) ≈ x, error x³/3 < 16·ULP(x)
+    // bound: x² < 48·2⁻²³ → x < 2.39e-3; 2e-4 has 10× margin
+    // |x| > 9.011: tanh(x) = ±1 to f32 precision (e⁻²ˣ < 2⁻²⁴)
+    let a = self.abs();
+    let large = a.simd_gt(f32x8::from(9.011));
+    if large.all() {
+      return Self::ONE.flip_signs(self);
+    }
+    let small = a.simd_lt(f32x8::from(2e-4));
+    let exp_based = {
+      let t = (Self::from(-2.0) * a).exp_m1();
+      let pos = -t / (t + Self::from(2.0));
+      pos.flip_signs(self)
+    };
+    let result = small.blend(self, exp_based);
+    large.blend(Self::ONE.flip_signs(self), result)
+  }
+
+  /// Calculates the cube root: `self^(1/3)`.
+  #[inline]
+  #[must_use]
+  pub fn cbrt(self) -> Self {
+    let a = self.abs();
+    let zero = a.simd_eq(Self::ZERO);
+    if zero.all() {
+      return self; // preserves -0.0
+    }
+    let inf = a.is_inf();
+    let nan = self.is_nan();
+
+    let tiny = a.simd_lt(Self::from(f32::MIN_POSITIVE));
+    let a_work = tiny.blend(a * Self::from(16777216.0), a);
+
+    let e = Self::exponent(a_work) + Self::ONE;
+    let d = Self::fraction_2(a_work);
+
+    // C0..C5 from SLEEF's minimax polynomial for 1/cbrt(d) on [0.5, 1.0)
+    // Naoki Shibata et al., "SLEEF: A Portable Vectorized Library of C99
+    // Mathematical Functions", https://sleef.org / https://github.com/shibatch/sleef
+    // Licensed under the Boost Software License 1.0.
+    // These are the f32-precision coefficients; our f64 variants use the f64
+    // set.
+    const_f32_as_f32x8!(C0, 2.2241257);
+    const_f32_as_f32x8!(C1, -3.8095417);
+    const_f32_as_f32x8!(C2, 5.8982625);
+    const_f32_as_f32x8!(C3, -5.532182);
+    const_f32_as_f32x8!(C4, 2.8208892);
+    const_f32_as_f32x8!(C5, -0.60156447);
+    let mut x = polynomial_5!(d, C0, C1, C2, C3, C4, C5);
+
+    let x2 = x * x;
+    let x4 = x2 * x2;
+    x = x - d.mul_add(x4, -x) * Self::from(1.0 / 3.0);
+    // cbrt(d) = d * x² with refinement
+    let mut y = (d * x) * x;
+    let yx = y * x;
+    let t = Self::from(2.0 / 3.0);
+    y = y - t * y * (yx - Self::ONE);
+
+    // Scale by 2^(e/3)
+    let three = Self::from(3.0);
+    let two = Self::from(2.0);
+    let neg = e.simd_lt(Self::ZERO);
+    let e_adj = neg.blend(e - two, e);
+    let k = (e_adj / three).trunc();
+    let r = e - three * k;
+    const_f32_as_f32x8!(CBRT2, 1.259921);
+    const_f32_as_f32x8!(CBRT4, 1.587401);
+    y = r.simd_eq(Self::ONE).blend(y * CBRT2, y);
+    y = r.simd_eq(two).blend(y * CBRT4, y);
+    y *= Self::vm_pow2n(k);
+    y = tiny.blend(y / Self::from(256.0_f32), y);
+
+    let result = y.flip_signs(self);
+    let result = nan.blend(self, result);
+    let result = zero.blend(self, result);
+    let result = inf.blend(self, result);
+    result
+  }
+
   #[inline]
   #[must_use]
   pub fn to_degrees(self) -> Self {
@@ -1133,6 +1403,7 @@ impl f32x8 {
   }
   #[inline]
   #[must_use]
+  #[doc(alias("movemask", "move_mask"))]
   pub fn to_bitmask(self) -> u32 {
     pick! {
       if #[cfg(target_feature="avx")] {
@@ -1176,7 +1447,22 @@ impl f32x8 {
     const_f32_as_f32x8!(bias, 127.0);
     let a = self + (bias + pow2_23);
     let c = cast::<_, i32x8>(a) << 23;
-    cast::<_, f32x8>(c)
+    let std_result = cast::<_, f32x8>(c);
+
+    let min_exp = f32x8::from(-126.0);
+    let is_sub = self.simd_lt(min_exp);
+    if is_sub.any() {
+      let valid = self.simd_ge(f32x8::from(-149.0));
+      let shift_f = self + f32x8::from(149.0);
+      let mut shift_i = shift_f.trunc_int();
+      shift_i = cast::<_, i32x8>(valid).blend(shift_i, i32x8::ZERO);
+      let mantissa = i32x8::ONE << shift_i;
+      let sub_result = cast::<_, f32x8>(mantissa);
+      let sub_result = valid.blend(sub_result, f32x8::ZERO);
+      is_sub.blend(sub_result, std_result)
+    } else {
+      std_result
+    }
   }
 
   /// Calculate the exponent of a packed `f32x8`
@@ -1185,25 +1471,162 @@ impl f32x8 {
   pub fn exp(self) -> Self {
     const_f32_as_f32x8!(P0, 1.0 / 2.0);
     const_f32_as_f32x8!(P1, 1.0 / 6.0);
-    const_f32_as_f32x8!(P2, 1. / 24.);
-    const_f32_as_f32x8!(P3, 1. / 120.);
-    const_f32_as_f32x8!(P4, 1. / 720.);
-    const_f32_as_f32x8!(P5, 1. / 5040.);
+    const_f32_as_f32x8!(P2, 1.0 / 24.0);
+    const_f32_as_f32x8!(P3, 1.0 / 120.0);
+    const_f32_as_f32x8!(P4, 1.0 / 720.0);
+    const_f32_as_f32x8!(P5, 1.0 / 5040.0);
+    // LN2D_HI/LO: double-double decomposition of ln(2) for exp range reduction,
+    // following the approach from fdlibm's e_exp.c (Sun Microsystems,
+    // https://www.netlib.org/fdlibm/). The f32 split uses f32-precision constants
+    // (0.693359375, -2.12194440e-4) summing to ln(2) with single-precision
+    // accuracy; the f64 variants use a full f64 double-double
+    // decomposition.
     const_f32_as_f32x8!(LN2D_HI, 0.693359375);
     const_f32_as_f32x8!(LN2D_LO, -2.12194440e-4);
-    let max_x = f32x8::from(87.3);
+    // max_x = ln(f32::MAX) ≈ 88.7229, max_r = 127 (IEEE max normal exponent)
+    // min_x = -149.5 ln(2) ≈ -103.63: min r for vm_pow2n subnormal
+    let max_x = f32x8::from(88.723);
+    let min_x = f32x8::from(-103.63);
+    // x < min_x: e^x underflows to 0 -- skip the entire pipeline
+    let finite = self.is_finite();
+    let neg_underflow = self.simd_lt(min_x) & finite;
+    if neg_underflow.all() {
+      return Self::ZERO;
+    }
+    let max_r = f32x8::from(127.0);
     let r = (self * Self::LOG2_E).round();
+    let big = r.simd_gt(max_r);
+    let r_safe = big.blend(max_r, r);
+    let excess = r - max_r;
+    let excess = big.blend(excess, Self::ZERO);
+    let scale = Self::vm_pow2n(excess);
     let x = r.mul_neg_add(LN2D_HI, self);
     let x = r.mul_neg_add(LN2D_LO, x);
     let z = polynomial_5!(x, P0, P1, P2, P3, P4, P5);
     let x2 = x * x;
     let z = z.mul_add(x2, x);
-    let n2 = Self::vm_pow2n(r);
-    let z = (z + Self::ONE) * n2;
-    // check for overflow
-    let in_range = self.abs().simd_lt(max_x);
-    let in_range = in_range & self.is_finite();
-    in_range.blend(z, Self::ZERO)
+    let n2 = Self::vm_pow2n(r_safe);
+    let z = (z + Self::ONE) * scale * n2;
+    let nan_mask = self.is_nan();
+    let mut result = nan_mask.blend(Self::nan_pow(), z);
+    let pos_overflow = self.simd_gt(max_x) & finite;
+    result = pos_overflow.blend(Self::infinity(), result);
+    result = neg_underflow.blend(Self::ZERO, result);
+    let pos_inf = !finite & !self.is_sign_negative() & !nan_mask;
+    result = pos_inf.blend(Self::infinity(), result);
+    let neg_inf = !finite & self.is_sign_negative() & !nan_mask;
+    result = neg_inf.blend(Self::ZERO, result);
+    result
+  }
+
+  /// Calculate `e^self - 1` for each lane.
+  /// Accurate even for very small values.
+  #[inline]
+  #[must_use]
+  pub fn exp_m1(self) -> Self {
+    // x < -17.329: e^x < 2⁻²⁵, exp_m1(x) = -1.0 exactly (mantissa exhaustion)
+    // IEEE simd_lt returns false for NaN, so NaN lanes can't reach here.
+    // -inf is < -17.329, and exp_m1(-inf) = -1.0, also correct.
+    if self.simd_lt(f32x8::from(-17.329)).all() {
+      return f32x8::from(-1.0);
+    }
+    const_f32_as_f32x8!(P0, 1.0 / 2.0);
+    const_f32_as_f32x8!(P1, 1.0 / 6.0);
+    const_f32_as_f32x8!(P2, 1.0 / 24.0);
+    const_f32_as_f32x8!(P3, 1.0 / 120.0);
+    const_f32_as_f32x8!(P4, 1.0 / 720.0);
+    const_f32_as_f32x8!(P5, 1.0 / 5040.0);
+    // LN2D_HI/LO: double-double decomposition of ln(2) for exp range reduction,
+    // following the approach from fdlibm's e_exp.c (Sun Microsystems,
+    // https://www.netlib.org/fdlibm/). The f32 split uses f32-precision constants
+    // (0.693359375, -2.12194440e-4) summing to ln(2) with single-precision
+    // accuracy; the f64 variants use a full f64 double-double
+    // decomposition.
+    const_f32_as_f32x8!(LN2D_HI, 0.693359375);
+    const_f32_as_f32x8!(LN2D_LO, -2.12194440e-4);
+    // max_x = ln(f32::MAX) ≈ 88.7229, max_r = 127 (IEEE max normal exponent)
+    // min_x = -149.5 ln(2) ≈ -103.63: min r for vm_pow2n subnormal
+    let max_x = f32x8::from(88.723);
+    let min_x = f32x8::from(-103.63);
+    let max_r = f32x8::from(127.0);
+    let r = (self * Self::LOG2_E).round();
+    let big = r.simd_gt(max_r);
+    let r_safe = big.blend(max_r, r);
+    let excess = r - max_r;
+    let excess = big.blend(excess, Self::ZERO);
+    let scale = Self::vm_pow2n(excess);
+    let x = r.mul_neg_add(LN2D_HI, self);
+    let x = r.mul_neg_add(LN2D_LO, x);
+    let z = polynomial_5!(x, P0, P1, P2, P3, P4, P5);
+    let x2 = x * x;
+    let z = z.mul_add(x2, x);
+    let n2 = Self::vm_pow2n(r_safe);
+    let exp_val = (z + Self::ONE) * scale * n2;
+    let r_is_zero = r.simd_eq(Self::ZERO);
+    let z = r_is_zero.blend(z, exp_val - Self::ONE);
+    let nan_mask = self.is_nan();
+    let finite = self.is_finite();
+    let mut result = nan_mask.blend(Self::nan_pow(), z);
+    let pos_overflow = self.simd_gt(max_x) & finite;
+    result = pos_overflow.blend(Self::infinity(), result);
+    let neg_underflow = self.simd_lt(min_x) & finite;
+    result = neg_underflow.blend(-Self::ONE, result);
+    let pos_inf = !finite & !self.is_sign_negative() & !nan_mask;
+    result = pos_inf.blend(Self::infinity(), result);
+    let neg_inf = !finite & self.is_sign_negative() & !nan_mask;
+    result = neg_inf.blend(-Self::ONE, result);
+    let is_zero = self.simd_eq(Self::ZERO);
+    result = is_zero.blend(self, result);
+    result
+  }
+
+  /// Returns `2^self`.
+  #[inline]
+  #[must_use]
+  pub fn exp2(self) -> Self {
+    const_f32_as_f32x8!(P2, 1.0 / 2.0);
+    const_f32_as_f32x8!(P3, 1.0 / 6.0);
+    const_f32_as_f32x8!(P4, 1.0 / 24.0);
+    const_f32_as_f32x8!(P5, 1.0 / 120.0);
+    const_f32_as_f32x8!(P6, 1.0 / 720.0);
+    const_f32_as_f32x8!(P7, 1.0 / 5040.0);
+
+    // max_x = log2(f32::MAX) ≈ 127.99999
+    // min_x = log2(f32::MIN_POSITIVE) - 23 ≈ -126 - 23 = -149
+    let max_x = f32x8::from(127.99999);
+    let min_x = f32x8::from(-149.5);
+    let finite = self.is_finite();
+    let neg_underflow = self.simd_lt(min_x) & finite;
+    if neg_underflow.all() {
+      return Self::ZERO;
+    }
+
+    let round = self.round();
+    let max_r = f32x8::from(127.0);
+    let big = round.simd_gt(max_r);
+    let r_safe = big.blend(max_r, round);
+    let excess = round - max_r;
+    let excess = big.blend(excess, Self::ZERO);
+    let scale = Self::vm_pow2n(excess);
+
+    let fract = (self - round) * Self::LN_2;
+    let fract_partial_exp2 = polynomial_5!(fract, P2, P3, P4, P5, P6, P7);
+    let fract2 = fract * fract;
+    let fract_exp2 = fract_partial_exp2.mul_add(fract2, fract) + Self::ONE;
+
+    let n2 = Self::vm_pow2n(r_safe);
+    let result = fract_exp2 * scale * n2;
+
+    let nan_mask = self.is_nan();
+    let mut result = nan_mask.blend(Self::nan_pow(), result);
+    let pos_overflow = self.simd_gt(max_x) & finite;
+    result = pos_overflow.blend(Self::infinity(), result);
+    result = neg_underflow.blend(Self::ZERO, result);
+    let pos_inf = !finite & !self.is_sign_negative() & !nan_mask;
+    result = pos_inf.blend(Self::infinity(), result);
+    let neg_inf = !finite & self.is_sign_negative() & !nan_mask;
+    result = neg_inf.blend(Self::ZERO, result);
+    result
   }
 
   #[inline]
@@ -1230,7 +1653,8 @@ impl f32x8 {
   fn is_zero_or_subnormal(self) -> Self {
     let t = cast::<_, i32x8>(self);
     let t = t & i32x8::splat(0x7F800000);
-    i32x8::round_float(t.simd_eq(i32x8::splat(0)))
+    let mask = t.simd_eq(i32x8::splat(0));
+    cast::<_, f32x8>(mask)
   }
   #[inline]
   fn infinity() -> Self {
@@ -1244,11 +1668,31 @@ impl f32x8 {
   fn nan_pow() -> Self {
     cast::<_, f32x8>(i32x8::splat(0x7FC00000 | 0x101 & 0x003FFFFF))
   }
+
+  /// Returns true for each element if it has a positive sign, including `+0.0`,
+  /// `NaN`s with positive sign bit and positive infinity.
   #[inline]
-  pub fn sign_bit(self) -> Self {
-    let t1 = cast::<_, i32x8>(self);
-    let t2 = t1 >> 31;
-    !cast::<_, f32x8>(t2).simd_eq(f32x8::ZERO)
+  #[must_use]
+  pub fn is_sign_positive(self) -> Self {
+    const SIGN_MASK: u32x8 = u32x8::splat((-0.0_f32).to_bits());
+
+    let bits = cast::<f32x8, u32x8>(self);
+    let sign = bits & SIGN_MASK;
+    let result = sign.simd_eq(u32x8::ZERO);
+    cast::<u32x8, f32x8>(result)
+  }
+
+  /// Returns true for each element if it has a negative sign, including `-0.0`,
+  /// `NaN`s with negative sign bit and negative infinity.
+  #[inline]
+  #[must_use]
+  pub fn is_sign_negative(self) -> Self {
+    const SIGN_MASK: u32x8 = u32x8::splat((-0.0_f32).to_bits());
+
+    let bits = cast::<f32x8, u32x8>(self);
+    let sign = bits & SIGN_MASK;
+    let result = sign.simd_eq(SIGN_MASK);
+    cast::<u32x8, f32x8>(result)
   }
 
   /// horizontal add of all the elements of the vector
@@ -1270,6 +1714,29 @@ impl f32x8 {
         get_f32_from_m128_s(sum)
       } else {
         self.a.reduce_add() + self.b.reduce_add()
+      }
+    }
+  }
+
+  /// horizontal multiplication of all the elements of the vector
+  #[inline]
+  #[must_use]
+  pub fn reduce_mul(self) -> f32 {
+    pick! {
+      // From https://stackoverflow.com/questions/13219146/how-to-sum-m256-horizontally
+      if #[cfg(target_feature="avx")] {
+        let hi_quad = extract_m128_from_m256::<1>(self.avx);
+        let lo_quad = cast_to_m128_from_m256(self.avx);
+        let product_quad = mul_m128(lo_quad,hi_quad);
+        let lo_dual = product_quad;
+        let hi_dual = move_high_low_m128(product_quad, product_quad);
+        let product_dual = mul_m128(lo_dual,hi_dual);
+        let lo = product_dual;
+        let hi = shuffle_abi_f32_all_m128::<0b_01>(product_dual, product_dual);
+        let product = mul_m128_s(lo, hi);
+        get_f32_from_m128_s(product)
+      } else {
+        self.a.reduce_mul() * self.b.reduce_mul()
       }
     }
   }
@@ -1313,10 +1780,38 @@ impl f32x8 {
     } else {
       let is_zero = self.is_zero_or_subnormal();
       let res = underflow.blend(Self::nan_log(), res);
-      let res = is_zero.blend(Self::infinity(), res);
+      // Note: is_zero_or_subnormal() lumps subnormals (exponent==0) with zero.
+      // Both get -Inf here. True subnormal inputs (~1.4e-45..1.175e-38) should
+      // produce a finite negative result, but are vanishingly rare in
+      // practice.
+      let res = is_zero.blend(-Self::infinity(), res);
       let res = overflow.blend(self, res);
+      // This must come *after* overflow.blend to overwrite ln(-∞) = -∞ to NaN
+      let res = (!self.is_finite() & self.is_sign_negative())
+        .blend(Self::nan_log(), res);
       res
     }
+  }
+
+  /// Calculate `ln(1 + self)` for each lane.
+  /// Accurate even for very small values.
+  #[inline]
+  #[must_use]
+  pub fn ln_1p(self) -> Self {
+    // Based on the identity ln(1+x) = x·ln(1+x)/((1+x)-1), i.e. x·ln(u)/(u-1)
+    // where u = 1+x. From MUSL libc (Rich Felker et al., https://musl.libc.org) src/math/log1pf.c
+    // and fdlibm (Sun Microsystems, https://www.netlib.org/fdlibm/) s_log1p.c.
+    // When 1+x rounds to 1 exactly (subnormal x), return x directly.
+    // When 1+x overflows (+inf), return ln(u) without correction.
+    // Mathematically exact: compensates for the rounding loss in 1+x without
+    // needing a series threshold.
+    let u = self + Self::ONE;
+    let eq = u.simd_eq(Self::ONE);
+    let ln_u = Self::ln(u);
+    let correction = self * (ln_u / (u - Self::ONE));
+    let result = eq.blend(self, correction);
+    let over = u.is_inf();
+    over.blend(ln_u, result)
   }
 
   #[inline]
@@ -1412,7 +1907,7 @@ impl f32x8 {
       z,
     );
 
-    let x_sign = self.sign_bit();
+    let x_sign = self.is_sign_negative();
     let z = if x_sign.any() {
       // Y into an integer
       let yi = y.simd_eq(y.round());
@@ -1549,6 +2044,19 @@ impl f32x8 {
           ])
       }
     }
+  }
+
+  /// Returns true for each element if its sign bit is set.
+  ///
+  /// If the sign bit is set, the result has all bits set, not just the sign
+  /// bit. This has been renamed to [`is_sign_negative`].
+  ///
+  /// [`is_sign_negative`]: Self::is_sign_negative
+  #[inline]
+  #[must_use]
+  #[deprecated(since = "1.4.0", note = "renamed to `is_sign_negative`")]
+  pub fn sign_bit(self) -> Self {
+    self.is_sign_negative()
   }
 }
 

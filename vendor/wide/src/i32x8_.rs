@@ -72,6 +72,8 @@ impl Mul for i32x8 {
   }
 }
 
+integer_impl_div_rem!(i32, i32x8, [0, 1, 2, 3, 4, 5, 6, 7]);
+
 impl Add<i32> for i32x8 {
   type Output = Self;
   #[inline]
@@ -270,6 +272,7 @@ impl Shl<i32x8> for i32x8 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpEq for i32x8 {
   type Output = Self;
   #[inline]
@@ -287,6 +290,7 @@ impl CmpEq for i32x8 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpGt for i32x8 {
   type Output = Self;
   #[inline]
@@ -304,6 +308,7 @@ impl CmpGt for i32x8 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpLt for i32x8 {
   type Output = Self;
   #[inline]
@@ -315,6 +320,60 @@ impl CmpLt for i32x8 {
         Self {
           a : self.a.simd_lt(rhs.a),
           b : self.b.simd_lt(rhs.b),
+        }
+      }
+    }
+  }
+}
+
+#[expect(deprecated)]
+impl CmpNe for i32x8 {
+  type Output = Self;
+  #[inline]
+  fn simd_ne(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(target_feature="avx2")] {
+        !self.simd_eq(rhs)
+      } else {
+        Self {
+          a : self.a.simd_ne(rhs.a),
+          b : self.b.simd_ne(rhs.b),
+        }
+      }
+    }
+  }
+}
+
+#[expect(deprecated)]
+impl CmpLe for i32x8 {
+  type Output = Self;
+  #[inline]
+  fn simd_le(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(target_feature="avx2")] {
+        !self.simd_gt(rhs)
+      } else {
+        Self {
+          a : self.a.simd_le(rhs.a),
+          b : self.b.simd_le(rhs.b),
+        }
+      }
+    }
+  }
+}
+
+#[expect(deprecated)]
+impl CmpGe for i32x8 {
+  type Output = Self;
+  #[inline]
+  fn simd_ge(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(target_feature="avx2")] {
+        !self.simd_lt(rhs)
+      } else {
+        Self {
+          a : self.a.simd_ge(rhs.a),
+          b : self.b.simd_ge(rhs.b),
         }
       }
     }
@@ -334,6 +393,8 @@ impl i32x8 {
   pub const fn new(array: [i32; 8]) -> Self {
     unsafe { core::mem::transmute(array) }
   }
+
+  simd_comparison_fns!();
 
   /// widens and sign extends to `i32x8`
   #[inline]
@@ -404,6 +465,42 @@ impl i32x8 {
     }
   }
 
+  /// Returns true for each positive element and false if it is zero or
+  /// negative.
+  #[inline]
+  #[must_use]
+  pub fn is_positive(self) -> Self {
+    pick! {
+      if #[cfg(all(target_feature="neon", target_arch="aarch64"))] {
+        // `neon` has dedicated greater-than-zero intrinsics.
+        Self {
+          a: self.a.is_positive(),
+          b: self.b.is_positive(),
+        }
+      } else {
+        self.simd_gt(Self::ZERO)
+      }
+    }
+  }
+
+  /// Returns true for each negative element and false if it is zero or
+  /// positive.
+  #[inline]
+  #[must_use]
+  pub fn is_negative(self) -> Self {
+    pick! {
+      if #[cfg(all(target_feature="neon", target_arch="aarch64"))] {
+        // `neon` has dedicated less-than-zero intrinsics.
+        Self {
+          a: self.a.is_negative(),
+          b: self.b.is_negative(),
+        }
+      } else {
+        self.simd_lt(Self::ZERO)
+      }
+    }
+  }
+
   /// horizontal add of all the elements of the vector
   #[inline]
   #[must_use]
@@ -458,6 +555,8 @@ impl i32x8 {
     }
   }
 
+  signed_fn_signum!();
+
   #[inline]
   #[must_use]
   pub fn max(self, rhs: Self) -> Self {
@@ -486,6 +585,78 @@ impl i32x8 {
       }
     }
   }
+
+  integer_fn_clamp!();
+
+  #[inline]
+  #[must_use]
+  pub fn saturating_add(self, rhs: Self) -> Self {
+    pick! {
+      if #[cfg(target_feature="avx2")] {
+        let result = self + rhs;
+        let overflow = (!(self ^ rhs) & (self ^ result)).is_negative();
+        let negative = self.is_negative();
+
+        overflow.blend(negative.blend(Self::MIN, Self::MAX), result)
+      } else {
+        Self {
+          a: self.a.saturating_add(rhs.a),
+          b: self.b.saturating_add(rhs.b),
+        }
+      }
+    }
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn saturating_sub(self, rhs: Self) -> Self {
+    pick! {
+      if #[cfg(target_feature="avx2")] {
+        let result = self - rhs;
+        let overflow = ((self ^ rhs) & (self ^ result)).is_negative();
+        let negative = self.is_negative();
+
+        overflow.blend(negative.blend(Self::MIN, Self::MAX), result)
+      } else {
+        Self {
+          a: self.a.saturating_sub(rhs.a),
+          b: self.b.saturating_sub(rhs.b),
+        }
+      }
+    }
+  }
+
+  /// Lanewise saturating multiply.
+  #[inline]
+  #[must_use]
+  pub fn saturating_mul(self, rhs: Self) -> Self {
+    pick! {
+      if #[cfg(target_feature="avx2")] {
+        let even_wide_mul = mul_i64_low_bits_m256i(self.avx2, rhs.avx2);
+        let odd_wide_mul = mul_i64_low_bits_m256i(
+          shuffle_ai_i32_half_m256i::<0b_00_11_00_01>(self.avx2),
+          shuffle_ai_i32_half_m256i::<0b_00_11_00_01>(rhs.avx2),
+        );
+
+        let ll_hh_1 = unpack_low_i32_m256i(even_wide_mul, odd_wide_mul);
+        let ll_hh_2 = unpack_high_i32_m256i(even_wide_mul, odd_wide_mul);
+        let low = Self { avx2: unpack_low_i64_m256i(ll_hh_1, ll_hh_2) };
+        let high = Self { avx2: unpack_high_i64_m256i(ll_hh_1, ll_hh_2) };
+
+        let no_overflow = high.simd_eq(low.is_negative());
+        let limit = Self::MAX ^ (self ^ rhs).is_negative();
+        no_overflow.blend(low, limit)
+      } else {
+        let [self_a, self_b]: [i32x4; 2] = cast(self);
+        let [rhs_a, rhs_b]: [i32x4; 2] = cast(rhs);
+
+        cast([self_a.saturating_mul(rhs_a), self_b.saturating_mul(rhs_b)])
+      }
+    }
+  }
+
+  integer_fn_saturating_div!([0, 1, 2, 3, 4, 5, 6, 7]);
+
   #[inline]
   #[must_use]
   pub fn round_float(self) -> f32x8 {
@@ -503,6 +674,7 @@ impl i32x8 {
 
   #[inline]
   #[must_use]
+  #[doc(alias("movemask", "move_mask"))]
   pub fn to_bitmask(self) -> u32 {
     pick! {
       if #[cfg(target_feature="avx2")] {

@@ -3,7 +3,7 @@
 use {
     crate::{
         bound_util::{RefRead, RefWrite},
-        local_socket::{ConnectOptions, Name},
+        local_socket::{ConnectOptions, Name, PeerCreds},
         Sealed,
     },
     std::{
@@ -20,7 +20,6 @@ use {
 /// makes it a trait object of sorts. See its documentation for more on the semantics of the methods
 /// seen here.
 pub trait Stream: Read + RefRead + Write + RefWrite + StreamCommon {
-    // FUTURE move this to StreamCommon
     /// Receive half type returned by [`.split()`](Stream::split).
     type RecvHalf: RecvHalf<Stream = Self>;
     /// Send half type returned by [`.split()`](Stream::split).
@@ -51,8 +50,13 @@ pub trait Stream: Read + RefRead + Write + RefWrite + StreamCommon {
     /// will block indefinitely if there is no space in the send buffer.
     fn set_send_timeout(&self, timeout: Option<Duration>) -> io::Result<()>;
 
-    /// Splits a stream into a receive half and a send half, which can be used to receive from and
-    /// send to the stream concurrently from different threads, entailing a memory allocation.
+    /// Splits a stream into a receive half and a send half.
+    ///
+    /// You probably want to avoid this mechanism for the following reasons:
+    /// - Placing a stream in an `Rc` or `Arc` produces identical behavior,
+    ///   since `&Stream` implements `Read` and `Write`
+    /// - Dropping a half does not shut it down like it does with sockets,
+    ///   which may be counterintuitive
     fn split(self) -> (Self::RecvHalf, Self::SendHalf);
 
     /// Attempts to reunite a receive half with a send half to yield the original stream back,
@@ -77,6 +81,18 @@ pub trait StreamCommon: Debug + Send + Sync + Sized + Sealed + 'static {
     /// since the last call to a method that propagates stored errors. Subsequent calls will
     /// return `None` until another error occurs.
     fn take_error(&self) -> io::Result<Option<io::Error>>;
+    /// Returns a structure containing a subset of the credentials of the other side of the
+    /// connection. The nature of the credentials is OS-specific and using some of them for
+    /// making security decisions may be subject to race conditions.
+    ///
+    /// See the documentation on [`PeerCreds`] for more information.
+    ///
+    /// ## Platform-specific behavior
+    /// ### Unix
+    /// The returned credentials are those that were in effect at the time of `connect` (for the
+    /// credentials of the client), `listen` (for those of the server). On OpenBSD and NetBSD,
+    /// server credentials are instead those which were in effect at the time of `bind` instead.
+    fn peer_creds(&self) -> io::Result<PeerCreds>;
 }
 
 /// Receive halves of [`Stream`]s, obtained through [`.split()`](Stream::split).

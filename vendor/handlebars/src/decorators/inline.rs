@@ -1,9 +1,9 @@
+use crate::RenderErrorReason;
 use crate::context::Context;
 use crate::decorators::{DecoratorDef, DecoratorResult};
 use crate::error::RenderError;
 use crate::registry::Registry;
 use crate::render::{Decorator, RenderContext};
-use crate::RenderErrorReason;
 
 #[derive(Clone, Copy)]
 pub struct InlineDecorator;
@@ -33,7 +33,10 @@ impl DecoratorDef for InlineDecorator {
             .template()
             .ok_or(RenderErrorReason::BlockContentRequired)?;
 
-        rc.set_partial(name, template);
+        if let Some(block) = rc.block_mut() {
+            block.set_local_partial(name, template);
+        }
+
         Ok(())
     }
 }

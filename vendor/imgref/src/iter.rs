@@ -184,7 +184,7 @@ pub struct PixelsRefIter<'a, T> {
     _dat: PhantomData<&'a [T]>,
 }
 
-unsafe impl<T> Send for PixelsRefIter<'_, T> where T: Send {}
+unsafe impl<T> Send for PixelsRefIter<'_, T> where T: Sync {}
 unsafe impl<T> Sync for PixelsRefIter<'_, T> where T: Sync {}
 
 impl<'a, T: 'a> PixelsRefIter<'a, T> {
@@ -383,4 +383,82 @@ fn iter() {
             }
         }
     }
+}
+
+#[test]
+#[should_panic(expected = "Invalid ImgRef params")]
+fn rows_iter_len_overflow_can_create_oob_slice() {
+    // `ImgRef::valid_min_len()` computes `stride * height + width - stride`
+    // using checked arithmetic. It must panic on overflow instead of accepting
+    // a one-element buffer for a 2x2 image with an impossible stride and later
+    // reaching `RowsIter::next()`'s unsafe `get_unchecked(0..2)`.
+    let buf = [0u8; 1];
+    let img = super::Img::new_stride(&buf[..], 2, 2, usize::MAX);
+
+    let _ = img.rows().next();
+}
+
+#[test]
+#[should_panic(expected = "Invalid ImgRef params")]
+fn pixels_ref_len_overflow_can_walk_oob() {
+    // The same checked length calculation must panic on overflow for a 1x3
+    // image, rather than letting `PixelsRefIter` start from a one-element slice
+    // and later move the raw pointer far outside the allocation.
+    let buf = [0u8; 1];
+    let img = super::Img::new_stride(&buf[..], 1, 3, usize::MAX / 2 + 1);
+    let mut pixels = img.pixels_ref();
+
+    let _ = pixels.next();
+    let _ = pixels.next();
+}
+
+#[test]
+fn pixels_ref_iter_send_requires_sync_pixels() {
+    // `PixelsRefIter<'_, T>` yields `&T`, so sending it to another thread is
+    // only sound when `T: Sync`. `Cell<u32>` is `Send` but not `Sync`; if the
+    // iterator were `Send` for `T: Send`, safe code could create a data race by
+    // sending the iterator to another thread while retaining local shared
+    // access to the same cell.
+    use core::cell::Cell;
+
+    macro_rules! assert_not_impl_any {
+        ($x:ty: $($t:path),+ $(,)?) => {
+            const _: fn() = || {
+                trait AmbiguousIfImpl<A> { fn some_item() {} }
+                impl<T: ?Sized> AmbiguousIfImpl<()> for T {}
+                impl<T: ?Sized $(+ $t)+> AmbiguousIfImpl<u8> for T {}
+                <$x as AmbiguousIfImpl<_>>::some_item()
+            };
+        };
+    }
+
+    fn assert_send<T: Send>() {}
+
+    assert_send::<PixelsRefIter<'static, u32>>();
+    assert_not_impl_any!(PixelsRefIter<'static, Cell<u32>>: Send);
+}
+
+#[test]
+#[should_panic(expected = "Invalid ImgRef params")]
+fn pixels_mut_len_overflow_can_create_oob_line_end() {
+    // `PixelsIterMut::new()` computes `ptr.add(width)` for the first row's
+    // line end. Checked validation must reject this wrapped 2x2 image before
+    // creating a one-element mutable slice where that pointer is out of bounds.
+    let mut img = super::Img::new_stride(vec![0u8; 1], 2, 2, usize::MAX);
+
+    let _ = img.pixels_mut();
+}
+
+#[test]
+#[should_panic(expected = "Invalid ImgRef params")]
+fn pixels_mut_len_overflow_can_walk_oob() {
+    // Mutable pixel iteration has the same invariant: checked validation must
+    // reject this wrapped 1x3 image before the second row would require raw
+    // pointer arithmetic far outside the one-element allocation.
+    let mut buf = [0u8; 1];
+    let mut img = super::Img::new_stride(&mut buf[..], 1, 3, usize::MAX / 2 + 1);
+    let mut pixels = img.pixels_mut();
+
+    let _ = pixels.next();
+    let _ = pixels.next();
 }

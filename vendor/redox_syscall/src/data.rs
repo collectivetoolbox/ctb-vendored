@@ -4,7 +4,7 @@ use core::{
     slice,
 };
 
-use crate::flag::{EventFlags, MapFlags, PtraceFlags};
+use crate::flag::{EventFlags, MapFlags, PtraceFlags, StdFsCallKind};
 
 #[derive(Copy, Clone, Debug, Default)]
 #[repr(C)]
@@ -175,10 +175,67 @@ impl DerefMut for StatVfs {
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
+#[repr(C, packed)]
+pub struct StdFsCallMeta {
+    pub kind: u8, // enum StdFsCallKind
+    _rsvd: [u8; 7],
+    pub arg1: u64,
+    pub arg2: u64,
+}
+
+impl StdFsCallMeta {
+    pub fn new(kind: StdFsCallKind, arg1: u64, arg2: u64) -> Self {
+        Self {
+            kind: kind as u8,
+            _rsvd: [0; 7],
+            arg1,
+            arg2,
+        }
+    }
+}
+
+impl Deref for StdFsCallMeta {
+    type Target = [u64];
+    fn deref(&self) -> &[u64] {
+        unsafe {
+            slice::from_raw_parts(
+                self as *const StdFsCallMeta as *const u64,
+                mem::size_of::<StdFsCallMeta>() / mem::size_of::<u64>(),
+            )
+        }
+    }
+}
+
+impl DerefMut for StdFsCallMeta {
+    fn deref_mut(&mut self) -> &mut [u64] {
+        unsafe {
+            slice::from_raw_parts_mut(
+                self as *mut StdFsCallMeta as *mut u64,
+                mem::size_of::<StdFsCallMeta>() / mem::size_of::<u64>(),
+            )
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
 #[repr(C)]
 pub struct TimeSpec {
     pub tv_sec: i64,
     pub tv_nsec: i32,
+}
+
+const NANOS_PER_SEC: u128 = 1_000_000_000;
+
+impl TimeSpec {
+    pub fn from_nanos(nanos: u128) -> Self {
+        Self {
+            tv_sec: i64::try_from(nanos / NANOS_PER_SEC).unwrap_or(i64::MAX),
+            tv_nsec: (nanos % NANOS_PER_SEC) as i32, // guaranteed to never overflow
+        }
+    }
+    pub fn to_nanos(&self) -> u128 {
+        self.tv_sec as u128 * NANOS_PER_SEC + self.tv_nsec as u128
+    }
 }
 
 impl Deref for TimeSpec {
@@ -336,7 +393,7 @@ pub struct ProcSchemeAttrs {
     pub pid: u32,
     pub euid: u32,
     pub egid: u32,
-    pub ens: u32,
+    pub prio: u32,
     pub debug_name: [u8; 32],
 }
 impl Deref for ProcSchemeAttrs {

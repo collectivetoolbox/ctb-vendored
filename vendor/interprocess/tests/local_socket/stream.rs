@@ -16,6 +16,32 @@ fn msg(server: bool, nts: bool) -> Box<str> {
     message(None, server, Some(['\n', '\0'][nts.to_usize()]))
 }
 
+fn fork(a: impl FnOnce() -> TestResult, b: impl FnOnce() -> TestResult + Send) -> TestResult {
+    std::thread::scope(|scope| {
+        let b = scope.spawn(b);
+        a()?;
+        b.join().unwrap()
+    })
+}
+
+fn check_peer_creds(s: &Stream) -> TestResult {
+    let creds = s.peer_creds().opname("peer_creds")?;
+    #[allow(clippy::cast_sign_loss)]
+    if let Some(pid) = creds.pid() {
+        ensure_eq!(pid as u32, std::process::id());
+    }
+    #[cfg(unix)]
+    {
+        if let Some(uid) = creds.euid() {
+            ensure_eq!(uid, unsafe { libc::geteuid() });
+        }
+        if let Some(gid) = creds.egid() {
+            ensure_eq!(gid, unsafe { libc::getegid() });
+        }
+    }
+    Ok(())
+}
+
 pub fn server(
     id: &str,
     handle_client: fn(Stream) -> TestResult,
@@ -34,21 +60,26 @@ pub fn server(
 }
 
 pub fn handle_client(conn: Stream) -> TestResult {
-    let mut conn = BufReader::new(conn);
-    recv(&mut conn, &msg(false, false), 0)?;
-    send(conn.get_mut(), &msg(true, false), 0)?;
-    recv(&mut conn, &msg(false, true), 1)?;
-    send(conn.get_mut(), &msg(true, true), 1)
+    check_peer_creds(&conn)?;
+    conn.set_nonblocking(true).opname("set_nonblocking(true)")?;
+    conn.set_nonblocking(false).opname("set_nonblocking(false)")?;
+    let mut rx = BufReader::new(&conn);
+    let mut tx = &conn;
+    fork(|| recv(&mut rx, &msg(false, false), 0), || send(&mut tx, &msg(true, false), 0))?;
+    fork(|| recv(&mut rx, &msg(false, true), 1), || send(&mut tx, &msg(true, true), 1))?;
+    Ok(())
 }
 
 pub fn client(name: &Name<'_>) -> TestResult {
-    let mut conn = Stream::connect(name.borrow()).opname("connect").map(BufReader::new)?;
-    conn.get_ref().set_nonblocking(true).opname("set_nonblocking(true)")?;
-    conn.get_ref().set_nonblocking(false).opname("set_nonblocking(false)")?;
-    send(conn.get_mut(), &msg(false, false), 0)?;
-    recv(&mut conn, &msg(true, false), 0)?;
-    send(conn.get_mut(), &msg(false, true), 1)?;
-    recv(&mut conn, &msg(true, true), 1)
+    let conn = Stream::connect(name.borrow()).opname("connect")?;
+    check_peer_creds(&conn)?;
+    let mut rx = BufReader::new(&conn);
+    let mut tx = &conn;
+    conn.set_nonblocking(true).opname("set_nonblocking(true)")?;
+    conn.set_nonblocking(false).opname("set_nonblocking(false)")?;
+    fork(|| recv(&mut rx, &msg(true, false), 0), || send(&mut tx, &msg(false, false), 0))?;
+    fork(|| send(&mut tx, &msg(false, true), 1), || recv(&mut rx, &msg(true, true), 1))?;
+    Ok(())
 }
 
 fn recv(conn: &mut dyn BufRead, exp: &str, nr: u8) -> TestResult {

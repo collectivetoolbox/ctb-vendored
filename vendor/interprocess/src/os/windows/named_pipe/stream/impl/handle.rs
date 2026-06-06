@@ -13,7 +13,7 @@ derive_asraw!(RawPipeStream);
 
 impl RawPipeStream {
     fn from_handle_given_flags(handle: OwnedHandle, flags: u32) -> Self {
-        Self::new(FileHandle::from(handle), flags & PIPE_SERVER_END != 0, NeedsFlushVal::Once)
+        Self::new(handle, flags & PIPE_SERVER_END != 0, NeedsFlushVal::Once)
     }
 }
 
@@ -29,7 +29,7 @@ impl TryFrom<OwnedHandle> for RawPipeStream {
     type Error = FromHandleError;
 
     fn try_from(handle: OwnedHandle) -> Result<Self, Self::Error> {
-        let flags = match c_wrappers::get_flags(handle.as_handle()) {
+        let flags = match np_wrappers::get_flags(handle.as_handle()) {
             Ok(f) => f,
             Err(e) => return Err(is_server_check_failed_error(e, handle)),
         };
@@ -67,8 +67,8 @@ impl<Rm: PipeModeTag, Sm: PipeModeTag> TryFrom<PipeStream<Rm, Sm>> for OwnedHand
 /// server-side pipe and whether it has message boundaries.
 impl<Rm: PipeModeTag, Sm: PipeModeTag> TryFrom<OwnedHandle> for PipeStream<Rm, Sm> {
     type Error = FromHandleError;
-    fn try_from(handle: OwnedHandle) -> Result<Self, Self::Error> {
-        let flags = match c_wrappers::get_flags(handle.as_handle()) {
+    fn try_from(mut handle: OwnedHandle) -> Result<Self, Self::Error> {
+        let flags = match np_wrappers::get_flags(handle.as_handle()) {
             Ok(f) => f,
             Err(e) => return Err(is_server_check_failed_error(e, handle)),
         };
@@ -81,6 +81,10 @@ impl<Rm: PipeModeTag, Sm: PipeModeTag> TryFrom<OwnedHandle> for PipeStream<Rm, S
                 source: Some(handle),
             });
         }
+        // FUTURE pass this unlikely error up to the caller
+        if let Ok(h) = np_wrappers::reopen_overlapped(handle.as_handle(), Rm::MODE, Sm::MODE) {
+            handle = h;
+        }
         Ok(Self::new(RawPipeStream::from_handle_given_flags(handle, flags)))
     }
 }
@@ -88,15 +92,15 @@ impl<Rm: PipeModeTag, Sm: PipeModeTag> TryFrom<OwnedHandle> for PipeStream<Rm, S
 impl<Rm: PipeModeTag, Sm: PipeModeTag> TryClone for PipeStream<Rm, Sm> {
     fn try_clone(&self) -> io::Result<Self> {
         let handle = duplicate_handle(self.as_handle())?;
-        self.raw.needs_flush.on_clone();
-        let new = RawPipeStream::new(handle.into(), self.is_server(), NeedsFlushVal::Always);
+        self.raw.get().needs_flush.on_clone();
+        let new = RawPipeStream::new(handle, self.is_server(), NeedsFlushVal::Always);
         Ok(Self::new(new))
     }
 }
 
 impl<Rm: PipeModeTag, Sm: PipeModeTag> AsHandle for PipeStream<Rm, Sm> {
     #[inline]
-    fn as_handle(&self) -> BorrowedHandle<'_> { self.raw.as_handle() }
+    fn as_handle(&self) -> BorrowedHandle<'_> { self.raw.get().as_handle() }
 }
 
 derive_asraw!({Rm: PipeModeTag, Sm: PipeModeTag} PipeStream<Rm, Sm>, windows);

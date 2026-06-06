@@ -11,8 +11,9 @@
 
 [package]
 edition = "2021"
+rust-version = "1.85"
 name = "lnk"
-version = "0.6.3"
+version = "0.6.4"
 authors = [
     "Lily Hopkins <lily@hpkns.uk>",
     "Simon Buchan <simon.buchan.nz@gmail.com>",

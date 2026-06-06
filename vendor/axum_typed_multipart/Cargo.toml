@@ -12,7 +12,7 @@
 [package]
 edition = "2021"
 name = "axum_typed_multipart"
-version = "0.16.5"
+version = "0.16.6"
 authors = ["Lorenzo Murarotto <lnzmrr@gmail.com>"]
 build = false
 autolib = false
@@ -90,7 +90,7 @@ features = ["multipart"]
 default-features = false
 
 [dependencies.axum_typed_multipart_macros]
-version = "0.16.5"
+version = "0.16.6"
 
 [dependencies.bytes]
 version = "1.7.1"
@@ -141,7 +141,7 @@ default-features = true
 version = "0.12.12"
 
 [dev-dependencies.serde]
-version = "1.0.193"
+version = "1.0.194"
 features = ["derive"]
 
 [dev-dependencies.tokio]

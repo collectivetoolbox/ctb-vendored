@@ -10,10 +10,10 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
-edition = "2021"
+edition = "2024"
 rust-version = "1.85"
 name = "handlebars"
-version = "6.4.0"
+version = "6.4.1"
 authors = ["Ning Sun <sunng@pm.me>"]
 build = false
 autolib = false
@@ -61,10 +61,6 @@ string_helpers = ["heck"]
 [lib]
 name = "handlebars"
 path = "src/lib.rs"
-
-[[bin]]
-name = "handlebars-cli"
-path = "src/cli.rs"
 
 [[example]]
 name = "block_helper_macro_let"
@@ -138,6 +134,10 @@ path = "tests/helper_with_space.rs"
 [[test]]
 name = "root_var"
 path = "tests/root_var.rs"
+
+[[test]]
+name = "scoped_inline"
+path = "tests/scoped_inline.rs"
 
 [[test]]
 name = "subexpression"
@@ -214,7 +214,7 @@ version = "1.0.75"
 version = "3.0.0"
 
 [dev-dependencies.time]
-version = "0.3.7"
+version = "0.3.47"
 features = [
     "serde",
     "formatting",

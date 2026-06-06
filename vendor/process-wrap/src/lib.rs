@@ -4,7 +4,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! process-wrap = { version = "9.0.1", features = ["std"] }
+//! process-wrap = { version = "9.1.0", features = ["std"] }
 //! ```
 //!
 //! ```rust,no_run
@@ -454,7 +454,7 @@
 //!
 #![doc(html_favicon_url = "https://watchexec.github.io/logo:command-group.svg")]
 #![doc(html_logo_url = "https://watchexec.github.io/logo:command-group.svg")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
 
 pub(crate) mod generic_wrap;

@@ -64,6 +64,13 @@ impl f64x2 {
   const_f64_as_f64x2!(ONE, 1.0);
   const_f64_as_f64x2!(ZERO, 0.0);
   const_f64_as_f64x2!(HALF, 0.5);
+  const_f64_as_f64x2!(EPSILON, f64::EPSILON);
+  const_f64_as_f64x2!(MIN, f64::MIN);
+  const_f64_as_f64x2!(MIN_POSITIVE, f64::MIN_POSITIVE);
+  const_f64_as_f64x2!(MAX, f64::MAX);
+  const_f64_as_f64x2!(NAN, f64::NAN);
+  const_f64_as_f64x2!(INFINITY, f64::INFINITY);
+  const_f64_as_f64x2!(NEG_INFINITY, f64::NEG_INFINITY);
   const_f64_as_f64x2!(E, core::f64::consts::E);
   const_f64_as_f64x2!(FRAC_1_PI, core::f64::consts::FRAC_1_PI);
   const_f64_as_f64x2!(FRAC_2_PI, core::f64::consts::FRAC_2_PI);
@@ -176,6 +183,17 @@ impl Div for f64x2 {
   }
 }
 
+impl Rem for f64x2 {
+  type Output = Self;
+  #[inline]
+  fn rem(self, rhs: Self) -> Self::Output {
+    Self::new([
+      self.to_array()[0] % rhs.to_array()[0],
+      self.to_array()[1] % rhs.to_array()[1],
+    ])
+  }
+}
+
 impl Neg for f64x2 {
   type Output = Self;
   #[inline]
@@ -229,6 +247,14 @@ impl Div<f64> for f64x2 {
   }
 }
 
+impl Rem<f64> for f64x2 {
+  type Output = Self;
+  #[inline]
+  fn rem(self, rhs: f64) -> Self::Output {
+    self.rem(Self::splat(rhs))
+  }
+}
+
 impl Add<f64x2> for f64 {
   type Output = f64x2;
   #[inline]
@@ -258,6 +284,14 @@ impl Div<f64x2> for f64 {
   #[inline]
   fn div(self, rhs: f64x2) -> Self::Output {
     f64x2::splat(self).div(rhs)
+  }
+}
+
+impl Rem<f64x2> for f64 {
+  type Output = f64x2;
+  #[inline]
+  fn rem(self, rhs: f64x2) -> Self::Output {
+    f64x2::splat(self).rem(rhs)
   }
 }
 
@@ -324,6 +358,7 @@ impl BitXor for f64x2 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpEq for f64x2 {
   type Output = Self;
   #[inline]
@@ -345,6 +380,7 @@ impl CmpEq for f64x2 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpGe for f64x2 {
   type Output = Self;
   #[inline]
@@ -366,6 +402,7 @@ impl CmpGe for f64x2 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpGt for f64x2 {
   type Output = Self;
   #[inline]
@@ -389,6 +426,7 @@ impl CmpGt for f64x2 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpNe for f64x2 {
   type Output = Self;
   #[inline]
@@ -410,6 +448,7 @@ impl CmpNe for f64x2 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpLe for f64x2 {
   type Output = Self;
   #[inline]
@@ -431,6 +470,7 @@ impl CmpLe for f64x2 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpLt for f64x2 {
   type Output = Self;
   #[inline]
@@ -458,6 +498,9 @@ impl f64x2 {
   pub const fn new(array: [f64; 2]) -> Self {
     unsafe { core::mem::transmute(array) }
   }
+
+  simd_comparison_fns!();
+
   #[inline]
   #[must_use]
   pub fn blend(self, t: Self, f: Self) -> Self {
@@ -466,6 +509,8 @@ impl f64x2 {
         Self { sse: blend_varying_m128d(f.sse, t.sse, self.sse) }
       } else if #[cfg(target_feature="simd128")] {
         Self { simd: v128_bitselect(t.simd, f.simd, self.simd) }
+      } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
+        unsafe {Self { neon: vbslq_f64(vreinterpretq_u64_f64(self.neon), t.neon, f.neon) }}
       } else {
         generic_bit_blend(self, t, f)
       }
@@ -485,6 +530,15 @@ impl f64x2 {
       }
     }
   }
+
+  #[inline]
+  #[must_use]
+  pub fn signum(self) -> Self {
+    let result = Self::ONE | self & -Self::ZERO;
+
+    self.is_nan().blend(self, result)
+  }
+
   #[inline]
   #[must_use]
   pub fn floor(self) -> Self {
@@ -584,7 +638,7 @@ impl f64x2 {
         }
       } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
         unsafe {Self { neon: vmaxnmq_f64(self.neon, rhs.neon) }}
-            } else {
+      } else {
         Self { arr: [
           self.arr[0].max(rhs.arr[0]),
           self.arr[1].max(rhs.arr[1]),
@@ -654,6 +708,53 @@ impl f64x2 {
     }
   }
 
+  /// Restrict a value to a certain interval unless it is NaN.
+  ///
+  /// If `self` is NaN, or `min` is NaN, or `max` is NaN, the result is NaN.
+  /// If `min > max`, the result is `min`, since `fast_max(min)` dominates.
+  #[inline]
+  #[must_use]
+  pub fn clamp(self, min: Self, max: Self) -> Self {
+    let is_nan = self.is_nan() | min.is_nan() | max.is_nan();
+    let clamped = self.fast_min(max).fast_max(min);
+    is_nan.blend(Self::splat(f64::NAN), clamped)
+  }
+
+  /// Restrict a value to a certain interval unless it is NaN.
+  ///
+  /// Avoids NaN detection; same speed as the old `clamp` prior to IEEE 754-2019
+  /// compliance. Does not specify any
+  /// behavior if NaNs are involved, and if `min > max` the result is
+  /// unspecified.
+  #[inline]
+  #[must_use]
+  pub fn fast_clamp(self, min: Self, max: Self) -> Self {
+    pick! {
+      if #[cfg(target_feature="sse2")] {
+        // For both `min_m128d` and `max_m128d` if any input is NaN, `rhs` gets
+        // chosen. For `self` to be chosen, `self` must be the second argument.
+        Self { sse: min_m128d(max.sse, max_m128d(min.sse, self.sse)) }
+      } else if #[cfg(target_feature="simd128")] {
+        Self { simd: f64x2_min(f64x2_max(self.simd, min.simd), max.simd) }
+      } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))] {
+        unsafe { Self { neon: vminq_f64(vmaxq_f64(self.neon, min.neon), max.neon) } }
+      } else {
+        // The standard library does not have NaN propagating `min` and `max`
+        // functions.
+        let mut result = self;
+        result = result.simd_lt(min).blend(min, self);
+        result = result.simd_gt(max).blend(max, self);
+        result
+      }
+    }
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn midpoint(self, other: Self) -> Self {
+    (self + other) * 0.5
+  }
+
   #[inline]
   #[must_use]
   pub fn is_nan(self) -> Self {
@@ -700,20 +801,152 @@ impl f64x2 {
       } else if #[cfg(target_feature="simd128")] {
         Self { simd: f64x2_nearest(self.simd) }
       } else {
-        let sign_mask = f64x2::from(-0.0);
-        let magic = f64x2::from(f64::from_bits(0x43300000_00000000));
-        let sign = self & sign_mask;
-        let signed_magic = magic | sign;
-        self + signed_magic - signed_magic
+        const SIGN_MASK: f64x2 = f64x2::splat(-0.0);
+        const MAGIC_VALUE: f64x2 = f64x2::splat(f64::from_bits(0x43300000_00000000));
+
+        let self_sign = self & SIGN_MASK;
+        let magic_value = MAGIC_VALUE | self_sign;
+        let result = self + magic_value - magic_value;
+
+        let bounds_mask = self.abs().simd_le(MAGIC_VALUE);
+        bounds_mask.abs().blend(result, self)
       }
     }
   }
+
+  #[inline]
+  #[must_use]
+  pub fn fast_round_int(self) -> i64x2 {
+    pick! {
+      if #[cfg(all(target_feature="avx512dq", target_feature="avx512vl"))] {
+        #[cfg(target_arch = "x86")]
+        use core::arch::x86::_mm_cvtpd_epi64;
+        #[cfg(target_arch = "x86_64")]
+        use core::arch::x86_64::_mm_cvtpd_epi64;
+
+        // TODO(safe_arch): Add `_mm_cvtpd_epi64`.
+        cast(m128i(unsafe { _mm_cvtpd_epi64(self.sse.0) }))
+      } else {
+        self.round_int()
+      }
+    }
+  }
+
   #[inline]
   #[must_use]
   pub fn round_int(self) -> i64x2 {
-    let rounded: [f64; 2] = cast(self.round());
-    cast([rounded[0] as i64, rounded[1] as i64])
+    pick! {
+      if #[cfg(all(target_feature="avx512dq", target_feature="avx512vl"))] {
+        #[cfg(target_arch = "x86")]
+        use core::arch::x86::_mm_cvtpd_epi64;
+        #[cfg(target_arch = "x86_64")]
+        use core::arch::x86_64::_mm_cvtpd_epi64;
+
+        // Based on: https://github.com/v8/v8/blob/210987a552a2bf2a854b0baa9588a5959ff3979d/src/codegen/shared-ia32-x64/macro-assembler-shared-ia32-x64.h#L489-L504
+        let non_nan_mask = self.simd_eq(self);
+        let non_nan = self & non_nan_mask;
+        let flip_to_max: i64x2 = cast(self.simd_ge(Self::splat(9223372036854775808.0)));
+
+        // TODO(safe_arch): Add `_mm_cvtpd_epi64`.
+        let cast: i64x2 = cast(m128i(unsafe { _mm_cvtpd_epi64(non_nan.sse.0) }));
+        flip_to_max ^ cast
+      } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
+        cast(Self { neon: unsafe { vreinterpretq_f64_s64(vcvtnq_s64_f64(self.neon)) } })
+      } else {
+        let rounded: [f64; 2] = cast(self.round());
+        cast([rounded[0] as i64, rounded[1] as i64])
+      }
+    }
   }
+
+  #[inline]
+  #[must_use]
+  pub fn trunc(self) -> Self {
+    pick! {
+      if #[cfg(target_feature="sse4.1")] {
+        Self { sse: round_m128d::<{round_op!(Zero)}>(self.sse) }
+      } else if #[cfg(target_feature="simd128")] {
+        Self { simd: f64x2_trunc(self.simd) }
+      } else {
+        // There does not seem to be an SSE2 intrinsic for this.
+        // `truncate_m128d_to_m128i` truncates to `i32` values which cannot
+        // represent all possible outputs.
+
+        let array: [f64; 2] = cast(self);
+        let result: Self = cast([
+          array[0] as i64 as f64,
+          array[1] as i64 as f64,
+        ]);
+
+        // Out of range values are either already round, infinite or NaN. Values
+        // in range can all be represented by `i64`.
+        const BOUNDS_LIMIT: i64 = 18e15_f64.to_bits().cast_signed();
+        let bounds_mask: Self = cast(cast::<f64x2, i64x2>(self.abs()).simd_lt(i64x2::splat(BOUNDS_LIMIT)));
+
+        // Reset the sign bit of the mask to preverse the sign of `self`.
+        bounds_mask.abs().blend(result, self)
+      }
+    }
+  }
+
+  /// Truncates each lane into an integer. This is a faster implementation than
+  /// `trunc_int`, but it doesn't handle out of range values or NaNs. For those
+  /// values you get implementation defined behavior.
+  #[inline]
+  #[must_use]
+  pub fn fast_trunc_int(self) -> i64x2 {
+    pick! {
+      if #[cfg(all(target_feature="avx512dq", target_feature="avx512vl"))] {
+        #[cfg(target_arch = "x86")]
+        use core::arch::x86::_mm_cvttpd_epi64;
+        #[cfg(target_arch = "x86_64")]
+        use core::arch::x86_64::_mm_cvttpd_epi64;
+
+        // TODO(safe_arch): Add `_mm_cvttpd_epi64`.
+        cast(m128i(unsafe { _mm_cvttpd_epi64(self.sse.0) }))
+      } else {
+        self.trunc_int()
+      }
+    }
+  }
+
+  /// Truncates each lane into an integer. This saturates out of range values
+  /// and turns NaNs into 0. Use `fast_trunc_int` for a faster implementation
+  /// that doesn't handle out of range values or NaNs.
+  #[inline]
+  #[must_use]
+  pub fn trunc_int(self) -> i64x2 {
+    pick! {
+      if #[cfg(all(target_feature="avx512dq", target_feature="avx512vl"))] {
+        #[cfg(target_arch = "x86")]
+        use core::arch::x86::_mm_cvttpd_epi64;
+        #[cfg(target_arch = "x86_64")]
+        use core::arch::x86_64::_mm_cvttpd_epi64;
+
+        // Based on: https://github.com/v8/v8/blob/210987a552a2bf2a854b0baa9588a5959ff3979d/src/codegen/shared-ia32-x64/macro-assembler-shared-ia32-x64.h#L489-L504
+        let non_nan_mask = self.simd_eq(self);
+        let non_nan = self & non_nan_mask;
+        let flip_to_max: i64x2 = cast(self.simd_ge(Self::splat(9223372036854775808.0)));
+
+        // TODO(safe_arch): Add `_mm_cvttpd_epi64`.
+        let cast: i64x2 = cast(m128i(unsafe { _mm_cvttpd_epi64(non_nan.sse.0) }));
+        flip_to_max ^ cast
+      } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
+        cast(Self { neon: unsafe { vreinterpretq_f64_s64(vcvtq_s64_f64(self.neon)) } })
+      } else {
+        // There does not seem to be an intrinsic for `wasm32`.
+        let n: [f64;2] = cast(self);
+        cast([n[0] as i64, n[1] as i64])
+      }
+    }
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn fract(self) -> Self {
+    self - self.trunc()
+  }
+
   /// Performs a multiply-add operation: `self * m + a`
   ///
   /// When hardware FMA support is available, this computes the result with a
@@ -866,6 +1099,22 @@ impl f64x2 {
           -(self * m) - s
         }
     }
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn div_euclid(self, rhs: Self) -> Self {
+    let q = (self / rhs).trunc();
+    (self % rhs)
+      .simd_lt(Self::ZERO)
+      .blend(rhs.simd_gt(Self::ZERO).blend(q - Self::ONE, q + Self::ONE), q)
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn rem_euclid(self, rhs: Self) -> Self {
+    let r = self % rhs;
+    r.simd_lt(Self::ZERO).blend(r + rhs.abs(), r)
   }
 
   #[inline]
@@ -1195,7 +1444,7 @@ impl f64x2 {
     re += s + fac;
 
     // get sign bit
-    re = (self.sign_bit()).blend(-re, re);
+    re = (self.is_sign_negative()).blend(-re, re);
 
     re
   }
@@ -1272,10 +1521,10 @@ impl f64x2 {
     // move back in place
     re = swapxy.blend(Self::FRAC_PI_2 - re, re);
     re = ((x | y).simd_eq(Self::ZERO)).blend(Self::ZERO, re);
-    re = (x.sign_bit()).blend(Self::PI - re, re);
+    re = (x.is_sign_negative()).blend(Self::PI - re, re);
 
     // get sign bit
-    re = (y.sign_bit()).blend(-re, re);
+    re = (y.is_sign_negative()).blend(-re, re);
 
     re
   }
@@ -1337,7 +1586,13 @@ impl f64x2 {
     let sign_cos: i64x2 = ((q + i64x2::from(1)) & i64x2::from(2)) << 62;
     cos1 ^= cast::<_, f64x2>(sign_cos);
 
-    (sin1, cos1)
+    // IEEE 754: sin/cos(±∞) = NaN, sin/cos(NaN) = NaN
+    let finite = self.is_finite();
+    let nan = Self::splat(f64::NAN);
+    let sin_final = finite.blend(sin1, nan);
+    let cos_final = finite.blend(cos1, nan);
+
+    (sin_final, cos_final)
   }
   #[inline]
   #[must_use]
@@ -1357,6 +1612,141 @@ impl f64x2 {
     let (s, c) = self.sin_cos();
     s / c
   }
+
+  /// Calculates hyperbolic sine: `(e^self - e^(-self))/2`.
+  #[inline]
+  #[must_use]
+  pub fn sinh(self) -> Self {
+    const_f64_as_f64x2!(P0, 1.0);
+    const_f64_as_f64x2!(P1, 1.0 / 6.0);
+    const_f64_as_f64x2!(P2, 1.0 / 120.0);
+    const_f64_as_f64x2!(P3, 1.0 / 5040.0);
+    const_f64_as_f64x2!(P4, 1.0 / 362880.0);
+    const_f64_as_f64x2!(P5, 1.0 / 39916800.0);
+    const_f64_as_f64x2!(P6, 1.0 / 6227020800.0);
+    let a = self.abs();
+    // |x| < 0.5: Taylor poly; last truncation term < 1 ULP at x=0.5 for both types
+    let small = a.simd_lt(f64x2::from(0.5));
+    let t = a * a;
+    let poly = a * polynomial_6!(t, P0, P1, P2, P3, P4, P5, P6);
+    let exp_based = {
+      let e = a.exp();
+      (e - Self::ONE / e) * Self::HALF
+    };
+    let result = small.blend(poly, exp_based);
+    result.flip_signs(self)
+  }
+
+  /// Calculates hyperbolic cosine: `(e^self + e^(-self))/2`.
+  #[inline]
+  #[must_use]
+  pub fn cosh(self) -> Self {
+    const_f64_as_f64x2!(P0, 1.0);
+    const_f64_as_f64x2!(P1, 1.0 / 2.0);
+    const_f64_as_f64x2!(P2, 1.0 / 24.0);
+    const_f64_as_f64x2!(P3, 1.0 / 720.0);
+    const_f64_as_f64x2!(P4, 1.0 / 40320.0);
+    const_f64_as_f64x2!(P5, 1.0 / 3628800.0);
+    const_f64_as_f64x2!(P6, 1.0 / 479001600.0);
+    const_f64_as_f64x2!(P7, 1.0 / 87178291200.0);
+    let a = self.abs();
+    // |x| < 0.5: Taylor poly; last truncation term < 1 ULP at x=0.5 for both types
+    let small = a.simd_lt(f64x2::from(0.5));
+    let t = a * a;
+    let poly = polynomial_7!(t, P0, P1, P2, P3, P4, P5, P6, P7);
+    let exp_based = {
+      let e = a.exp();
+      (e + Self::ONE / e) * Self::HALF
+    };
+    small.blend(poly, exp_based)
+  }
+
+  /// Calculates hyperbolic tangent: `sinh(self)/cosh(self)`.
+  #[inline]
+  #[must_use]
+  pub fn tanh(self) -> Self {
+    // |x| < 5e-8: tanh(x) ≈ x, error x³/3 < 16·ULP(x)
+    // bound: x² < 48·2⁻⁵² → x < 1.03e-7; 5e-8 has 2× margin
+    // |x| > 19.062: tanh(x) = ±1 to f64 precision (e⁻²ˣ < 2⁻⁵⁴)
+    let a = self.abs();
+    let large = a.simd_gt(f64x2::from(19.062));
+    if large.all() {
+      return Self::ONE.flip_signs(self);
+    }
+    let small = a.simd_lt(f64x2::from(5e-8));
+    let exp_based = {
+      let t = (Self::from(-2.0) * a).exp_m1();
+      let pos = -t / (t + Self::from(2.0));
+      pos.flip_signs(self)
+    };
+    let result = small.blend(self, exp_based);
+    large.blend(Self::ONE.flip_signs(self), result)
+  }
+
+  /// Calculates the cube root: `self^(1/3)`.
+  #[inline]
+  #[must_use]
+  pub fn cbrt(self) -> Self {
+    let a = self.abs();
+    let zero = a.simd_eq(Self::ZERO);
+    if zero.all() {
+      return self; // preserves -0.0
+    }
+    let inf = a.is_inf();
+    let nan = self.is_nan();
+
+    const SUBN_SCALE: f64 = 1.8014398509481984e16;
+    const SUBN_CBRT: f64 = 262144.0;
+    let tiny = a.simd_lt(Self::from(f64::MIN_POSITIVE));
+    let a = tiny.blend(a * Self::from(SUBN_SCALE), a);
+
+    let e = Self::exponent(a) + Self::ONE;
+    let d = Self::fraction_2(a);
+
+    // C0..C5 from SLEEF's minimax polynomial for 1/cbrt(d) on [0.5, 1.0)
+    // Naoki Shibata et al., "SLEEF: A Portable Vectorized Library of C99
+    // Mathematical Functions", https://sleef.org / https://github.com/shibatch/sleef
+    // Licensed under the Boost Software License 1.0.
+    const_f64_as_f64x2!(C0, 2.2307275302496609725722);
+    const_f64_as_f64x2!(C1, -3.85841935510444988821632);
+    const_f64_as_f64x2!(C2, 6.03990368989458747961407);
+    const_f64_as_f64x2!(C3, -5.73353060922947843636166);
+    const_f64_as_f64x2!(C4, 2.96155103020039511818595);
+    const_f64_as_f64x2!(C5, -0.640245898480692909870982);
+    let mut x = polynomial_5!(d, C0, C1, C2, C3, C4, C5);
+
+    // Newton for 1/cbrt: x = x - (d * x^4 - x) / 3.
+    let x2 = x * x;
+    let x4 = x2 * x2;
+    x = x - d.mul_add(x4, -x) * Self::from(1.0 / 3.0);
+
+    // cbrt(d) = d * x^2, then polish
+    let mut y = (d * x) * x;
+    let yx = y * x;
+    let t = Self::from(2.0 / 3.0);
+    y = y - t * y * (yx - Self::ONE);
+
+    // Scale by 2^(e/3) = 2^k * 2^(r/3)
+    let three = Self::from(3.0);
+    let two = Self::from(2.0);
+    let neg = e.simd_lt(Self::ZERO);
+    let e_adj = neg.blend(e - two, e);
+    let k = (e_adj / three).trunc();
+    let r = e - three * k;
+    const_f64_as_f64x2!(CBRT2, 1.2599210498948732);
+    const_f64_as_f64x2!(CBRT4, 1.5874010519681994);
+    y = r.simd_eq(Self::ONE).blend(y * CBRT2, y);
+    y = r.simd_eq(two).blend(y * CBRT4, y);
+    y *= Self::vm_pow2n(k);
+    y = tiny.blend(y / Self::from(SUBN_CBRT), y);
+
+    let result = y.flip_signs(self);
+    let result = nan.blend(self, result);
+    let result = zero.blend(self, result);
+    let result = inf.blend(self, result);
+    result
+  }
+
   #[inline]
   #[must_use]
   pub fn to_degrees(self) -> Self {
@@ -1369,6 +1759,23 @@ impl f64x2 {
     const_f64_as_f64x2!(DEG_TO_RAD_RATIO, core::f64::consts::PI / 180.0_f64);
     self * DEG_TO_RAD_RATIO
   }
+
+  #[inline]
+  #[must_use]
+  pub fn recip(self) -> Self {
+    // There does not seem to be a `recip` intrinsic for any architecture. The
+    // closest is `_mm_rcp14_pd` which has relative error.
+    Self::ONE / self
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn recip_sqrt(self) -> Self {
+    // There does not seem to be a `recip_sqrt` intrinsic for any architecture.
+    // The closest is `_mm_rsqrt14_pd` which has relative error.
+    Self::ONE / self.sqrt()
+  }
+
   #[inline]
   #[must_use]
   pub fn sqrt(self) -> Self {
@@ -1394,6 +1801,7 @@ impl f64x2 {
   }
   #[inline]
   #[must_use]
+  #[doc(alias("movemask", "move_mask"))]
   pub fn to_bitmask(self) -> u32 {
     pick! {
       if #[cfg(target_feature="sse2")] {
@@ -1448,7 +1856,22 @@ impl f64x2 {
     const_f64_as_f64x2!(bias, 1023.0);
     let a = self + (bias + pow2_52);
     let c = cast::<_, i64x2>(a) << 52;
-    cast::<_, f64x2>(c)
+    let std_result = cast::<_, f64x2>(c);
+
+    let min_exp = f64x2::from(-1022.0);
+    let is_sub = self.simd_lt(min_exp);
+    if is_sub.any() {
+      let valid = self.simd_ge(f64x2::from(-1074.0));
+      let shift_f = self + f64x2::from(1074.0);
+      let mut shift_i = shift_f.trunc_int();
+      shift_i = cast::<_, i64x2>(valid).blend(shift_i, i64x2::ZERO);
+      let mantissa = i64x2::ONE << shift_i;
+      let sub_result = cast::<_, f64x2>(mantissa);
+      let sub_result = valid.blend(sub_result, f64x2::ZERO);
+      is_sub.blend(sub_result, std_result)
+    } else {
+      std_result
+    }
   }
 
   /// Calculate the exponent of a packed `f64x2`
@@ -1457,30 +1880,171 @@ impl f64x2 {
   pub fn exp(self) -> Self {
     const_f64_as_f64x2!(P2, 1.0 / 2.0);
     const_f64_as_f64x2!(P3, 1.0 / 6.0);
-    const_f64_as_f64x2!(P4, 1. / 24.);
-    const_f64_as_f64x2!(P5, 1. / 120.);
-    const_f64_as_f64x2!(P6, 1. / 720.);
-    const_f64_as_f64x2!(P7, 1. / 5040.);
-    const_f64_as_f64x2!(P8, 1. / 40320.);
-    const_f64_as_f64x2!(P9, 1. / 362880.);
-    const_f64_as_f64x2!(P10, 1. / 3628800.);
-    const_f64_as_f64x2!(P11, 1. / 39916800.);
-    const_f64_as_f64x2!(P12, 1. / 479001600.);
-    const_f64_as_f64x2!(P13, 1. / 6227020800.);
+    const_f64_as_f64x2!(P4, 1.0 / 24.0);
+    const_f64_as_f64x2!(P5, 1.0 / 120.0);
+    const_f64_as_f64x2!(P6, 1.0 / 720.0);
+    const_f64_as_f64x2!(P7, 1.0 / 5040.0);
+    const_f64_as_f64x2!(P8, 1.0 / 40320.0);
+    const_f64_as_f64x2!(P9, 1.0 / 362880.0);
+    const_f64_as_f64x2!(P10, 1.0 / 3628800.0);
+    const_f64_as_f64x2!(P11, 1.0 / 39916800.0);
+    const_f64_as_f64x2!(P12, 1.0 / 479001600.0);
+    const_f64_as_f64x2!(P13, 1.0 / 6227020800.0);
+    // LN2D_HI/LO: double-double decomposition of ln(2) for exp range reduction,
+    // following fdlibm's approach (Sun Microsystems, https://www.netlib.org/fdlibm/ e_exp.c).
+    // Values chosen so LN2D_HI + LN2D_LO = ln(2) to full f64 precision.
     const_f64_as_f64x2!(LN2D_HI, 0.693145751953125);
     const_f64_as_f64x2!(LN2D_LO, 1.42860682030941723212E-6);
-    let max_x = f64x2::from(708.39);
+    let max_x = f64x2::from(709.783);
+    let min_x = f64x2::from(-744.79);
+    let finite = self.is_finite();
+    // x < min_x: e^x underflows to 0 -- skip the entire pipeline
+    let neg_underflow = self.simd_lt(min_x) & finite;
+    if neg_underflow.all() {
+      return Self::ZERO;
+    }
+    let max_r = f64x2::from(1023.0);
     let r = (self * Self::LOG2_E).round();
+    let big = r.simd_gt(max_r);
+    let r_safe = big.blend(max_r, r);
+    let excess = r - max_r;
+    let excess = big.blend(excess, Self::ZERO);
+    let scale = Self::vm_pow2n(excess);
     let x = r.mul_neg_add(LN2D_HI, self);
     let x = r.mul_neg_add(LN2D_LO, x);
     let z =
       polynomial_13!(x, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13);
-    let n2 = Self::vm_pow2n(r);
-    let z = (z + Self::ONE) * n2;
-    // check for overflow
-    let in_range = self.abs().simd_lt(max_x);
-    let in_range = in_range & self.is_finite();
-    in_range.blend(z, Self::ZERO)
+    let n2 = Self::vm_pow2n(r_safe);
+    let z = (z + Self::ONE) * scale * n2;
+    let nan_mask = self.is_nan();
+    let mut result = nan_mask.blend(Self::nan_pow(), z);
+    let pos_overflow = self.simd_gt(max_x) & finite;
+    result = pos_overflow.blend(Self::infinity(), result);
+    result = neg_underflow.blend(Self::ZERO, result);
+    let pos_inf = !finite & !self.is_sign_negative() & !nan_mask;
+    result = pos_inf.blend(Self::infinity(), result);
+    let neg_inf = !finite & self.is_sign_negative() & !nan_mask;
+    result = neg_inf.blend(Self::ZERO, result);
+    result
+  }
+
+  /// Calculate `e^self - 1` for each lane.
+  /// Accurate even for very small values.
+  #[inline]
+  #[must_use]
+  pub fn exp_m1(self) -> Self {
+    const_f64_as_f64x2!(P2, 1.0 / 2.0);
+    const_f64_as_f64x2!(P3, 1.0 / 6.0);
+    const_f64_as_f64x2!(P4, 1.0 / 24.0);
+    const_f64_as_f64x2!(P5, 1.0 / 120.0);
+    const_f64_as_f64x2!(P6, 1.0 / 720.0);
+    const_f64_as_f64x2!(P7, 1.0 / 5040.0);
+    const_f64_as_f64x2!(P8, 1.0 / 40320.0);
+    const_f64_as_f64x2!(P9, 1.0 / 362880.0);
+    const_f64_as_f64x2!(P10, 1.0 / 3628800.0);
+    const_f64_as_f64x2!(P11, 1.0 / 39916800.0);
+    const_f64_as_f64x2!(P12, 1.0 / 479001600.0);
+    const_f64_as_f64x2!(P13, 1.0 / 6227020800.0);
+    // LN2D_HI/LO: double-double decomposition of ln(2) for exp range reduction,
+    // following fdlibm's approach (Sun Microsystems, https://www.netlib.org/fdlibm/ e_exp.c).
+    const_f64_as_f64x2!(LN2D_HI, 0.693145751953125);
+    const_f64_as_f64x2!(LN2D_LO, 1.42860682030941723212E-6);
+    // x < -37.429: e^x < 2⁻⁵⁴, exp_m1(x) = -1.0 exactly (mantissa exhaustion)
+    // IEEE simd_lt returns false for NaN, so NaN lanes can't reach here.
+    // -inf is < -37.429, and exp_m1(-inf) = -1.0, also correct.
+    if self.simd_lt(Self::from(-37.429)).all() {
+      return Self::from(-1.0);
+    }
+    // max_x = ln(f64::MAX) ≈ 709.7827129, max_r = 1023 (IEEE max normal
+    // exponent) min_x = -1074.5 ln(2) ≈ -744.79: min r for vm_pow2n to
+    // construct subnormal
+    let max_x = Self::from(709.783);
+    let min_x = Self::from(-744.79);
+    let max_r = Self::from(1023.0);
+    let r = (self * Self::LOG2_E).round();
+    let big = r.simd_gt(max_r);
+    let r_safe = big.blend(max_r, r);
+    let excess = r - max_r;
+    let excess = big.blend(excess, Self::ZERO);
+    let scale = Self::vm_pow2n(excess);
+    let x = r.mul_neg_add(LN2D_HI, self);
+    let x = r.mul_neg_add(LN2D_LO, x);
+    let z =
+      polynomial_13!(x, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13);
+    let n2 = Self::vm_pow2n(r_safe);
+    let exp_val = (z + Self::ONE) * scale * n2;
+    // When r == 0, z is already e^x - 1 from the Taylor poly.
+    // Computing (z+1) - 1 would lose low bits for small x (catastrophic
+    // cancellation at z ~ 0), so keep z directly.
+    let r_is_zero = r.simd_eq(Self::ZERO);
+    let z = r_is_zero.blend(z, exp_val - Self::ONE);
+    let nan_mask = self.is_nan();
+    let finite = self.is_finite();
+    let mut result = nan_mask.blend(Self::nan_pow(), z);
+    let pos_overflow = self.simd_gt(max_x) & finite;
+    result = pos_overflow.blend(Self::infinity(), result);
+    let neg_underflow = self.simd_lt(min_x) & finite;
+    result = neg_underflow.blend(-Self::ONE, result);
+    let pos_inf = !finite & !self.is_sign_negative() & !nan_mask;
+    result = pos_inf.blend(Self::infinity(), result);
+    let neg_inf = !finite & self.is_sign_negative() & !nan_mask;
+    result = neg_inf.blend(-Self::ONE, result);
+    let is_zero = self.simd_eq(Self::ZERO);
+    result = is_zero.blend(self, result);
+    result
+  }
+
+  /// Returns `2^self`.
+  #[inline]
+  #[must_use]
+  pub fn exp2(self) -> Self {
+    const_f64_as_f64x2!(P2, 1.0 / 2.0);
+    const_f64_as_f64x2!(P3, 1.0 / 6.0);
+    const_f64_as_f64x2!(P4, 1.0 / 24.0);
+    const_f64_as_f64x2!(P5, 1.0 / 120.0);
+    const_f64_as_f64x2!(P6, 1.0 / 720.0);
+    const_f64_as_f64x2!(P7, 1.0 / 5040.0);
+    const_f64_as_f64x2!(P8, 1.0 / 40320.0);
+    const_f64_as_f64x2!(P9, 1.0 / 362880.0);
+    const_f64_as_f64x2!(P10, 1.0 / 3628800.0);
+
+    // max_x = log2(f64::MAX) ≈ 1023.9999999999999
+    // min_x = log2(f64::MIN_POSITIVE) - 52 ≈ -1022 - 52 = -1074
+    let max_x = f64x2::from(1023.9999999999999);
+    let min_x = f64x2::from(-1074.5);
+    let finite = self.is_finite();
+    let neg_underflow = self.simd_lt(min_x) & finite;
+    if neg_underflow.all() {
+      return Self::ZERO;
+    }
+
+    let round = self.round();
+    let max_r = f64x2::from(1023.0);
+    let big = round.simd_gt(max_r);
+    let r_safe = big.blend(max_r, round);
+    let excess = round - max_r;
+    let excess = big.blend(excess, Self::ZERO);
+    let scale = Self::vm_pow2n(excess);
+
+    let fract = (self - round) * Self::LN_2;
+    let fract_partial_exp2 =
+      polynomial_8!(fract, P2, P3, P4, P5, P6, P7, P8, P9, P10);
+    let fract2 = fract * fract;
+    let fract_exp2 = fract_partial_exp2.mul_add(fract2, fract) + Self::ONE;
+
+    let n2 = Self::vm_pow2n(r_safe);
+    let result = fract_exp2 * scale * n2;
+
+    let nan_mask = self.is_nan();
+    let mut result = nan_mask.blend(Self::nan_pow(), result);
+    let pos_overflow = self.simd_gt(max_x) & finite;
+    result = pos_overflow.blend(Self::infinity(), result);
+    result = neg_underflow.blend(Self::ZERO, result);
+    let pos_inf = !finite & !self.is_sign_negative() & !nan_mask;
+    result = pos_inf.blend(Self::infinity(), result);
+    let neg_inf = !finite & self.is_sign_negative() & !nan_mask;
+    result = neg_inf.blend(Self::ZERO, result);
+    result
   }
 
   #[inline]
@@ -1508,7 +2072,8 @@ impl f64x2 {
   fn is_zero_or_subnormal(self) -> Self {
     let t = cast::<_, i64x2>(self);
     let t = t & i64x2::splat(0x7FF0000000000000);
-    i64x2::round_float(t.simd_eq(i64x2::splat(0)))
+    let mask = t.simd_eq(i64x2::splat(0));
+    cast::<_, f64x2>(mask)
   }
 
   #[inline]
@@ -1526,11 +2091,50 @@ impl f64x2 {
     cast::<_, f64x2>(i64x2::splat(0x7FF8000000000000 | 0x101 << 29))
   }
 
+  /// Returns true for each element if it has a positive sign, including `+0.0`,
+  /// `NaN`s with positive sign bit and positive infinity.
   #[inline]
-  fn sign_bit(self) -> Self {
-    let t1 = cast::<_, i64x2>(self);
-    let t2 = t1 >> 63;
-    !cast::<_, f64x2>(t2).simd_eq(f64x2::ZERO)
+  #[must_use]
+  pub fn is_sign_positive(self) -> Self {
+    pick! {
+      // Integer equality is slow without `sse4.1`.
+      if #[cfg(any(target_feature = "sse4.1", not(target_feature = "sse2")))] {
+        const SIGN_MASK: u64x2 = u64x2::splat((-0.0_f64).to_bits());
+
+        let bits = cast::<f64x2, u64x2>(self);
+        let sign = bits & SIGN_MASK;
+        let result = sign.simd_eq(u64x2::ZERO);
+        cast::<u64x2, f64x2>(result)
+      } else {
+        let bits = cast::<f64x2, u64x2>(self);
+        let sign = bits >> 63;
+        let sign = cast::<u64x2, f64x2>(sign);
+        sign.simd_eq(f64x2::ZERO)
+      }
+    }
+  }
+
+  /// Returns true for each element if it has a negative sign, including `-0.0`,
+  /// `NaN`s with negative sign bit and negative infinity.
+  #[inline]
+  #[must_use]
+  pub fn is_sign_negative(self) -> Self {
+    pick! {
+      // Integer equality is slow without `sse4.1`.
+      if #[cfg(any(target_feature = "sse4.1", not(target_feature = "sse2")))] {
+        const SIGN_MASK: u64x2 = u64x2::splat((-0.0_f64).to_bits());
+
+        let bits = cast::<f64x2, u64x2>(self);
+        let sign = bits & SIGN_MASK;
+        let result = sign.simd_eq(SIGN_MASK);
+        cast::<u64x2, f64x2>(result)
+      } else {
+        let bits = cast::<f64x2, u64x2>(self);
+        let sign = bits >> 63;
+        let sign = cast::<u64x2, f64x2>(sign);
+        sign.simd_ne(f64x2::ZERO)
+      }
+    }
   }
 
   /// horizontal add of all the elements of the vector
@@ -1552,6 +2156,14 @@ impl f64x2 {
     }
   }
 
+  /// horizontal multiplication of all the elements of the vector
+  #[inline]
+  #[must_use]
+  pub fn reduce_mul(self) -> f64 {
+    let arr: [f64; 2] = cast(self);
+    arr.iter().product()
+  }
+
   #[inline]
   #[must_use]
   pub fn ln(self) -> Self {
@@ -1567,10 +2179,15 @@ impl f64x2 {
     const_f64_as_f64x2!(Q2, 8.29875266912776603211E1);
     const_f64_as_f64x2!(Q3, 4.52279145837532221105E1);
     const_f64_as_f64x2!(Q4, 1.12873587189167450590E1);
-    const_f64_as_f64x2!(LN2F_HI, 0.693359375);
-    const_f64_as_f64x2!(LN2F_LO, -2.12194440e-4);
+    // LN2F_HI/LO from fdlibm (Freely Distributable LIBM)
+    // Sun Microsystems, Inc. https://www.netlib.org/fdlibm/
+    // e_log.c: bit-exact double-double decomposition of ln(2) for f64.
+    // Replaced the original f32-literals (0.693359375, -2.12194440e-4)
+    // which had ~10 significant digits, causing ~630 ULP error in f64 ln.
+    const_f64_as_f64x2!(LN2F_HI, f64::from_bits(0x3FE62E42FEE00000));
+    const_f64_as_f64x2!(LN2F_LO, f64::from_bits(0x3DEA39EF35793C76));
     const_f64_as_f64x2!(VM_SQRT2, 1.414213562373095048801);
-    const_f64_as_f64x2!(VM_SMALLEST_NORMAL, 1.17549435E-38);
+    const_f64_as_f64x2!(VM_SMALLEST_NORMAL, 2.2250738585072014E-308);
 
     let x1 = self;
     let x = Self::fraction_2(x1);
@@ -1595,10 +2212,38 @@ impl f64x2 {
     } else {
       let is_zero = self.is_zero_or_subnormal();
       let res = underflow.blend(Self::nan_log(), res);
-      let res = is_zero.blend(Self::infinity(), res);
+      // Note: is_zero_or_subnormal() lumps subnormals (exponent==0) with zero.
+      // Both get -Inf here. True subnormal inputs (~5e-324..2.225e-308) should
+      // produce a finite negative result, but are vanishingly rare in
+      // practice.
+      let res = is_zero.blend(-Self::infinity(), res);
       let res = overflow.blend(self, res);
+      // This must come *after* overflow.blend to overwrite ln(-∞) = -∞ to NaN
+      let res = (!self.is_finite() & self.is_sign_negative())
+        .blend(Self::nan_log(), res);
       res
     }
+  }
+
+  /// Calculate `ln(1 + self)` for each lane.
+  /// Accurate even for very small values.
+  #[inline]
+  #[must_use]
+  pub fn ln_1p(self) -> Self {
+    // Based on the identity ln(1+x) = x·ln(1+x)/((1+x)-1), i.e. x·ln(u)/(u-1)
+    // where u = 1+x. From MUSL libc (Rich Felker et al., https://musl.libc.org) src/math/log1p.c
+    // and fdlibm (Sun Microsystems, https://www.netlib.org/fdlibm/) s_log1p.c.
+    // When 1+x rounds to 1 exactly (subnormal x), return x directly.
+    // When 1+x overflows (+inf), return ln(u) without correction.
+    // Mathematically exact: compensates for the rounding loss in 1+x without
+    // needing a series threshold.
+    let u = self + Self::ONE;
+    let eq = u.simd_eq(Self::ONE);
+    let ln_u = Self::ln(u);
+    let correction = self * (ln_u / (u - Self::ONE));
+    let result = eq.blend(self, correction);
+    let over = u.is_inf();
+    over.blend(ln_u, result)
   }
 
   #[inline]
@@ -1674,7 +2319,7 @@ impl f64x2 {
     let e3 = (x * f64x2::LOG2_E).round();
     let x = e3.mul_neg_add(f64x2::LN_2, x);
     let z =
-      polynomial_13m!(x, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13)
+      polynomial_13!(x, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13)
         + f64x2::ONE;
     let ee = e1 + e2 + e3;
     let ei = cast::<_, i64x2>(ee.round_int());
@@ -1706,7 +2351,7 @@ impl f64x2 {
       z,
     );
 
-    let x_sign = self.sign_bit();
+    let x_sign = self.is_sign_negative();
     let z = if x_sign.any() {
       // Y into an integer
       let yi = y.simd_eq(y.round());
@@ -1734,6 +2379,59 @@ impl f64x2 {
   #[inline]
   pub fn powf(self, y: f64) -> Self {
     Self::pow_f64x2(self, f64x2::splat(y))
+  }
+
+  // Sometimes used for `transpose`.
+  #[must_use]
+  #[inline]
+  #[allow(dead_code)]
+  pub(crate) fn unpack_lo(self, b: Self) -> Self {
+    pick! {
+      if #[cfg(target_feature="sse2")] {
+        Self { sse: unpack_low_m128d(self.sse, b.sse) }
+      } else if #[cfg(target_feature="simd128")] {
+        Self { simd: i64x2_shuffle::<0, 2>(self.simd, b.simd) }
+      } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))] {
+        Self { neon: unsafe { vzip1q_f64(self.neon, b.neon) } }
+      } else {
+        Self::new([self.as_array()[0], b.as_array()[0]])
+      }
+    }
+  }
+
+  // Sometimes used for `transpose`.
+  #[must_use]
+  #[inline]
+  #[allow(dead_code)]
+  pub(crate) fn unpack_hi(self, b: Self) -> Self {
+    pick! {
+      if #[cfg(target_feature="sse2")] {
+        Self { sse: unpack_high_m128d(self.sse, b.sse) }
+      } else if #[cfg(target_feature="simd128")] {
+        Self { simd: i64x2_shuffle::<1, 3>(self.simd, b.simd) }
+      } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))] {
+        Self { neon: unsafe { vzip2q_f64(self.neon, b.neon) } }
+      } else {
+        Self::new([self.as_array()[1], b.as_array()[1]])
+      }
+    }
+  }
+
+  /// Transpose matrix of 2x2 `f64` matrix.
+  #[inline]
+  pub fn transpose(data: [f64x2; 2]) -> [f64x2; 2] {
+    pick! {
+      if #[cfg(any(
+        target_feature="sse2",
+        all(target_feature="neon",target_arch="aarch64"),
+        target_feature="simd128",
+      ))] {
+        [data[0].unpack_lo(data[1]), data[0].unpack_hi(data[1])]
+      } else {
+        let [x, y, z, w]: [f64; 4] = cast(data);
+        cast([x, z, y, w])
+      }
+    }
   }
 
   #[inline]

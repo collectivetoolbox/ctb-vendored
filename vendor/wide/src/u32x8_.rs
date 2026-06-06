@@ -123,6 +123,8 @@ impl Mul for u32x8 {
   }
 }
 
+integer_impl_div_rem!(u32, u32x8, [0, 1, 2, 3, 4, 5, 6, 7]);
+
 impl BitAnd for u32x8 {
   type Output = Self;
   #[inline]
@@ -171,6 +173,24 @@ impl BitXor for u32x8 {
         }
       }
     }
+  }
+}
+
+impl Add<u32x8> for u32 {
+  type Output = u32x8;
+
+  #[inline]
+  fn add(self, rhs: u32x8) -> Self::Output {
+    u32x8::splat(self) + rhs
+  }
+}
+
+impl Sub<u32x8> for u32 {
+  type Output = u32x8;
+
+  #[inline]
+  fn sub(self, rhs: u32x8) -> Self::Output {
+    u32x8::splat(self) - rhs
   }
 }
 
@@ -301,6 +321,7 @@ impl Shl<u32x8> for u32x8 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpEq for u32x8 {
   type Output = Self;
   /// Element-wise equality comparison.
@@ -332,6 +353,7 @@ impl CmpEq for u32x8 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpGt for u32x8 {
   type Output = Self;
   /// Element-wise greater-than comparison.
@@ -367,6 +389,7 @@ impl CmpGt for u32x8 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpLt for u32x8 {
   type Output = Self;
   /// Element-wise less-than comparison.
@@ -392,6 +415,7 @@ impl CmpLt for u32x8 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpNe for u32x8 {
   type Output = Self;
   /// Element-wise not-equal comparison.
@@ -414,6 +438,7 @@ impl CmpNe for u32x8 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpGe for u32x8 {
   type Output = Self;
   /// Element-wise greater-than-or-equal comparison.
@@ -440,6 +465,7 @@ impl CmpGe for u32x8 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpLe for u32x8 {
   type Output = Self;
   /// Element-wise less-than-or-equal comparison.
@@ -472,6 +498,8 @@ impl u32x8 {
   pub const fn new(array: [u32; 8]) -> Self {
     unsafe { core::mem::transmute(array) }
   }
+
+  simd_comparison_fns!();
 
   /// Multiplies 32x32 bit to 64 bit and then only keeps the high 32 bits of the
   /// result. Useful for implementing divide constant value (see `t_usefulness`
@@ -515,6 +543,26 @@ impl u32x8 {
 
   #[inline]
   #[must_use]
+  pub fn reduce_add(self) -> u32 {
+    cast(i32x8::reduce_add(cast(self)))
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn reduce_max(self) -> u32 {
+    let array: [u32x4; 2] = cast(self);
+    array[0].max(array[1]).reduce_max()
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn reduce_min(self) -> u32 {
+    let array: [u32x4; 2] = cast(self);
+    array[0].min(array[1]).reduce_min()
+  }
+
+  #[inline]
+  #[must_use]
   pub fn max(self, rhs: Self) -> Self {
     pick! {
       if #[cfg(target_feature="avx2")] {
@@ -541,9 +589,74 @@ impl u32x8 {
       }
     }
   }
-  
+
+  integer_fn_clamp!();
+
   #[inline]
   #[must_use]
+  pub fn saturating_add(self, rhs: Self) -> Self {
+    pick! {
+      if #[cfg(target_feature="avx2")] {
+        let result = self + rhs;
+        result.simd_lt(self).blend(Self::MAX, result)
+      } else {
+        Self {
+          a: self.a.saturating_add(rhs.a),
+          b: self.b.saturating_add(rhs.b),
+        }
+      }
+    }
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn saturating_sub(self, rhs: Self) -> Self {
+    pick! {
+      if #[cfg(target_feature="avx2")] {
+        let result = self - rhs;
+        result.simd_gt(self).blend(Self::MIN, result)
+      } else {
+        Self {
+          a: self.a.saturating_sub(rhs.a),
+          b: self.b.saturating_sub(rhs.b),
+        }
+      }
+    }
+  }
+
+  /// Lanewise saturating multiply.
+  #[inline]
+  #[must_use]
+  pub fn saturating_mul(self, rhs: Self) -> Self {
+    pick! {
+      if #[cfg(target_feature="avx2")] {
+        let even_wide_mul = mul_u64_low_bits_m256i(self.avx2, rhs.avx2);
+        let odd_wide_mul = mul_u64_low_bits_m256i(
+          shuffle_ai_i32_half_m256i::<0b_00_11_00_01>(self.avx2),
+          shuffle_ai_i32_half_m256i::<0b_00_11_00_01>(rhs.avx2),
+        );
+
+        let ll_hh_1 = unpack_low_i32_m256i(even_wide_mul, odd_wide_mul);
+        let ll_hh_2 = unpack_high_i32_m256i(even_wide_mul, odd_wide_mul);
+        let low = Self { avx2: unpack_low_i64_m256i(ll_hh_1, ll_hh_2) };
+        let high = Self { avx2: unpack_high_i64_m256i(ll_hh_1, ll_hh_2) };
+
+        let no_overflow = high.simd_eq(Self::ZERO);
+        no_overflow.blend(low, Self::MAX)
+      } else {
+        let [self_a, self_b]: [u32x4; 2] = cast(self);
+        let [rhs_a, rhs_b]: [u32x4; 2] = cast(rhs);
+
+        cast([self_a.saturating_mul(rhs_a), self_b.saturating_mul(rhs_b)])
+      }
+    }
+  }
+
+  integer_fn_saturating_div!([0, 1, 2, 3, 4, 5, 6, 7]);
+
+  #[inline]
+  #[must_use]
+  #[doc(alias("movemask", "move_mask"))]
   pub fn to_bitmask(self) -> u32 {
     i32x8::to_bitmask(cast(self))
   }
@@ -576,6 +689,13 @@ impl u32x8 {
   #[must_use]
   pub fn none(self) -> bool {
     !self.any()
+  }
+
+  /// Transpose matrix of 8x8 `u32` matrix. Currently only accelerated on AVX2.
+  #[must_use]
+  #[inline]
+  pub fn transpose(data: [u32x8; 8]) -> [u32x8; 8] {
+    cast(i32x8::transpose(cast(data)))
   }
 
   #[inline]

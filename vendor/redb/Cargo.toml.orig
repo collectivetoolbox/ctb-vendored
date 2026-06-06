@@ -2,7 +2,7 @@
 name = "redb"
 description = "Rust Embedded DataBase"
 readme = "README.md"
-version = "3.1.0"
+version = "3.1.3"
 exclude = ["fuzz/"]
 edition.workspace = true
 rust-version.workspace = true
@@ -33,12 +33,13 @@ libc = "0.2.174"
 
 # Common test/bench dependencies
 [dev-dependencies]
-rand = "0.9"
+rand = "0.10.0"
 tempfile = "3.5.0"
 # for backwards compatibility testing - pin at 2.6.0
 redb2_6 = { version = "=2.6.0", package = "redb" }
 bincode = "2.0.1"
 uuid = { version= "1.17.0", features = ["v4"] }
+redb-derive = { path = "./crates/redb-derive" }
 
 [features]
 # Enables log messages

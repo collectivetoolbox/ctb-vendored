@@ -5,9 +5,11 @@ use {
         local_socket::{
             prelude::*,
             traits::{self, ReuniteResult},
-            ConcurrencyDetector, ConnectOptions, LocalSocketSite,
+            ConnectOptions, PeerCreds,
         },
-        os::unix::{c_wrappers, unixprelude::*},
+        os::unix::{
+            c_wrappers, local_socket::peer_creds::PeerCreds as PeerCredsInner, unixprelude::*,
+        },
         ConnectWaitMode, Sealed, TryClone,
     },
     std::{
@@ -20,7 +22,7 @@ use {
 
 /// Wrapper around [`UnixStream`] that implements [`Stream`](traits::Stream).
 #[derive(Debug)]
-pub struct Stream(pub(super) UnixStream, ConcurrencyDetector<LocalSocketSite>);
+pub struct Stream(pub(super) UnixStream);
 impl Sealed for Stream {}
 impl traits::Stream for Stream {
     type RecvHalf = RecvHalf;
@@ -82,26 +84,26 @@ impl traits::Stream for Stream {
 impl traits::StreamCommon for Stream {
     #[inline]
     fn take_error(&self) -> io::Result<Option<io::Error>> { c_wrappers::take_error(self.as_fd()) }
+    #[inline]
+    fn peer_creds(&self) -> io::Result<PeerCreds> {
+        PeerCredsInner::for_socket(self.as_fd()).map(From::from)
+    }
 }
 
 impl Read for &Stream {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let _guard = self.1.lock();
-        (&mut &self.0).read(buf)
-    }
+    #[inline]
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> { (&mut &self.0).read(buf) }
+    #[inline]
     fn read_vectored(&mut self, bufs: &mut [IoSliceMut<'_>]) -> io::Result<usize> {
-        let _guard = self.1.lock();
         (&mut &self.0).read_vectored(bufs)
     }
     // FUTURE is_read_vectored
 }
 impl Write for &Stream {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let _guard = self.1.lock();
-        (&mut &self.0).write(buf)
-    }
+    #[inline]
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> { (&mut &self.0).write(buf) }
+    #[inline]
     fn write_vectored(&mut self, bufs: &[IoSlice<'_>]) -> io::Result<usize> {
-        let _guard = self.1.lock();
         (&mut &self.0).write_vectored(bufs)
     }
     #[inline]
@@ -123,12 +125,13 @@ impl Stream {
     pub fn inner_mut(&mut self) -> &mut UnixStream { &mut self.0 }
 }
 
-/// Creates a fresh concurrency detector and thus may allow for non-portable concurrent I/O.
 impl From<UnixStream> for Stream {
-    fn from(s: UnixStream) -> Self { Self(s, ConcurrencyDetector::new()) }
+    #[inline]
+    fn from(s: UnixStream) -> Self { Self(s) }
 }
 
 impl From<OwnedFd> for Stream {
+    #[inline]
     fn from(fd: OwnedFd) -> Self { UnixStream::from(fd).into() }
 }
 
@@ -165,14 +168,6 @@ macro_rules! arc_accessors {
 #[derive(Clone, Debug)]
 pub struct RecvHalf(pub(super) Arc<Stream>);
 impl Sealed for RecvHalf {}
-impl traits::RecvHalf for RecvHalf {
-    type Stream = Stream;
-
-    #[inline]
-    fn set_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
-        self.0.set_recv_timeout(timeout)
-    }
-}
 multimacro! {
     RecvHalf,
     forward_rbv(Stream, *),
@@ -181,19 +176,19 @@ multimacro! {
     forward_as_handle,
     derive_sync_mut_read,
 }
+impl traits::RecvHalf for RecvHalf {
+    type Stream = Stream;
+
+    #[inline]
+    fn set_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
+        self.0.set_recv_timeout(timeout)
+    }
+}
 
 /// [`Stream`]'s send half, implemented using [`Arc`].
 #[derive(Clone, Debug)]
 pub struct SendHalf(pub(super) Arc<Stream>);
 impl Sealed for SendHalf {}
-impl traits::SendHalf for SendHalf {
-    type Stream = Stream;
-
-    #[inline]
-    fn set_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
-        self.0.set_send_timeout(timeout)
-    }
-}
 multimacro! {
     SendHalf,
     forward_rbv(Stream, *),
@@ -201,4 +196,12 @@ multimacro! {
     forward_sync_ref_write,
     forward_as_handle,
     derive_sync_mut_write,
+}
+impl traits::SendHalf for SendHalf {
+    type Stream = Stream;
+
+    #[inline]
+    fn set_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
+        self.0.set_send_timeout(timeout)
+    }
 }

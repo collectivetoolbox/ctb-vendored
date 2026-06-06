@@ -71,6 +71,14 @@ impl Sub<u32> for u32x16 {
   }
 }
 
+impl Mul<u32> for u32x16 {
+  type Output = Self;
+  #[inline]
+  fn mul(self, rhs: u32) -> Self::Output {
+    self * Self::splat(rhs)
+  }
+}
+
 impl Add<u32x16> for u32 {
   type Output = u32x16;
   #[inline]
@@ -84,6 +92,15 @@ impl Sub<u32x16> for u32 {
   #[inline]
   fn sub(self, rhs: u32x16) -> Self::Output {
     u32x16::splat(self).sub(rhs)
+  }
+}
+
+impl Mul<u32x16> for u32 {
+  type Output = u32x16;
+
+  #[inline]
+  fn mul(self, rhs: u32x16) -> Self::Output {
+    u32x16::splat(self) * rhs
   }
 }
 
@@ -103,6 +120,12 @@ impl Mul for u32x16 {
     }
   }
 }
+
+integer_impl_div_rem!(
+  u32,
+  u32x16,
+  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+);
 
 impl BitAnd for u32x16 {
   type Output = Self;
@@ -300,41 +323,11 @@ impl Shl<u32x16> for u32x16 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpEq for u32x16 {
   type Output = Self;
   #[inline]
   fn simd_eq(self, rhs: Self) -> Self::Output {
-    Self::simd_eq(self, rhs)
-  }
-}
-
-impl CmpGt for u32x16 {
-  type Output = Self;
-  #[inline]
-  fn simd_gt(self, rhs: Self) -> Self::Output {
-    Self::simd_gt(self, rhs)
-  }
-}
-
-impl CmpLt for u32x16 {
-  type Output = Self;
-  #[inline]
-  fn simd_lt(self, rhs: Self) -> Self::Output {
-    // no gt, so just reverse to get same answer
-    Self::simd_gt(rhs, self)
-  }
-}
-
-impl u32x16 {
-  #[inline]
-  #[must_use]
-  pub const fn new(array: [u32; 16]) -> Self {
-    unsafe { core::mem::transmute(array) }
-  }
-
-  #[inline]
-  #[must_use]
-  pub fn simd_eq(self, rhs: Self) -> Self {
     pick! {
       if #[cfg(target_feature="avx512f")] {
         Self { avx512: cmp_op_mask_u32_m512i::<{cmp_int_op!(Eq)}>(self.avx512, rhs.avx512) }
@@ -346,10 +339,13 @@ impl u32x16 {
       }
     }
   }
+}
 
+#[expect(deprecated)]
+impl CmpGt for u32x16 {
+  type Output = Self;
   #[inline]
-  #[must_use]
-  pub fn simd_gt(self, rhs: Self) -> Self {
+  fn simd_gt(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx512f")] {
         Self { avx512: cmp_op_mask_u32_m512i::<{cmp_int_op!(Nle)}>(self.avx512, rhs.avx512) }
@@ -361,10 +357,13 @@ impl u32x16 {
       }
     }
   }
+}
 
+#[expect(deprecated)]
+impl CmpLt for u32x16 {
+  type Output = Self;
   #[inline]
-  #[must_use]
-  pub fn simd_lt(self, rhs: Self) -> Self {
+  fn simd_lt(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx512f")] {
         Self { avx512: cmp_op_mask_u32_m512i::<{cmp_int_op!(Lt)}>(self.avx512, rhs.avx512) }
@@ -376,6 +375,70 @@ impl u32x16 {
       }
     }
   }
+}
+
+#[expect(deprecated)]
+impl CmpNe for u32x16 {
+  type Output = Self;
+  #[inline]
+  fn simd_ne(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(target_feature="avx512f")] {
+        Self { avx512: cmp_op_mask_u32_m512i::<{cmp_int_op!(Ne)}>(self.avx512, rhs.avx512) }
+      } else {
+        Self {
+          a : self.a.simd_ne(rhs.a),
+          b : self.b.simd_ne(rhs.b),
+        }
+      }
+    }
+  }
+}
+
+#[expect(deprecated)]
+impl CmpLe for u32x16 {
+  type Output = Self;
+  #[inline]
+  fn simd_le(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(target_feature="avx512f")] {
+        Self { avx512: cmp_op_mask_u32_m512i::<{cmp_int_op!(Le)}>(self.avx512, rhs.avx512) }
+      } else {
+        Self {
+          a : self.a.simd_le(rhs.a),
+          b : self.b.simd_le(rhs.b),
+        }
+      }
+    }
+  }
+}
+
+#[expect(deprecated)]
+impl CmpGe for u32x16 {
+  type Output = Self;
+  #[inline]
+  fn simd_ge(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(target_feature="avx512f")] {
+        Self { avx512: cmp_op_mask_u32_m512i::<{cmp_int_op!(Nlt)}>(self.avx512, rhs.avx512) }
+      } else {
+        Self {
+          a : self.a.simd_ge(rhs.a),
+          b : self.b.simd_ge(rhs.b),
+        }
+      }
+    }
+  }
+}
+
+impl u32x16 {
+  #[inline]
+  #[must_use]
+  pub const fn new(array: [u32; 16]) -> Self {
+    unsafe { core::mem::transmute(array) }
+  }
+
+  simd_comparison_fns!();
 
   #[inline]
   #[must_use]
@@ -390,6 +453,26 @@ impl u32x16 {
         }
       }
     }
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn reduce_add(self) -> u32 {
+    cast(i32x16::reduce_add(cast(self)))
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn reduce_max(self) -> u32 {
+    let array: [u32x8; 2] = cast(self);
+    array[0].max(array[1]).reduce_max()
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn reduce_min(self) -> u32 {
+    let array: [u32x8; 2] = cast(self);
+    array[0].min(array[1]).reduce_min()
   }
 
   #[inline]
@@ -421,6 +504,82 @@ impl u32x16 {
       }
     }
   }
+
+  integer_fn_clamp!();
+
+  #[inline]
+  #[must_use]
+  pub fn saturating_add(self, rhs: Self) -> Self {
+    pick! {
+      if #[cfg(target_feature="avx512f")] {
+        let result = self + rhs;
+        result.simd_lt(self).blend(Self::MAX, result)
+      } else {
+        Self {
+          a: self.a.saturating_add(rhs.a),
+          b: self.b.saturating_add(rhs.b),
+        }
+      }
+    }
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn saturating_sub(self, rhs: Self) -> Self {
+    pick! {
+      if #[cfg(target_feature="avx512f")] {
+        let result = self - rhs;
+        result.simd_gt(self).blend(Self::MIN, result)
+      } else {
+        Self {
+          a: self.a.saturating_sub(rhs.a),
+          b: self.b.saturating_sub(rhs.b),
+        }
+      }
+    }
+  }
+
+  /// Lanewise saturating multiply.
+  #[inline]
+  #[must_use]
+  pub fn saturating_mul(self, rhs: Self) -> Self {
+    pick! {
+      if #[cfg(all(target_feature="avx512f", target_feature="avx512dq"))] {
+        #[cfg(target_arch = "x86")]
+        use core::arch::x86::{_mm512_unpackhi_epi64, _mm512_unpacklo_epi64};
+        #[cfg(target_arch = "x86_64")]
+        use core::arch::x86_64::{_mm512_unpackhi_epi64, _mm512_unpacklo_epi64};
+
+        let even_wide_mul = mul_u32_wide_m512i(self.avx512, rhs.avx512);
+        let odd_wide_mul = mul_u32_wide_m512i(
+          shuffle_i32_m512i::<0b_00_11_00_01>(self.avx512),
+          shuffle_i32_m512i::<0b_00_11_00_01>(rhs.avx512),
+        );
+
+        let ll_hh_1 = unpack_low_i32_m512i(even_wide_mul, odd_wide_mul);
+        let ll_hh_2 = unpack_high_i32_m512i(even_wide_mul, odd_wide_mul);
+        // TODO(safe_arch): Add `_mm512_unpacklo_epi64` and `_mm512_unpackhi_epi64`.
+        let low = Self {
+          avx512: m512i(unsafe { _mm512_unpacklo_epi64(ll_hh_1.0, ll_hh_2.0) }),
+        };
+        let high = Self {
+          avx512: m512i(unsafe { _mm512_unpackhi_epi64(ll_hh_1.0, ll_hh_2.0) }),
+        };
+
+        let no_overflow = high.simd_eq(Self::ZERO);
+        no_overflow.blend(low, Self::MAX)
+      } else {
+        let [self_a, self_b]: [u32x8; 2] = cast(self);
+        let [rhs_a, rhs_b]: [u32x8; 2] = cast(rhs);
+
+        cast([self_a.saturating_mul(rhs_a), self_b.saturating_mul(rhs_b)])
+      }
+    }
+  }
+
+  integer_fn_saturating_div!([
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+  ]);
 
   #[inline]
   #[must_use]
@@ -456,9 +615,10 @@ impl u32x16 {
       }
     }
   }
-  
+
   #[inline]
   #[must_use]
+  #[doc(alias("movemask", "move_mask"))]
   pub fn to_bitmask(self) -> u32 {
     i32x16::to_bitmask(cast(self))
   }
@@ -466,34 +626,26 @@ impl u32x16 {
   #[inline]
   #[must_use]
   pub fn any(self) -> bool {
-    pick! {
-      if #[cfg(target_feature="avx512f")] {
-        ((movepi8_mask_m512i(self.avx512) as u32) &
-          0b10001000100010001000100010001000) != 0
-      } else {
-        (self.a | self.b).any()
-      }
-    }
+    i32x16::any(cast(self))
   }
 
   #[inline]
   #[must_use]
   pub fn all(self) -> bool {
-    pick! {
-      if #[cfg(target_feature="avx512f")] {
-        ((movepi8_mask_m512i(self.avx512) as u32) &
-          0b10001000100010001000100010001000) ==
-          0b10001000100010001000100010001000
-      } else {
-        (self.a & self.b).all()
-      }
-    }
+    i32x16::all(cast(self))
   }
 
   #[inline]
   #[must_use]
   pub fn none(self) -> bool {
-    !self.any()
+    i32x16::none(cast(self))
+  }
+
+  /// Transpose matrix of 16x16 `u32` matrix. Currently not accelerated.
+  #[must_use]
+  #[inline]
+  pub fn transpose(data: [u32x16; 16]) -> [u32x16; 16] {
+    cast(i32x16::transpose(cast(data)))
   }
 
   #[inline]

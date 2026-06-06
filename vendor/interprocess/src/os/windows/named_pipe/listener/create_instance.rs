@@ -4,7 +4,7 @@ use {
         os::windows::{
             named_pipe::PipeMode, security_descriptor::create_security_attributes, winprelude::*,
         },
-        AsPtr, HandleOrErrno,
+        ref2ptr, HandleOrErrno,
     },
     std::num::NonZeroU8,
     windows_sys::Win32::{
@@ -20,12 +20,10 @@ impl PipeListenerOptions<'_> {
         &self,
         role: PipeStreamRole,
         recv_mode: Option<PipeMode>,
-    ) -> io::Result<(PipeListenerOptions<'static>, FileHandle)> {
+    ) -> io::Result<(PipeListenerOptions<'static>, OwnedHandle)> {
         let owned_config = self.to_owned()?;
 
-        let instance = self
-            .create_instance(true, self.nonblocking, false, role, recv_mode)
-            .map(FileHandle::from)?;
+        let instance = self.create_instance(true, self.nonblocking, role, recv_mode)?;
         Ok((owned_config, instance))
     }
 
@@ -35,7 +33,6 @@ impl PipeListenerOptions<'_> {
         &self,
         first: bool,
         nonblocking: bool,
-        overlapped: bool,
         role: PipeStreamRole,
         recv_mode: Option<PipeMode>,
     ) -> io::Result<OwnedHandle> {
@@ -43,12 +40,12 @@ impl PipeListenerOptions<'_> {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "\
-cannot create pipe server that has byte type but receives messages – have you forgotten to set the \
-`mode` field in `PipeListenerOptions`?",
+cannot create pipe server that has byte type but receives messages – have you forgotten to set \
+the `mode` field in `PipeListenerOptions`?",
             ));
         }
 
-        let open_mode = self.open_mode(first, role, overlapped);
+        let open_mode = self.open_mode(first, role);
         let pipe_mode = self.pipe_mode(recv_mode, nonblocking);
 
         let sa = create_security_attributes(
@@ -74,26 +71,22 @@ cannot create pipe server that has byte type but receives messages – have you 
                 self.output_buffer_size_hint,
                 self.input_buffer_size_hint,
                 self.wait_timeout.to_raw(),
-                sa.as_ptr().cast_mut().cast(),
+                ref2ptr(&sa).cast_mut().cast(),
             )
             .handle_or_errno()
-            .map(|h|
-                // SAFETY: we just made it and received ownership
-                OwnedHandle::from_raw_handle(h.to_std()))
+            // SAFETY: we just made it and received ownership
+            .map(|h| OwnedHandle::from_raw_handle(h))
         }
     }
 
-    fn open_mode(&self, first: bool, role: PipeStreamRole, overlapped: bool) -> u32 {
-        let mut open_mode = 0_u32;
+    fn open_mode(&self, first: bool, role: PipeStreamRole) -> u32 {
+        let mut open_mode = FILE_FLAG_OVERLAPPED;
         open_mode |= u32::from(role.direction_as_server());
         if first {
             open_mode |= FILE_FLAG_FIRST_PIPE_INSTANCE;
         }
         if self.write_through {
             open_mode |= FILE_FLAG_WRITE_THROUGH;
-        }
-        if overlapped {
-            open_mode |= FILE_FLAG_OVERLAPPED;
         }
         open_mode
     }

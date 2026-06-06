@@ -74,6 +74,7 @@
 mod enumdef;
 
 mod name;
+mod peer_creds;
 mod stream {
     pub(super) mod r#enum;
     pub(super) mod options;
@@ -106,6 +107,7 @@ pub use {
         r#trait::{Incoming, ListenerNonblockingMode},
     },
     name::*,
+    peer_creds::*,
     stream::{options::ConnectOptions, r#enum::*},
 };
 
@@ -159,6 +161,3 @@ pub mod tokio {
         };
     }
 }
-
-mod concurrency_detector;
-pub(crate) use concurrency_detector::*;

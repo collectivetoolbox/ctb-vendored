@@ -13,20 +13,18 @@
 edition = "2021"
 rust-version = "1.65"
 name = "doctest-file"
-version = "1.0.0"
-authors = ["Kotauskas <v.toncharov@gmail.com>"]
+version = "1.1.1"
+authors = ["Goat"]
 build = false
+autolib = false
 autobins = false
 autoexamples = false
 autotests = false
 autobenches = false
-description = "Procedural macro that sources doctests from dedicated files into Rustdoc documentation with support for hiding lines."
+description = "Sources doctests from dedicated files into Rustdoc documentation while hiding select lines"
 readme = "README.md"
 license = "0BSD"
-repository = "https://codeberg.org/Goat7658/doctest-file/"
-
-[profile.dev]
-opt-level = 1
+repository = "https://codeberg.org/Goat7658/doctest-file"
 
 [lib]
 name = "doctest_file"
@@ -34,6 +32,14 @@ path = "src/lib.rs"
 proc-macro = true
 
 [[example]]
-name = "hello_doctest_file"
+name = "basic"
 crate-type = ["lib"]
-path = "examples/library.rs"
+path = "examples/basic/lib.rs"
+
+[[example]]
+name = "anchors"
+crate-type = ["lib"]
+path = "examples/anchors/lib.rs"
+
+[profile.dev]
+opt-level = 1

@@ -13,7 +13,7 @@
 edition = "2024"
 rust-version = "1.87.0"
 name = "process-wrap"
-version = "9.0.1"
+version = "9.1.0"
 authors = ["Félix Saparelli <felix@passcod.name>"]
 build = false
 exclude = [
@@ -140,7 +140,7 @@ features = [
 ]
 
 [target."cfg(unix)".dependencies.nix]
-version = "0.30.1"
+version = "0.31.1"
 features = [
     "fs",
     "poll",

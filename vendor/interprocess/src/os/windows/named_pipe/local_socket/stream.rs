@@ -3,10 +3,11 @@ use {
         error::{FromHandleError, ReuniteError},
         local_socket::{
             traits::{self, ReuniteResult},
-            ConnectOptions, NameInner,
+            ConnectOptions, NameInner, PeerCreds,
         },
-        os::windows::named_pipe::{
-            pipe_mode::Bytes, DuplexPipeStream, RecvPipeStream, SendPipeStream,
+        os::windows::{
+            local_socket::peer_creds::PeerCreds as PeerCredsInner,
+            named_pipe::{pipe_mode::Bytes, DuplexPipeStream, RecvPipeStream, SendPipeStream},
         },
         Sealed,
     },
@@ -62,6 +63,15 @@ impl traits::Stream for Stream {
         StreamImpl::reunite(rh.0, sh.0).map(Self).map_err(|ReuniteError { rh, sh }| {
             ReuniteError { rh: RecvHalf(rh), sh: SendHalf(sh) }
         })
+    }
+}
+
+impl traits::StreamCommon for Stream {
+    #[inline(always)]
+    fn take_error(&self) -> io::Result<Option<io::Error>> { Ok(None) }
+    #[inline]
+    fn peer_creds(&self) -> io::Result<PeerCreds> {
+        Ok(PeerCredsInner { pid: self.0.peer_process_id()? }.into())
     }
 }
 
@@ -128,6 +138,7 @@ multimacro! {
 
 /// Wrapper around [`RecvPipeStream`] that implements [`RecvHalf`](traits::RecvHalf).
 pub struct RecvHalf(pub(super) RecvHalfImpl);
+impl Sealed for RecvHalf {}
 multimacro! {
     RecvHalf,
     forward_rbv(RecvHalfImpl, &),
@@ -139,9 +150,16 @@ multimacro! {
     forward_debug("local_socket::RecvHalf"),
     derive_trivial_conv(RecvHalfImpl),
 }
+impl traits::RecvHalf for RecvHalf {
+    type Stream = Stream;
+
+    #[inline]
+    fn set_timeout(&self, _: Option<Duration>) -> io::Result<()> { no_timeouts() }
+}
 
 /// Wrapper around [`SendPipeStream`] that implements [`SendHalf`](traits::SendHalf).
 pub struct SendHalf(pub(super) SendHalfImpl);
+impl Sealed for SendHalf {}
 multimacro! {
     SendHalf,
     forward_as_ref(SendHalfImpl),
@@ -151,7 +169,6 @@ multimacro! {
     derive_sync_mut_write,
     derive_trivial_conv(SendHalfImpl),
 }
-
 impl Write for &SendHalf {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> { (&self.0).write(buf) }
@@ -164,15 +181,6 @@ impl Write for &SendHalf {
     fn flush(&mut self) -> io::Result<()> { Ok(()) }
     // FUTURE is_write_vectored
 }
-
-impl Sealed for RecvHalf {}
-impl traits::RecvHalf for RecvHalf {
-    type Stream = Stream;
-
-    #[inline]
-    fn set_timeout(&self, _: Option<Duration>) -> io::Result<()> { no_timeouts() }
-}
-impl Sealed for SendHalf {}
 impl traits::SendHalf for SendHalf {
     type Stream = Stream;
 

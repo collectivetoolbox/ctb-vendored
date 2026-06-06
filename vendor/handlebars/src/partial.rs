@@ -1,13 +1,13 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 
 use serde_json::Value as Json;
 
 use crate::block::BlockContext;
-use crate::context::{merge_json, Context};
+use crate::context::{Context, merge_json};
 use crate::error::RenderError;
 use crate::output::Output;
 use crate::registry::Registry;
-use crate::render::{Decorator, Evaluable, RenderContext, Renderable};
+use crate::render::{Decorator, RenderContext, Renderable};
 use crate::template::Template;
 use crate::{Path, RenderErrorReason, StringOutput};
 
@@ -16,7 +16,6 @@ pub(crate) const PARTIAL_BLOCK: &str = "@partial-block";
 fn find_partial<'reg: 'rc, 'rc>(
     rc: &RenderContext<'reg, 'rc>,
     r: &'reg Registry<'reg>,
-    d: &Decorator<'rc>,
     name: &str,
 ) -> Result<Option<&'rc Template>, RenderError> {
     if let Some(partial) = rc.get_partial(name) {
@@ -31,10 +30,6 @@ fn find_partial<'reg: 'rc, 'rc>(
         return Ok(Some(t));
     }
 
-    if let Some(tpl) = d.template() {
-        return Ok(Some(tpl));
-    }
-
     Ok(None)
 }
 
@@ -45,11 +40,6 @@ pub fn expand_partial<'reg: 'rc, 'rc>(
     rc: &mut RenderContext<'reg, 'rc>,
     out: &mut dyn Output,
 ) -> Result<(), RenderError> {
-    // try eval inline partials first
-    if let Some(t) = d.template() {
-        t.eval(r, ctx, rc)?;
-    }
-
     let tname = d.name();
 
     let current_template_before = rc.get_current_template_name();
@@ -64,25 +54,27 @@ pub fn expand_partial<'reg: 'rc, 'rc>(
         if let Some(Some(content)) = rc.peek_partial_block() {
             out.write(content.as_str())?;
             Ok(())
+        } else if let Some(fallback) = d.template() {
+            // no partial_block for this scope, render fallback from block syntax
+            let result = fallback.render(r, ctx, rc, out);
+            rc.set_current_template_name(current_template_before);
+            rc.set_indent_string(indent_before);
+            result
         } else {
             // no partial_block for this scope
             Err(RenderErrorReason::PartialBlockNotFound.into())
         }
     } else {
         // normal partial
-        let partial = find_partial(rc, r, d, tname)?;
-        let Some(partial) = partial else {
+        let original_partial = find_partial(rc, r, tname)?;
+
+        let partial = if let Some(partial) = original_partial {
+            partial
+        } else if let Some(inner_template) = d.template() {
+            inner_template
+        } else {
             return Err(RenderErrorReason::PartialNotFound(tname.to_owned()).into());
         };
-
-        // check if this inclusion has a block
-        if let Some(current_parital_block) = d.template() {
-            let mut tmp_out = StringOutput::new();
-            current_parital_block.render(r, ctx, rc, &mut tmp_out)?;
-            rc.push_partial_block(Some(tmp_out.into_string()?));
-        } else {
-            rc.push_partial_block(None);
-        }
 
         // hash
         let hash_ctx = d
@@ -92,6 +84,12 @@ pub fn expand_partial<'reg: 'rc, 'rc>(
             .collect::<HashMap<&str, &Json>>();
 
         let mut partial_include_block = BlockContext::new();
+        // overwrite parent block's params
+        for (name, value) in &hash_ctx {
+            partial_include_block
+                .set_block_param(name, crate::BlockParamHolder::Value((*value).clone()));
+        }
+
         // evaluate context for partial
         let merged_context = if let Some(p) = d.param(0) {
             if let Some(relative_path) = p.relative_path() {
@@ -121,9 +119,25 @@ pub fn expand_partial<'reg: 'rc, 'rc>(
         };
         partial_include_block.set_base_value(merged_context);
 
-        // replace and hold blocks from current render context
-        let current_blocks = rc.replace_blocks(VecDeque::with_capacity(1));
+        // Push partial's context block (doesn't clear parent blocks)
+        // This allows inline partials from parent blocks to remain accessible
         rc.push_block(partial_include_block);
+
+        // check if this inclusion has a block, make sure we are not rendering
+        // the template itself
+        if original_partial.is_some() {
+            if let Some(current_parital_block) = d.template() {
+                let mut tmp_out = StringOutput::new();
+                // render will also eval the block, so any inline directives will be
+                // evaluated
+                current_parital_block.render(r, ctx, rc, &mut tmp_out)?;
+                rc.push_partial_block(Some(tmp_out.into_string()?));
+            } else {
+                rc.push_partial_block(None);
+            }
+        } else {
+            rc.push_partial_block(None);
+        }
 
         // indent
         rc.set_indent_string(d.indent().cloned());
@@ -136,7 +150,8 @@ pub fn expand_partial<'reg: 'rc, 'rc>(
         // remove current partial_block
         rc.pop_partial_block();
 
-        let _ = rc.replace_blocks(current_blocks);
+        // Remove partial's context block
+        rc.pop_block();
         rc.set_trailing_newline(trailing_newline);
         rc.set_current_template_name(current_template_before);
         rc.set_indent_string(indent_before);
@@ -157,40 +172,58 @@ mod test {
     #[test]
     fn test() {
         let mut handlebars = Registry::new();
-        assert!(handlebars
-            .register_template_string("t0", "{{> t1}}")
-            .is_ok());
-        assert!(handlebars
-            .register_template_string("t1", "{{this}}")
-            .is_ok());
-        assert!(handlebars
-            .register_template_string("t2", "{{#> t99}}not there{{/t99}}")
-            .is_ok());
-        assert!(handlebars
-            .register_template_string("t3", "{{#*inline \"t31\"}}{{this}}{{/inline}}{{> t31}}")
-            .is_ok());
-        assert!(handlebars
-            .register_template_string(
-                "t4",
-                "{{#> t5}}{{#*inline \"nav\"}}navbar{{/inline}}{{/t5}}"
-            )
-            .is_ok());
-        assert!(handlebars
-            .register_template_string("t5", "include {{> nav}}")
-            .is_ok());
-        assert!(handlebars
-            .register_template_string("t6", "{{> t1 a}}")
-            .is_ok());
-        assert!(handlebars
-            .register_template_string(
-                "t7",
-                "{{#*inline \"t71\"}}{{a}}{{/inline}}{{> t71 a=\"world\"}}"
-            )
-            .is_ok());
+        assert!(
+            handlebars
+                .register_template_string("t0", "{{> t1}}")
+                .is_ok()
+        );
+        assert!(
+            handlebars
+                .register_template_string("t1", "{{this}}")
+                .is_ok()
+        );
+        assert!(
+            handlebars
+                .register_template_string("t2", "{{#> t99}}not there{{/t99}}")
+                .is_ok()
+        );
+        assert!(
+            handlebars
+                .register_template_string("t3", "{{#*inline \"t31\"}}{{this}}{{/inline}}{{> t31}}")
+                .is_ok()
+        );
+        assert!(
+            handlebars
+                .register_template_string(
+                    "t4",
+                    "{{#> t5}}{{#*inline \"nav\"}}navbar{{/inline}}{{/t5}}"
+                )
+                .is_ok()
+        );
+        assert!(
+            handlebars
+                .register_template_string("t5", "include {{> nav}}")
+                .is_ok()
+        );
+        assert!(
+            handlebars
+                .register_template_string("t6", "{{> t1 a}}")
+                .is_ok()
+        );
+        assert!(
+            handlebars
+                .register_template_string(
+                    "t7",
+                    "{{#*inline \"t71\"}}{{a}}{{/inline}}{{> t71 a=\"world\"}}"
+                )
+                .is_ok()
+        );
         assert!(handlebars.register_template_string("t8", "{{a}}").is_ok());
-        assert!(handlebars
-            .register_template_string("t9", "{{> t8 a=2}}")
-            .is_ok());
+        assert!(
+            handlebars
+                .register_template_string("t9", "{{> t8 a=2}}")
+                .is_ok()
+        );
 
         assert_eq!(handlebars.render("t0", &1).ok().unwrap(), "1".to_string());
         assert_eq!(
@@ -244,12 +277,16 @@ mod test {
         let two_partial = "--- two ---";
 
         let mut handlebars = Registry::new();
-        assert!(handlebars
-            .register_template_string("template", main_template)
-            .is_ok());
-        assert!(handlebars
-            .register_template_string("two", two_partial)
-            .is_ok());
+        assert!(
+            handlebars
+                .register_template_string("template", main_template)
+                .is_ok()
+        );
+        assert!(
+            handlebars
+                .register_template_string("two", two_partial)
+                .is_ok()
+        );
 
         let r0 = handlebars.render("template", &true);
         assert_eq!(r0.ok().unwrap(), "one--- two ---three--- two ---");
@@ -261,9 +298,11 @@ mod test {
         let p_partial = "{{a}}";
 
         let mut handlebars = Registry::new();
-        assert!(handlebars
-            .register_template_string("template", main_template)
-            .is_ok());
+        assert!(
+            handlebars
+                .register_template_string("template", main_template)
+                .is_ok()
+        );
         assert!(handlebars.register_template_string("p", p_partial).is_ok());
 
         let r0 = handlebars.render("template", &true);
@@ -851,6 +890,63 @@ outer third line",
             .unwrap();
 
         assert_eq!(hs.render("current", &()).unwrap(), "Not a Bug");
+    }
+
+    #[test]
+    fn test_partial_block_syntax_for_at_partial_block() {
+        let mut hb = Registry::new();
+        hb.register_template_string(
+            "some_partial",
+            "before {{#> @partial-block}}DEFAULT{{/@partial-block}} after",
+        )
+        .unwrap();
+
+        let r1 = hb
+            .render_template("{{> some_partial}}", &json!({}))
+            .unwrap();
+        assert_eq!(r1, "before DEFAULT after");
+
+        let r2 = hb
+            .render_template("{{#> some_partial}}CONTENT{{/some_partial}}", &json!({}))
+            .unwrap();
+        assert_eq!(r2, "before CONTENT after");
+    }
+
+    #[test]
+    fn test_partial_block_fallback_restores_state() {
+        let mut hb = Registry::new();
+        hb.register_template_string(
+            "wrapper",
+            "[{{#> @partial-block}}DEFAULT{{/@partial-block}}] {{> inner}}",
+        )
+        .unwrap();
+        hb.register_template_string("inner", "ok").unwrap();
+
+        let r1 = hb.render_template("{{> wrapper}}", &json!({})).unwrap();
+        assert_eq!(r1, "[DEFAULT] ok");
+
+        let r2 = hb
+            .render_template("{{#> wrapper}}CUSTOM{{/wrapper}}", &json!({}))
+            .unwrap();
+        assert_eq!(r2, "[CUSTOM] ok");
+    }
+
+    #[test]
+    fn test_partial_block_fallback_restores_template_name() {
+        let mut hb = Registry::new();
+        hb.register_template_string(
+            "self_ref",
+            "{{#> @partial-block}}DEFAULT{{/@partial-block}}{{> self_ref}}",
+        )
+        .unwrap();
+
+        let result = hb.render_template("{{> self_ref}}", &json!({}));
+        assert!(result.is_err());
+        let msg = format!("{}", result.unwrap_err());
+        assert!(
+            msg.contains("include current template"),
+            "expected self-inclusion error, got: {msg}"
+        );
     }
 
     #[test]

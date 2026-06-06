@@ -143,6 +143,101 @@ impl Mul for i16x8 {
   }
 }
 
+integer_impl_div_rem!(i16, i16x8, [0, 1, 2, 3, 4, 5, 6, 7]);
+
+impl Shl for i16x8 {
+  type Output = Self;
+
+  /// Shifts lanes by the corresponding lane.
+  ///
+  /// Bitwise shift-left; yields `self << mask(rhs)`, where mask removes any
+  /// high-order bits of `rhs` that would cause the shift to exceed the bitwidth
+  /// of the type. (same as `wrapping_shl`)
+  #[inline]
+  fn shl(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(all(target_feature="avx512bw", target_feature="avx512vl"))] {
+        #[cfg(target_arch = "x86")]
+        use core::arch::x86::_mm_sllv_epi16;
+        #[cfg(target_arch = "x86_64")]
+        use core::arch::x86_64::_mm_sllv_epi16;
+
+        // Mask `rhs` to 15 to match `wrapping_shl`.
+        let rhs = bitand_m128i(rhs.sse, set_splat_i16_m128i(15));
+        // TODO(safe_arch): Add `_mm_sllv_epi16`.
+        cast(unsafe { _mm_sllv_epi16(self.sse.0, rhs.0) })
+      } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))] {
+        unsafe {
+          // Mask `rhs` to 15 to match `wrapping_shl`.
+          let rhs = vandq_s16(rhs.neon, vmovq_n_s16(15));
+          Self { neon: vshlq_s16(self.neon, rhs) }
+        }
+      } else {
+        let self_array = self.to_array();
+        let rhs_array = rhs.to_array();
+
+        Self::new([
+          self_array[0].wrapping_shl(rhs_array[0] as u32),
+          self_array[1].wrapping_shl(rhs_array[1] as u32),
+          self_array[2].wrapping_shl(rhs_array[2] as u32),
+          self_array[3].wrapping_shl(rhs_array[3] as u32),
+          self_array[4].wrapping_shl(rhs_array[4] as u32),
+          self_array[5].wrapping_shl(rhs_array[5] as u32),
+          self_array[6].wrapping_shl(rhs_array[6] as u32),
+          self_array[7].wrapping_shl(rhs_array[7] as u32),
+        ])
+      }
+    }
+  }
+}
+
+impl Shr for i16x8 {
+  type Output = Self;
+
+  /// Shifts lanes by the corresponding lane.
+  ///
+  /// Bitwise shift-right; yields `self >> mask(rhs)`, where mask removes any
+  /// high-order bits of `rhs` that would cause the shift to exceed the bitwidth
+  /// of the type. (same as `wrapping_shr`)
+  #[inline]
+  fn shr(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(all(target_feature="avx512bw", target_feature="avx512vl"))] {
+        #[cfg(target_arch = "x86")]
+        use core::arch::x86::_mm_srav_epi16;
+        #[cfg(target_arch = "x86_64")]
+        use core::arch::x86_64::_mm_srav_epi16;
+
+        // Mask `rhs` to 15 to match `wrapping_shr`.
+        let rhs = bitand_m128i(rhs.sse, set_splat_i16_m128i(15));
+        // TODO(safe_arch): Add `_mm_srav_epi16`.
+        cast(unsafe { _mm_srav_epi16(self.sse.0, rhs.0) })
+      } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))] {
+        unsafe {
+          // Mask `rhs` to 15 to match `wrapping_shr`, and negate it because
+          // there is no shift-right intrinsic.
+          let neg_rhs = vnegq_s16(vandq_s16(rhs.neon, vmovq_n_s16(15)));
+          Self { neon: vshlq_s16(self.neon, neg_rhs) }
+        }
+      } else {
+        let self_array = self.to_array();
+        let rhs_array = rhs.to_array();
+
+        Self::new([
+          self_array[0].wrapping_shr(rhs_array[0] as u32),
+          self_array[1].wrapping_shr(rhs_array[1] as u32),
+          self_array[2].wrapping_shr(rhs_array[2] as u32),
+          self_array[3].wrapping_shr(rhs_array[3] as u32),
+          self_array[4].wrapping_shr(rhs_array[4] as u32),
+          self_array[5].wrapping_shr(rhs_array[5] as u32),
+          self_array[6].wrapping_shr(rhs_array[6] as u32),
+          self_array[7].wrapping_shr(rhs_array[7] as u32),
+        ])
+      }
+    }
+  }
+}
+
 impl Add<i16> for i16x8 {
   type Output = Self;
   #[inline]
@@ -342,6 +437,7 @@ macro_rules! impl_shr_t_for_i16x8 {
 }
 impl_shr_t_for_i16x8!(i8, u8, i16, u16, i32, u32, i64, u64, i128, u128);
 
+#[expect(deprecated)]
 impl CmpEq for i16x8 {
   type Output = Self;
   #[inline]
@@ -369,6 +465,7 @@ impl CmpEq for i16x8 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpGt for i16x8 {
   type Output = Self;
   #[inline]
@@ -396,6 +493,7 @@ impl CmpGt for i16x8 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpLt for i16x8 {
   type Output = Self;
   #[inline]
@@ -423,6 +521,90 @@ impl CmpLt for i16x8 {
   }
 }
 
+#[expect(deprecated)]
+impl CmpNe for i16x8 {
+  type Output = Self;
+  #[inline]
+  fn simd_ne(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(target_feature="sse2")] {
+        !self.simd_eq(rhs)
+      } else if #[cfg(target_feature="simd128")] {
+        Self { simd: i16x8_ne(self.simd, rhs.simd) }
+      } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
+        !self.simd_eq(rhs)
+      } else {
+        Self { arr: [
+          if self.arr[0] != rhs.arr[0] { -1 } else { 0 },
+          if self.arr[1] != rhs.arr[1] { -1 } else { 0 },
+          if self.arr[2] != rhs.arr[2] { -1 } else { 0 },
+          if self.arr[3] != rhs.arr[3] { -1 } else { 0 },
+          if self.arr[4] != rhs.arr[4] { -1 } else { 0 },
+          if self.arr[5] != rhs.arr[5] { -1 } else { 0 },
+          if self.arr[6] != rhs.arr[6] { -1 } else { 0 },
+          if self.arr[7] != rhs.arr[7] { -1 } else { 0 },
+        ]}
+      }
+    }
+  }
+}
+
+#[expect(deprecated)]
+impl CmpLe for i16x8 {
+  type Output = Self;
+  #[inline]
+  fn simd_le(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(target_feature="sse2")] {
+        !self.simd_gt(rhs)
+      } else if #[cfg(target_feature="simd128")] {
+        Self { simd: i16x8_le(self.simd, rhs.simd) }
+      } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
+        !self.simd_gt(rhs)
+      } else {
+        Self { arr: [
+          if self.arr[0] <= rhs.arr[0] { -1 } else { 0 },
+          if self.arr[1] <= rhs.arr[1] { -1 } else { 0 },
+          if self.arr[2] <= rhs.arr[2] { -1 } else { 0 },
+          if self.arr[3] <= rhs.arr[3] { -1 } else { 0 },
+          if self.arr[4] <= rhs.arr[4] { -1 } else { 0 },
+          if self.arr[5] <= rhs.arr[5] { -1 } else { 0 },
+          if self.arr[6] <= rhs.arr[6] { -1 } else { 0 },
+          if self.arr[7] <= rhs.arr[7] { -1 } else { 0 },
+        ]}
+      }
+    }
+  }
+}
+
+#[expect(deprecated)]
+impl CmpGe for i16x8 {
+  type Output = Self;
+  #[inline]
+  fn simd_ge(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(target_feature="sse2")] {
+        !self.simd_lt(rhs)
+      } else if #[cfg(target_feature="simd128")] {
+        Self { simd: i16x8_ge(self.simd, rhs.simd) }
+      } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
+        !self.simd_lt(rhs)
+      } else {
+        Self { arr: [
+          if self.arr[0] >= rhs.arr[0] { -1 } else { 0 },
+          if self.arr[1] >= rhs.arr[1] { -1 } else { 0 },
+          if self.arr[2] >= rhs.arr[2] { -1 } else { 0 },
+          if self.arr[3] >= rhs.arr[3] { -1 } else { 0 },
+          if self.arr[4] >= rhs.arr[4] { -1 } else { 0 },
+          if self.arr[5] >= rhs.arr[5] { -1 } else { 0 },
+          if self.arr[6] >= rhs.arr[6] { -1 } else { 0 },
+          if self.arr[7] >= rhs.arr[7] { -1 } else { 0 },
+        ]}
+      }
+    }
+  }
+}
+
 impl i16x8 {
   #[inline]
   #[must_use]
@@ -430,8 +612,11 @@ impl i16x8 {
     unsafe { core::mem::transmute(array) }
   }
 
+  simd_comparison_fns!();
+
   #[inline]
   #[must_use]
+  #[doc(alias("movemask", "move_mask"))]
   pub fn to_bitmask(self) -> u32 {
     pick! {
       if #[cfg(target_feature="sse2")] {
@@ -661,10 +846,33 @@ impl i16x8 {
       }
     }
   }
+
+  /// Returns true for each positive element and false if it is zero or
+  /// negative.
+  #[inline]
+  #[must_use]
+  pub fn is_positive(self) -> Self {
+    pick! {
+      if #[cfg(all(target_feature="neon", target_arch="aarch64"))] {
+        Self { neon: unsafe { vreinterpretq_s16_u16(vcgtzq_s16(self.neon)) } }
+      } else {
+        self.simd_gt(Self::ZERO)
+      }
+    }
+  }
+
+  /// Returns true for each negative element and false if it is zero or
+  /// positive.
   #[inline]
   #[must_use]
   pub fn is_negative(self) -> Self {
-    self.simd_lt(Self::zeroed())
+    pick! {
+      if #[cfg(all(target_feature="neon", target_arch="aarch64"))] {
+        Self { neon: unsafe { vreinterpretq_s16_u16(vcltzq_s16(self.neon)) } }
+      } else {
+        self.simd_lt(Self::ZERO)
+      }
+    }
   }
 
   /// horizontal add of all the elements of the vector
@@ -821,6 +1029,8 @@ impl i16x8 {
     }
   }
 
+  signed_fn_signum!();
+
   #[inline]
   #[must_use]
   pub fn max(self, rhs: Self) -> Self {
@@ -851,6 +1061,8 @@ impl i16x8 {
       }
     }
   }
+
+  integer_fn_clamp!();
 
   #[inline]
   #[must_use]
@@ -900,6 +1112,56 @@ impl i16x8 {
       }
     }
   }
+
+  /// Lanewise saturating multiply.
+  #[inline]
+  #[must_use]
+  pub fn saturating_mul(self, rhs: Self) -> Self {
+    pick! {
+      if #[cfg(target_feature="simd128")] {
+        let low_wide_mul = i32x4_extmul_low_i16x8(self.simd, rhs.simd);
+        let high_wide_mul = i32x4_extmul_high_i16x8(self.simd, rhs.simd);
+        let low = Self { simd: i16x8_shuffle::<0, 2, 4, 6, 8, 10, 12, 14>(low_wide_mul, high_wide_mul) };
+        let high = Self { simd: i16x8_shuffle::<1, 3, 5, 7, 9, 11, 13, 15>(low_wide_mul, high_wide_mul) };
+
+        let no_overflow = high.simd_eq(low.is_negative());
+        let limit = Self::MAX ^ (self ^ rhs).is_negative();
+        no_overflow.blend(low, limit)
+      } else if #[cfg(all(target_feature="neon", target_arch="aarch64"))] {
+        unsafe {
+          let low_wide_mul = vreinterpretq_s16_s32(
+            vmull_s16(vget_low_s16(self.neon), vget_low_s16(rhs.neon)),
+          );
+          let high_wide_mul = vreinterpretq_s16_s32(
+            vmull_s16(vget_high_s16(self.neon), vget_high_s16(rhs.neon)),
+          );
+          let low_high = vuzpq_s16(low_wide_mul, high_wide_mul);
+          let low = Self { neon: low_high.0 };
+          let high = Self { neon: low_high.1 };
+
+          let no_overflow = high.simd_eq(low.is_negative());
+          let limit = Self::MAX ^ (self ^ rhs).is_negative();
+          no_overflow.blend(low, limit)
+        }
+      } else {
+        let self_array = self.to_array();
+        let rhs_array = rhs.to_array();
+
+        Self::new([
+          self_array[0].saturating_mul(rhs_array[0]),
+          self_array[1].saturating_mul(rhs_array[1]),
+          self_array[2].saturating_mul(rhs_array[2]),
+          self_array[3].saturating_mul(rhs_array[3]),
+          self_array[4].saturating_mul(rhs_array[4]),
+          self_array[5].saturating_mul(rhs_array[5]),
+          self_array[6].saturating_mul(rhs_array[6]),
+          self_array[7].saturating_mul(rhs_array[7]),
+        ])
+      }
+    }
+  }
+
+  integer_fn_saturating_div!([0, 1, 2, 3, 4, 5, 6, 7]);
 
   /// Calculates partial dot product.
   /// Multiplies packed signed 16-bit integers, producing intermediate signed

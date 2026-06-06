@@ -456,7 +456,7 @@ impl TimeZone {
     #[inline]
     pub const fn fixed(offset: Offset) -> TimeZone {
         // Not doing `offset == Offset::UTC` because of `const`.
-        if offset.seconds_ranged().get_unchecked() == 0 {
+        if offset.seconds() == 0 {
             return TimeZone::UTC;
         }
         let repr = Repr::fixed(offset);
@@ -1395,6 +1395,28 @@ impl TimeZone {
             ARC_POSIX(_posix) => "POSIX",
         }
     }
+
+    /// Returns the heap memory usage, in bytes, of this timezone.
+    ///
+    /// This does **not** include the stack size used up by this timezone.
+    /// To compute that, use `std::mem::size_of::<TimeZone>()`.
+    pub fn memory_usage(&self) -> usize {
+        repr::each! {
+            &self.repr,
+            UTC => 0,
+            UNKNOWN => 0,
+            FIXED(_offset) => 0,
+            STATIC_TZIF(_tzif) => 0,
+            ARC_TZIF(_tzif) => {
+                core::mem::size_of::<crate::tz::tzif::TzifOwned>() +
+                (core::mem::size_of::<core::sync::atomic::AtomicUsize>() * 2)
+            },
+            ARC_POSIX(_posix) => {
+                core::mem::size_of::<crate::tz::posix::PosixTimeZoneOwned>() +
+                (core::mem::size_of::<core::sync::atomic::AtomicUsize>() * 2)
+            },
+        }
+    }
 }
 
 // Exposed APIs for Jiff's time zone proc macro.
@@ -1938,10 +1960,7 @@ impl<'t> TimeZoneAbbreviation<'t> {
 mod repr {
     use core::mem::ManuallyDrop;
 
-    use crate::{
-        tz::tzif::TzifStatic,
-        util::{constant::unwrap, t},
-    };
+    use crate::{tz::tzif::TzifStatic, util::constant::unwrap};
     #[cfg(feature = "alloc")]
     use crate::{
         tz::{posix::PosixTimeZoneOwned, tzif::TzifOwned},
@@ -2067,7 +2086,7 @@ mod repr {
         /// Creates a representation for a fixed offset time zone.
         #[inline]
         pub(super) const fn fixed(offset: Offset) -> Repr {
-            let seconds = offset.seconds_ranged().get_unchecked();
+            let seconds = offset.seconds();
             // OK because offset is in -93599..=93599.
             let shifted = unwrap!(
                 seconds.checked_shl(4),
@@ -2139,10 +2158,9 @@ mod repr {
         pub(super) unsafe fn get_fixed(&self) -> Offset {
             #[allow(unstable_name_collisions)]
             let addr = self.ptr.addr();
-            // NOTE: Because of sign extension, we need to case to `i32`
+            // NOTE: Because of sign extension, we need to cast to `i32`
             // before shifting.
-            let seconds = t::SpanZoneOffset::new_unchecked((addr as i32) >> 4);
-            Offset::from_seconds_ranged(seconds)
+            Offset::from_seconds_unchecked((addr as i32) >> 4)
         }
 
         /// Returns true if and only if this representation corresponds to the
@@ -3902,7 +3920,7 @@ mod tests {
         let err = tz.to_timestamp(DateTime::MIN).unwrap_err();
         assert_eq!(
             err.to_string(),
-            "converting datetime with time zone offset `-04:02:40` to timestamp overflowed: parameter 'unix-seconds' with value -377705102240 is not in the required range of -377705023201..=253402207200",
+            "converting datetime with time zone offset `-04:02:40` to timestamp overflowed: parameter 'Unix timestamp seconds' is not in the required range of -377705023201..=253402207200",
         );
     }
 }

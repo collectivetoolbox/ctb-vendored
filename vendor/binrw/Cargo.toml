@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.70"
 name = "binrw"
-version = "0.15.0"
+version = "0.15.1"
 authors = [
     "jam1garner <jam@jam1.re>",
     "Colin Snover <github.com@zetafleet.com>",
@@ -121,7 +121,7 @@ path = "benches/fast_vec.rs"
 version = "2.0.0"
 
 [dependencies.binrw_derive]
-version = "0.15.0"
+version = "0.15.1"
 
 [dependencies.bytemuck]
 version = "1.0.0"

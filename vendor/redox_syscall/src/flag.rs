@@ -259,6 +259,23 @@ impl ProcSchemeVerb {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FileTableVerb {
+    Close = 1,
+    Dup2 = 2,
+    CloseCloExec = 3,
+}
+impl FileTableVerb {
+    pub fn try_from_raw(value: u8) -> Option<Self> {
+        Some(match value {
+            1 => Self::Close,
+            2 => Self::Dup2,
+            3 => Self::CloseCloExec,
+            _ => return None,
+        })
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(usize)]
 pub enum SchemeSocketCall {
     ObtainFd = 0,
@@ -402,8 +419,62 @@ bitflags! {
         const FD_CLONE = 1 << 13;
         const FD_UPPER = 1 << 14;
         const FD_CLOEXEC = 1 << 15;
+
+        /// Call is a standard fs call, with metadata defined in `StdFsCallMeta`
+        const STD_FS = 1 << 16;
+
+        /// Call is taking multiple fds as an argument
+        const MULTIPLE_FDS = 1 << 17;
+    }
+}
+
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum StdFsCallKind {
+    // TODO: remove old syscalls
+    Fchmod = 1,
+    Fchown = 2,
+    Getdents = 3,
+    Fstat = 4,
+    Fstatvfs = 5,
+    Fsync = 6,
+    Ftruncate = 7,
+    Futimens = 8,
+    // 9 reserved in fscall RFC
+    // Unlinkat = 10,
+    Relpathat = 11,
+    Lock = 12,
+    Unlock = 13,
+    GetLock = 14,
+}
+
+impl StdFsCallKind {
+    pub fn try_from_raw(raw: u8) -> Option<Self> {
+        use StdFsCallKind::*;
+
+        // TODO: Use a library where this match can be automated.
+        Some(match raw {
+            1 => Fchmod,
+            2 => Fchown,
+            3 => Getdents,
+            4 => Fstat,
+            5 => Fstatvfs,
+            6 => Fsync,
+            7 => Ftruncate,
+            8 => Futimens,
+            // 9 reserved in fscall RFC
+            // 10 => Unlinkat,
+            11 => Relpathat,
+            12 => Lock,
+            13 => Unlock,
+            14 => GetLock,
+            _ => return None,
+        })
     }
 }
 
 /// The tag for the fd number in the upper file descriptor table.
 pub const UPPER_FDTBL_TAG: usize = 1 << (usize::BITS - 2);
+
+/// The identifier for registering event timeout
+pub const EVENT_TIMEOUT_ID: usize = usize::MAX - 2;

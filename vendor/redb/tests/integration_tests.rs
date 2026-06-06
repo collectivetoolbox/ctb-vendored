@@ -1,4 +1,4 @@
-use rand::Rng;
+use rand::RngExt;
 use rand::prelude::SliceRandom;
 use redb::backends::FileBackend;
 use redb::{
@@ -1293,6 +1293,52 @@ fn regression24() {
 
     let txn = db.begin_write().unwrap();
     assert_eq!(allocated_pages, txn.stats().unwrap().allocated_pages());
+}
+
+#[test]
+fn regression25() {
+    let tmpfile = create_tempfile();
+    let table_def: TableDefinition<u16, (u64, u64, u64, u64)> = TableDefinition::new("issue_1108");
+
+    let db = Database::create(tmpfile.path()).unwrap();
+    for i in 0..2730u16 {
+        let txn = db.begin_write().unwrap();
+        {
+            let mut table = txn.open_table(table_def).unwrap();
+            for j in 0..24u16 {
+                let key: u16 = i * 24 + j;
+                let value = key as u64;
+                table.insert(key, (value, value, value, value)).unwrap();
+            }
+        }
+        txn.commit().unwrap();
+    }
+}
+
+#[test]
+fn regression26() {
+    let tmpfile = create_tempfile();
+    let table_def: TableDefinition<u64, (&str, &[u8])> = TableDefinition::new("issue_1117");
+
+    let db = Database::create(tmpfile.path()).unwrap();
+
+    let txn = db.begin_write().unwrap();
+    {
+        let mut table = txn.open_table(table_def).unwrap();
+        table.insert(0, ("name", &[0u8][..])).unwrap();
+    }
+    txn.commit().unwrap();
+
+    {
+        let txn = db.begin_write().unwrap();
+        let mut table = txn.open_table(table_def).unwrap();
+        let mut access = table.get_mut(&0).unwrap().unwrap();
+        let name = access.value().0.to_string();
+        let large_value = vec![1u8; 8192];
+        access.insert((&name[..], large_value.as_slice())).unwrap();
+        drop(table);
+        txn.commit().unwrap();
+    }
 }
 
 #[test]

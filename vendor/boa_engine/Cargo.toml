@@ -13,7 +13,7 @@
 edition = "2024"
 rust-version = "1.88.0"
 name = "boa_engine"
-version = "0.21.0"
+version = "0.21.1"
 authors = ["boa-dev"]
 build = false
 autolib = false
@@ -96,6 +96,8 @@ intl_bundled = [
 js = [
     "dep:web-time",
     "dep:getrandom",
+    "getrandom/wasm_js",
+    "time/wasm-bindgen",
 ]
 jsvalue-enum = []
 native-backtrace = []
@@ -149,7 +151,7 @@ version = "0.7.6"
 version = "2.9.3"
 
 [dependencies.boa_ast]
-version = "~0.21.0"
+version = "~0.21.1"
 
 [dependencies.boa_gc]
 version = "~0.21.0"
@@ -159,21 +161,21 @@ features = [
 ]
 
 [dependencies.boa_icu_provider]
-version = "~0.21.0"
+version = "~0.21.1"
 features = ["std"]
 optional = true
 
 [dependencies.boa_interner]
-version = "~0.21.0"
+version = "~0.21.1"
 
 [dependencies.boa_macros]
-version = "~0.21.0"
+version = "~0.21.1"
 
 [dependencies.boa_parser]
-version = "~0.21.0"
+version = "~0.21.1"
 
 [dependencies.boa_string]
-version = "~0.21.0"
+version = "~0.21.1"
 
 [dependencies.bytemuck]
 version = "1.24.0"
@@ -398,7 +400,6 @@ version = "0.3.44"
 features = [
     "local-offset",
     "large-dates",
-    "wasm-bindgen",
     "parsing",
     "formatting",
     "macros",
@@ -445,7 +446,7 @@ version = "3.3.1"
 version = "0.16.2"
 
 [target.'cfg(all(target_family = "wasm", not(any(target_os = "emscripten", target_os = "wasi"))))'.dependencies.getrandom]
-version = "0.3.3"
+version = "0.3.4"
 features = ["wasm_js"]
 optional = true
 default-features = false

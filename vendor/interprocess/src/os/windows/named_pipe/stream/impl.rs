@@ -11,12 +11,12 @@ use {
     super::*,
     crate::{
         os::windows::{
-            decode_eof,
+            c_wrappers, decode_eof,
             named_pipe::{
-                c_wrappers::{self as c_wrappers, hget},
+                c_wrappers::{self as np_wrappers, hget},
                 PipeMode,
             },
-            AsRawHandleExt, FileHandle, ImpersonationGuard, NeedsFlushVal,
+            ImpersonationGuard, NeedsFlushVal, OptArc as _,
         },
         OrErrno, ToBool,
     },
@@ -73,14 +73,34 @@ impl<Rm: PipeModeTag, Sm: PipeModeTag> PipeStream<Rm, Sm> {
         unsafe { hget(self.as_handle(), Pipes::GetNamedPipeServerSessionId) }
     }
 
+    fn select_dir(
+        &self,
+        if_srv: impl FnOnce(&Self) -> io::Result<u32>,
+        if_clt: impl FnOnce(&Self) -> io::Result<u32>,
+    ) -> io::Result<u32> {
+        if self.is_server() {
+            if_srv(self)
+        } else {
+            if_clt(self)
+        }
+    }
+    /// Retrieves the process identifier of the other side of the named pipe connection.
+    pub fn peer_process_id(&self) -> io::Result<u32> {
+        self.select_dir(Self::client_process_id, Self::server_process_id)
+    }
+    /// Retrieves the session identifier of the other side of the named pipe connection.
+    pub fn peer_session_id(&self) -> io::Result<u32> {
+        self.select_dir(Self::client_session_id, Self::server_session_id)
+    }
+
     /// Returns `true` if the stream was created by a listener (server-side), `false` if it was
     /// created by connecting to a server (server-side).
     #[inline]
-    pub fn is_server(&self) -> bool { self.raw.is_server }
+    pub fn is_server(&self) -> bool { self.raw.get().is_server }
     /// Returns `true` if the stream was created by connecting to a server (client-side), `false` if
     /// it was created by a listener (server-side).
     #[inline]
-    pub fn is_client(&self) -> bool { !self.raw.is_server }
+    pub fn is_client(&self) -> bool { !self.raw.get().is_server }
 
     /// Sets whether the nonblocking mode for the pipe stream is enabled. By default, it is
     /// disabled.
@@ -100,7 +120,7 @@ impl<Rm: PipeModeTag, Sm: PipeModeTag> PipeStream<Rm, Sm> {
     /// [`.set_nonblocking()`]: super::super::PipeListener::set_nonblocking
     #[inline]
     pub fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
-        c_wrappers::set_nonblocking_given_readmode(self.as_handle(), nonblocking, Rm::MODE)
+        np_wrappers::set_nonblocking_given_readmode(self.as_handle(), nonblocking, Rm::MODE)
     }
 
     /// [Impersonates the client][imp] of the named pipe.
@@ -110,7 +130,7 @@ impl<Rm: PipeModeTag, Sm: PipeModeTag> PipeStream<Rm, Sm> {
     ///
     /// [imp]: https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-impersonatenamedpipeclient
     pub fn impersonate_client(&self) -> io::Result<ImpersonationGuard> {
-        unsafe { Pipes::ImpersonateNamedPipeClient(self.as_int_handle()) }
+        unsafe { Pipes::ImpersonateNamedPipeClient(self.as_raw_handle()) }
             .to_bool()
             .true_or_errno(|| ImpersonationGuard(()))
     }

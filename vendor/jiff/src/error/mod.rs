@@ -1,4 +1,7 @@
-use crate::util::{b::BoundsError, sync::Arc};
+use crate::util::{
+    b::{BoundsError, SpecialBoundsError},
+    sync::Arc,
+};
 
 pub(crate) mod civil;
 pub(crate) mod duration;
@@ -7,6 +10,7 @@ pub(crate) mod signed_duration;
 pub(crate) mod span;
 pub(crate) mod timestamp;
 pub(crate) mod tz;
+pub(crate) mod unit;
 pub(crate) mod util;
 pub(crate) mod zoned;
 
@@ -113,7 +117,7 @@ impl Error {
         use self::ErrorKind::*;
         matches!(
             *self.root().kind(),
-            Bounds(_) | Range(_) | SlimRange(_) | ITimeRange(_)
+            Bounds(_) | SpecialBounds(_) | ITimeRange(_)
         )
     }
 
@@ -163,31 +167,17 @@ impl Error {
     /// assert!(err.is_invalid_parameter());
     /// ```
     pub fn is_invalid_parameter(&self) -> bool {
+        use self::civil::Error as CivilError;
         use self::ErrorKind::*;
-        use self::{
-            civil::Error as CivilError, span::Error as SpanError,
-            tz::offset::Error as OffsetError, util::RoundingIncrementError,
-        };
 
         matches!(
             *self.root().kind(),
-            RoundingIncrement(
-                RoundingIncrementError::GreaterThanZero { .. }
-                    | RoundingIncrementError::InvalidDivide { .. }
-                    | RoundingIncrementError::Unsupported { .. }
-            ) | Span(
-                SpanError::NotAllowedCalendarUnits { .. }
-                    | SpanError::NotAllowedLargestSmallerThanSmallest { .. }
-                    | SpanError::RequiresRelativeWeekOrDay { .. }
-                    | SpanError::RequiresRelativeYearOrMonth { .. }
-                    | SpanError::RequiresRelativeYearOrMonthGivenDaysAre24Hours { .. }
-            ) | Civil(
-                CivilError::IllegalTimeWithMicrosecond
-                | CivilError::IllegalTimeWithMillisecond
-                | CivilError::IllegalTimeWithNanosecond
-                | CivilError::RoundMustUseDaysOrBigger { .. }
-                | CivilError::RoundMustUseHoursOrSmaller { .. }
-            ) | TzOffset(OffsetError::RoundInvalidUnit { .. })
+            UnitConfig(_)
+                | Civil(
+                    CivilError::IllegalTimeWithMicrosecond
+                        | CivilError::IllegalTimeWithMillisecond
+                        | CivilError::IllegalTimeWithNanosecond
+                )
         )
     }
 
@@ -208,37 +198,16 @@ impl Error {
 }
 
 impl Error {
-    /// Creates a new error indicating that a `given` value is out of the
-    /// specified `min..=max` range. The given `what` label is used in the
-    /// error message as a human readable description of what exactly is out
-    /// of range. (e.g., "seconds")
-    #[inline(never)]
-    #[cold]
-    pub(crate) fn range(
-        what: &'static str,
-        given: impl Into<i128>,
-        min: impl Into<i128>,
-        max: impl Into<i128>,
-    ) -> Error {
-        Error::from(ErrorKind::Range(RangeError::new(what, given, min, max)))
-    }
-
-    /// Creates a new error indicating that a `given` value is out of the
-    /// allowed range.
-    ///
-    /// This is similar to `Error::range`, but the error message doesn't
-    /// include the illegal value or the allowed range. This is useful for
-    /// ad hoc range errors but should generally be used sparingly.
-    #[inline(never)]
-    #[cold]
-    pub(crate) fn slim_range(what: &'static str) -> Error {
-        Error::from(ErrorKind::SlimRange(SlimRangeError::new(what)))
-    }
-
     #[inline(never)]
     #[cold]
     pub(crate) fn bounds(err: BoundsError) -> Error {
         Error::from(ErrorKind::Bounds(err))
+    }
+
+    #[inline(never)]
+    #[cold]
+    pub(crate) fn special_bounds(err: SpecialBoundsError) -> Error {
+        Error::from(ErrorKind::SpecialBounds(err))
     }
 
     /// Creates a new error from the special "shared" error type.
@@ -453,11 +422,11 @@ enum ErrorKind {
     ParseInt(self::util::ParseIntError),
     ParseFraction(self::util::ParseFractionError),
     PosixTz(crate::shared::posix::PosixTimeZoneError),
-    Range(RangeError),
     RoundingIncrement(self::util::RoundingIncrementError),
     SignedDuration(self::signed_duration::Error),
-    SlimRange(SlimRangeError),
     Span(self::span::Error),
+    UnitConfig(self::unit::UnitConfigError),
+    SpecialBounds(SpecialBoundsError),
     Timestamp(self::timestamp::Error),
     TzAmbiguous(self::tz::ambiguous::Error),
     TzDb(self::tz::db::Error),
@@ -501,11 +470,11 @@ impl core::fmt::Display for ErrorKind {
             ParseInt(ref err) => err.fmt(f),
             ParseFraction(ref err) => err.fmt(f),
             PosixTz(ref err) => err.fmt(f),
-            Range(ref err) => err.fmt(f),
             RoundingIncrement(ref err) => err.fmt(f),
             SignedDuration(ref err) => err.fmt(f),
-            SlimRange(ref err) => err.fmt(f),
             Span(ref err) => err.fmt(f),
+            UnitConfig(ref err) => err.fmt(f),
+            SpecialBounds(ref msg) => msg.fmt(f),
             Timestamp(ref err) => err.fmt(f),
             TzAmbiguous(ref err) => err.fmt(f),
             TzDb(ref err) => err.fmt(f),
@@ -582,90 +551,6 @@ impl core::fmt::Display for AdhocError {
 impl core::fmt::Debug for AdhocError {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         core::fmt::Debug::fmt(&self.message, f)
-    }
-}
-
-/// An error that occurs when an input value is out of bounds.
-///
-/// The error message produced by this type will include a name describing
-/// which input was out of bounds, the value given and its minimum and maximum
-/// allowed values.
-#[derive(Debug)]
-#[cfg_attr(not(feature = "alloc"), derive(Clone))]
-struct RangeError {
-    what: &'static str,
-    #[cfg(feature = "alloc")]
-    given: i128,
-    #[cfg(feature = "alloc")]
-    min: i128,
-    #[cfg(feature = "alloc")]
-    max: i128,
-}
-
-impl RangeError {
-    fn new(
-        what: &'static str,
-        _given: impl Into<i128>,
-        _min: impl Into<i128>,
-        _max: impl Into<i128>,
-    ) -> RangeError {
-        RangeError {
-            what,
-            #[cfg(feature = "alloc")]
-            given: _given.into(),
-            #[cfg(feature = "alloc")]
-            min: _min.into(),
-            #[cfg(feature = "alloc")]
-            max: _max.into(),
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for RangeError {}
-
-impl core::fmt::Display for RangeError {
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        #[cfg(feature = "alloc")]
-        {
-            let RangeError { what, given, min, max } = *self;
-            write!(
-                f,
-                "parameter '{what}' with value {given} \
-                 is not in the required range of {min}..={max}",
-            )
-        }
-        #[cfg(not(feature = "alloc"))]
-        {
-            let RangeError { what } = *self;
-            write!(f, "parameter '{what}' is not in the required range")
-        }
-    }
-}
-
-/// A slim error that occurs when an input value is out of bounds.
-///
-/// Unlike `RangeError`, this only includes a static description of the
-/// value that is out of bounds. It doesn't include the out-of-range value
-/// or the min/max values.
-#[derive(Clone, Debug)]
-struct SlimRangeError {
-    what: &'static str,
-}
-
-impl SlimRangeError {
-    fn new(what: &'static str) -> SlimRangeError {
-        SlimRangeError { what }
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for SlimRangeError {}
-
-impl core::fmt::Display for SlimRangeError {
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        let SlimRangeError { what } = *self;
-        write!(f, "parameter '{what}' is not in the required range")
     }
 }
 
@@ -884,34 +769,49 @@ mod tests {
     // general, we should not increase the size without a very good reason.
     #[test]
     fn error_size() {
-        let mut expected_size = core::mem::size_of::<usize>();
-        if !cfg!(feature = "alloc") {
-            // oooowwwwwwwwwwwch.
-            //
-            // Like, this is horrible, right? core-only environments are
-            // precisely the place where one want to keep things slim. But
-            // in core-only, I don't know of a way to introduce any sort of
-            // indirection in the library level without using a completely
-            // different API.
-            //
-            // This is what makes me doubt that core-only Jiff is actually
-            // useful. In what context are people using a huge library like
-            // Jiff but can't define a small little heap allocator?
-            //
-            // OK, this used to be `expected_size *= 10`, but I slimmed it down
-            // to x3. Still kinda sucks right? If we tried harder, I think we
-            // could probably slim this down more. And if we were willing to
-            // sacrifice error message quality even more (like, all the way),
-            // then we could make `Error` a zero sized type. Which might
-            // actually be the right trade-off for core-only, but I'll hold off
-            // until we have some real world use cases.
-            //
-            // OK... after switching to structured errors, this jumped
-            // back up to `expected_size *= 6`. And that was with me being
-            // conscientious about what data we store inside of error types.
-            // Blech.
-            expected_size *= 6;
+        if cfg!(feature = "alloc") {
+            let expected_size = core::mem::size_of::<usize>();
+            assert_eq!(expected_size, core::mem::size_of::<Error>());
+            return;
         }
-        assert_eq!(expected_size, core::mem::size_of::<Error>());
+        // oooowwwwwwwwwwwch.
+        //
+        // Like, this is horrible, right? core-only environments are
+        // precisely the place where one want to keep things slim. But
+        // in core-only, I don't know of a way to introduce any sort of
+        // indirection in the library level without using a completely
+        // different API.
+        //
+        // This is what makes me doubt that core-only Jiff is actually
+        // useful. In what context are people using a huge library like
+        // Jiff but can't define a small little heap allocator?
+        //
+        // OK, this used to be `expected_size *= 10`, but I slimmed it down
+        // to x3. Still kinda sucks right? If we tried harder, I think we
+        // could probably slim this down more. And if we were willing to
+        // sacrifice error message quality even more (like, all the way),
+        // then we could make `Error` a zero sized type. Which might
+        // actually be the right trade-off for core-only, but I'll hold off
+        // until we have some real world use cases.
+        //
+        // OK... after switching to structured errors, this jumped
+        // back up to `expected_size *= 6`. And that was with me being
+        // conscientious about what data we store inside of error types.
+        // Blech.
+        //
+        // 2026-01-14: A change to the `Offset` type made this move back
+        // down to `expected_size *= 4`.
+        //
+        // 2026-05-28: No changes here, but `4 * pointer-size` is not the
+        // right calculation here. This is unfortunately coupled with an
+        // internal representation for the biggest possible error variant.
+        // And also compiler optimizations. But at time of writing, it's
+        // from the `jiff::error::tz::offset::Error` enum. We get 4 32-bit
+        // integers (always 32-bit) plus one pointer sized discriminant.
+        //
+        // 2026-05-28 redux: this now seems coupled with compiler
+        // optimizations. So just give up and check that it's reasonable.
+        let got = core::mem::size_of::<Error>();
+        assert!(got <= 40, "wanted error size to be <= 40, but got {got}");
     }
 }

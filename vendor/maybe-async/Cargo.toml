@@ -12,8 +12,14 @@
 [package]
 edition = "2021"
 name = "maybe-async"
-version = "0.2.10"
+version = "0.2.11"
 authors = ["Guoli Lyu <guoli-lv@hotmail.com>"]
+build = false
+autolib = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
 description = "A procedure macro to unify SYNC and ASYNC implementation"
 documentation = "https://docs.rs/maybe-async"
 readme = "README.md"
@@ -27,9 +33,29 @@ keywords = [
 license = "MIT"
 repository = "https://github.com/fMeow/maybe-async-rs"
 
+[badges.maintenance]
+status = "actively-developed"
+
+[features]
+default = []
+is_sync = []
+
 [lib]
+name = "maybe_async"
 path = "src/lib.rs"
 proc-macro = true
+
+[[example]]
+name = "service_client"
+path = "examples/service_client.rs"
+
+[[test]]
+name = "test"
+path = "tests/test.rs"
+
+[[test]]
+name = "unit-test-util"
+path = "tests/unit-test-util.rs"
 
 [dependencies.proc-macro2]
 version = "1.0"
@@ -61,10 +87,3 @@ features = [
 [dev-dependencies.trybuild]
 version = "1"
 features = ["diff"]
-
-[features]
-default = []
-is_sync = []
-
-[badges.maintenance]
-status = "actively-developed"

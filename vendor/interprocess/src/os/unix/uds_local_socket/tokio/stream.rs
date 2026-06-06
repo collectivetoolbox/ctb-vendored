@@ -4,9 +4,9 @@ use {
         error::ReuniteError,
         local_socket::{
             traits::{tokio as traits, StreamCommon},
-            ConnectOptions,
+            ConnectOptions, PeerCreds,
         },
-        os::unix::c_wrappers,
+        os::unix::{c_wrappers, local_socket::peer_creds::PeerCreds as PeerCredsInner},
         ConnectWaitMode, Sealed,
     },
     std::{
@@ -75,6 +75,10 @@ impl traits::Stream for Stream {
 impl StreamCommon for Stream {
     #[inline]
     fn take_error(&self) -> io::Result<Option<io::Error>> { c_wrappers::take_error(self.as_fd()) }
+    #[inline]
+    fn peer_creds(&self) -> io::Result<PeerCreds> {
+        PeerCredsInner::for_socket(self.as_fd()).map(From::from)
+    }
 }
 
 /// Access to the underlying implementation.
@@ -176,15 +180,15 @@ macro_rules! tokio_accessors {
 /// [`Stream`]'s receive half, internally implemented using [`Arc`](std::sync::Arc) by Tokio.
 pub struct RecvHalf(RecvHalfImpl);
 impl Sealed for RecvHalf {}
-impl traits::RecvHalf for RecvHalf {
-    type Stream = Stream;
-}
 multimacro! {
     RecvHalf,
     pinproj_for_unpin(RecvHalfImpl),
     tokio_accessors(RecvHalfImpl),
     forward_debug("local_socket::RecvHalf"),
     forward_tokio_read,
+}
+impl traits::RecvHalf for RecvHalf {
+    type Stream = Stream;
 }
 impl AsyncRead for &RecvHalf {
     #[inline]
@@ -205,9 +209,6 @@ impl AsFd for RecvHalf {
 /// [`Stream`]'s send half, internally implemented using [`Arc`](std::sync::Arc) by Tokio.
 pub struct SendHalf(SendHalfImpl);
 impl Sealed for SendHalf {}
-impl traits::SendHalf for SendHalf {
-    type Stream = Stream;
-}
 multimacro! {
     SendHalf,
     pinproj_for_unpin(SendHalfImpl),
@@ -215,6 +216,9 @@ multimacro! {
     forward_rbv(SendHalfImpl, &),
     forward_debug("local_socket::SendHalf"),
     forward_tokio_write,
+}
+impl traits::SendHalf for SendHalf {
+    type Stream = Stream;
 }
 impl AsyncWrite for &SendHalf {
     #[inline]

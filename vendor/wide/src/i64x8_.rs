@@ -80,6 +80,8 @@ impl Mul for i64x8 {
   }
 }
 
+integer_impl_div_rem!(i64, i64x8, [0, 1, 2, 3, 4, 5, 6, 7]);
+
 impl Shr for i64x8 {
   type Output = Self;
 
@@ -293,39 +295,11 @@ macro_rules! impl_shr_t_for_i64x8 {
 }
 impl_shr_t_for_i64x8!(i8, u8, i16, u16, i32, u32, i64, u64, i128, u128);
 
+#[expect(deprecated)]
 impl CmpEq for i64x8 {
   type Output = Self;
   #[inline]
   fn simd_eq(self, rhs: Self) -> Self::Output {
-    Self::simd_eq(self, rhs)
-  }
-}
-
-impl CmpGt for i64x8 {
-  type Output = Self;
-  #[inline]
-  fn simd_gt(self, rhs: Self) -> Self::Output {
-    Self::simd_gt(self, rhs)
-  }
-}
-
-impl CmpLt for i64x8 {
-  type Output = Self;
-  #[inline]
-  fn simd_lt(self, rhs: Self) -> Self::Output {
-    Self::simd_lt(self, rhs)
-  }
-}
-
-impl i64x8 {
-  #[inline]
-  #[must_use]
-  pub const fn new(array: [i64; 8]) -> Self {
-    unsafe { core::mem::transmute(array) }
-  }
-  #[inline]
-  #[must_use]
-  pub fn simd_eq(self, rhs: Self) -> Self {
     pick! {
       if #[cfg(target_feature="avx512f")] {
         Self { avx512: cmp_op_mask_i64_m512i::<{cmp_int_op!(Eq)}>(self.avx512, rhs.avx512) }
@@ -337,9 +311,13 @@ impl i64x8 {
       }
     }
   }
+}
+
+#[expect(deprecated)]
+impl CmpGt for i64x8 {
+  type Output = Self;
   #[inline]
-  #[must_use]
-  pub fn simd_gt(self, rhs: Self) -> Self {
+  fn simd_gt(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx512f")] {
         Self { avx512: cmp_op_mask_i64_m512i::<{cmp_int_op!(Nle)}>(self.avx512, rhs.avx512) }
@@ -351,10 +329,13 @@ impl i64x8 {
       }
     }
   }
+}
 
+#[expect(deprecated)]
+impl CmpLt for i64x8 {
+  type Output = Self;
   #[inline]
-  #[must_use]
-  pub fn simd_lt(self, rhs: Self) -> Self {
+  fn simd_lt(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="avx512f")] {
         Self { avx512: cmp_op_mask_i64_m512i::<{cmp_int_op!(Lt)}>(self.avx512, rhs.avx512) }
@@ -366,6 +347,70 @@ impl i64x8 {
       }
     }
   }
+}
+
+#[expect(deprecated)]
+impl CmpNe for i64x8 {
+  type Output = Self;
+  #[inline]
+  fn simd_ne(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(target_feature="avx512f")] {
+        Self { avx512: cmp_op_mask_i64_m512i::<{cmp_int_op!(Ne)}>(self.avx512, rhs.avx512) }
+      } else {
+        Self {
+          a : self.a.simd_ne(rhs.a),
+          b : self.b.simd_ne(rhs.b),
+        }
+      }
+    }
+  }
+}
+
+#[expect(deprecated)]
+impl CmpLe for i64x8 {
+  type Output = Self;
+  #[inline]
+  fn simd_le(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(target_feature="avx512f")] {
+        Self { avx512: cmp_op_mask_i64_m512i::<{cmp_int_op!(Le)}>(self.avx512, rhs.avx512) }
+      } else {
+        Self {
+          a : self.a.simd_le(rhs.a),
+          b : self.b.simd_le(rhs.b),
+        }
+      }
+    }
+  }
+}
+
+#[expect(deprecated)]
+impl CmpGe for i64x8 {
+  type Output = Self;
+  #[inline]
+  fn simd_ge(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(target_feature="avx512f")] {
+        Self { avx512: cmp_op_mask_i64_m512i::<{cmp_int_op!(Nlt)}>(self.avx512, rhs.avx512) }
+      } else {
+        Self {
+          a : self.a.simd_ge(rhs.a),
+          b : self.b.simd_ge(rhs.b),
+        }
+      }
+    }
+  }
+}
+
+impl i64x8 {
+  #[inline]
+  #[must_use]
+  pub const fn new(array: [i64; 8]) -> Self {
+    unsafe { core::mem::transmute(array) }
+  }
+
+  simd_comparison_fns!();
 
   #[inline]
   #[must_use]
@@ -380,6 +425,63 @@ impl i64x8 {
         }
       }
     }
+  }
+
+  /// Returns true for each positive element and false if it is zero or
+  /// negative.
+  #[inline]
+  #[must_use]
+  pub fn is_positive(self) -> Self {
+    pick! {
+      if #[cfg(all(target_feature="neon", target_arch="aarch64"))] {
+        // `neon` has dedicated greater-than-zero intrinsics.
+        Self {
+          a: self.a.is_positive(),
+          b: self.b.is_positive(),
+        }
+      } else {
+        self.simd_gt(Self::ZERO)
+      }
+    }
+  }
+
+  /// Returns true for each negative element and false if it is zero or
+  /// positive.
+  #[inline]
+  #[must_use]
+  pub fn is_negative(self) -> Self {
+    pick! {
+      if #[cfg(all(target_feature="neon", target_arch="aarch64"))] {
+        // `neon` has dedicated less-than-zero intrinsics.
+        Self {
+          a: self.a.is_negative(),
+          b: self.b.is_negative(),
+        }
+      } else {
+        self.simd_lt(Self::ZERO)
+      }
+    }
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn reduce_add(self) -> i64 {
+    let array: [i64x4; 2] = cast(self);
+    (array[0] + array[1]).reduce_add()
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn reduce_max(self) -> i64 {
+    let array: [i64x4; 2] = cast(self);
+    array[0].max(array[1]).reduce_max()
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn reduce_min(self) -> i64 {
+    let array: [i64x4; 2] = cast(self);
+    array[0].min(array[1]).reduce_min()
   }
 
   #[inline]
@@ -436,6 +538,8 @@ impl i64x8 {
     }
   }
 
+  signed_fn_signum!();
+
   #[inline]
   #[must_use]
   pub fn round_float(self) -> f64x8 {
@@ -456,13 +560,14 @@ impl i64x8 {
   /// lane being the lowest bit
   #[inline]
   #[must_use]
+  #[doc(alias("movemask", "move_mask"))]
   pub fn to_bitmask(self) -> u32 {
     pick! {
       if #[cfg(target_feature="avx512dq")] {
         // use f64 move_mask since it is the same size as i64
         movepi64_mask_m512d(cast(self.avx512)) as u32
       } else {
-        self.a.to_bitmask() | (self.b.to_bitmask() << 2)
+        self.a.to_bitmask() | (self.b.to_bitmask() << 4)
       }
     }
   }
@@ -475,7 +580,8 @@ impl i64x8 {
       if #[cfg(target_feature="avx512f")] {
         movepi64_mask_m512d(cast(self.avx512)) != 0
       } else {
-        (self.a | self.b).any()
+        let [a, b]: [i64x4; 2] = cast(self);
+        (a | b).any()
       }
     }
   }
@@ -488,7 +594,8 @@ impl i64x8 {
       if #[cfg(target_feature="avx512bw")] {
         movepi64_mask_m512d(cast(self.avx512)) == 0b11111111
       } else {
-        (self.a & self.b).all()
+        let [a, b]: [i64x4; 2] = cast(self);
+        (a & b).all()
       }
     }
   }
@@ -498,6 +605,38 @@ impl i64x8 {
   #[must_use]
   pub fn none(self) -> bool {
     !self.any()
+  }
+
+  /// Transpose matrix of 8x8 `i64` matrix. Currently not accelerated.
+  #[must_use]
+  #[inline]
+  pub fn transpose(data: [i64x8; 8]) -> [i64x8; 8] {
+    // Can this be optimized?
+
+    #[inline(always)]
+    fn transpose_column(data: &[i64x8; 8], index: usize) -> i64x8 {
+      i64x8::new([
+        data[0].as_array()[index],
+        data[1].as_array()[index],
+        data[2].as_array()[index],
+        data[3].as_array()[index],
+        data[4].as_array()[index],
+        data[5].as_array()[index],
+        data[6].as_array()[index],
+        data[7].as_array()[index],
+      ])
+    }
+
+    [
+      transpose_column(&data, 0),
+      transpose_column(&data, 1),
+      transpose_column(&data, 2),
+      transpose_column(&data, 3),
+      transpose_column(&data, 4),
+      transpose_column(&data, 5),
+      transpose_column(&data, 6),
+      transpose_column(&data, 7),
+    ]
   }
 
   #[inline]
@@ -544,6 +683,67 @@ impl i64x8 {
       }
     }
   }
+
+  integer_fn_clamp!();
+
+  #[inline]
+  #[must_use]
+  pub fn saturating_add(self, rhs: Self) -> Self {
+    pick! {
+      if #[cfg(target_feature="avx512f")] {
+        let result = self + rhs;
+        let overflow = (!(self ^ rhs) & (self ^ result)).is_negative();
+        let negative = self.is_negative();
+
+        overflow.blend(negative.blend(Self::MIN, Self::MAX), result)
+      } else {
+        Self {
+          a: self.a.saturating_add(rhs.a),
+          b: self.b.saturating_add(rhs.b),
+        }
+      }
+    }
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn saturating_sub(self, rhs: Self) -> Self {
+    pick! {
+      if #[cfg(target_feature="avx512f")] {
+        let result = self - rhs;
+        let overflow = ((self ^ rhs) & (self ^ result)).is_negative();
+        let negative = self.is_negative();
+
+        overflow.blend(negative.blend(Self::MIN, Self::MAX), result)
+      } else {
+        Self {
+          a: self.a.saturating_sub(rhs.a),
+          b: self.b.saturating_sub(rhs.b),
+        }
+      }
+    }
+  }
+
+  /// Lanewise saturating multiply.
+  #[inline]
+  #[must_use]
+  pub fn saturating_mul(self, rhs: Self) -> Self {
+    let self_array = self.to_array();
+    let rhs_array = rhs.to_array();
+
+    Self::new([
+      self_array[0].saturating_mul(rhs_array[0]),
+      self_array[1].saturating_mul(rhs_array[1]),
+      self_array[2].saturating_mul(rhs_array[2]),
+      self_array[3].saturating_mul(rhs_array[3]),
+      self_array[4].saturating_mul(rhs_array[4]),
+      self_array[5].saturating_mul(rhs_array[5]),
+      self_array[6].saturating_mul(rhs_array[6]),
+      self_array[7].saturating_mul(rhs_array[7]),
+    ])
+  }
+
+  integer_fn_saturating_div!([0, 1, 2, 3, 4, 5, 6, 7]);
 }
 
 impl Not for i64x8 {

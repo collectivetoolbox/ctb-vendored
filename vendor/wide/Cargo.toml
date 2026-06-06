@@ -13,7 +13,7 @@
 edition = "2024"
 rust-version = "1.89"
 name = "wide"
-version = "1.1.1"
+version = "1.5.0"
 authors = ["Lokathor <zefria@gmail.com>"]
 build = false
 autolib = false
@@ -37,7 +37,7 @@ repository = "https://github.com/Lokathor/wide"
 
 [features]
 default = ["std"]
-serde = ["dep:serde"]
+serde = ["dep:serde_core"]
 std = []
 
 [lib]
@@ -45,18 +45,23 @@ name = "wide"
 path = "src/lib.rs"
 
 [[test]]
-name = "all_tests"
-path = "tests/all_tests/main.rs"
+name = "tests"
+path = "tests/main.rs"
 
 [[bench]]
 name = "fma_benchmarks"
 path = "benches/fma_benchmarks.rs"
 harness = false
 
+[[bench]]
+name = "math_benchmarks"
+path = "benches/math_benchmarks.rs"
+harness = false
+
 [dependencies.bytemuck]
 version = "1.24.0"
 
-[dependencies.serde]
+[dependencies.serde_core]
 version = "1"
 optional = true
 default-features = false

@@ -29,9 +29,8 @@ impl RawPipeStream {
         send: Option<PipeMode>,
         wait_mode: ConnectWaitMode,
     ) -> io::Result<Self> {
-        let connect = move |path: &_| {
-            c_wrappers::connect_without_waiting(path, recv, send, true).break_some()
-        };
+        let connect =
+            move |path: &_| c_wrappers::connect_without_waiting(path, recv, send).break_some();
         let timeout = wait_mode.timeout_or_unsupported(
             "Tokio named pipes do not support the deferred connection wait mode",
         )?;
@@ -106,10 +105,6 @@ impl<Rm: PipeModeTag, Sm: PipeModeTag> PipeStream<Rm, Sm> {
     /// Internal constructor used by the listener. It's a logic error, but not UB, to create the
     /// thing from the wrong kind of thing, but that never ever happens, to the best of my ability.
     pub(crate) fn new(raw: RawPipeStream) -> Self {
-        Self {
-            raw: MaybeArc::Inline(raw),
-            flusher: Sm::TokioFlusher::default(),
-            _phantom: PhantomData,
-        }
+        Self { raw: raw.into(), flusher: Sm::TokioFlusher::default(), _phantom: PhantomData }
     }
 }

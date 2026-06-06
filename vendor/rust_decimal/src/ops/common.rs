@@ -70,6 +70,7 @@ impl Buf12 {
     // still fits in 96 bits. Ultimately, we want to make scale positive - if we can't then
     // we're going to overflow. Because x is ultimately used to lookup inside the POWERS array, it
     // must be a valid value 0 <= x <= 9
+    #[inline]
     pub fn find_scale(&self, scale: i32) -> Option<usize> {
         const OVERFLOW_MAX_9_HI: u32 = 4;
         const OVERFLOW_MAX_8_HI: u32 = 42;
@@ -189,22 +190,14 @@ pub(super) struct Dec64 {
 }
 
 impl Dec64 {
+    #[inline(always)]
     pub(super) const fn new(d: &Decimal) -> Dec64 {
         let m = d.mantissa_array3();
-        if m[1] == 0 {
-            Dec64 {
-                negative: d.is_sign_negative(),
-                scale: d.scale(),
-                hi: m[2],
-                low64: m[0] as u64,
-            }
-        } else {
-            Dec64 {
-                negative: d.is_sign_negative(),
-                scale: d.scale(),
-                hi: m[2],
-                low64: ((m[1] as u64) << 32) | (m[0] as u64),
-            }
+        Dec64 {
+            negative: d.is_sign_negative(),
+            scale: d.scale(),
+            hi: m[2],
+            low64: ((m[1] as u64) << 32) | (m[0] as u64),
         }
     }
 
@@ -222,13 +215,16 @@ impl Dec64 {
         (self.low64 >> 32) | ((self.hi as u64) << 32)
     }
 
+    #[inline(always)]
     pub(super) const fn to_decimal(&self) -> Decimal {
-        Decimal::from_parts(
-            self.low64 as u32,
-            (self.low64 >> 32) as u32,
+        let lo = self.low64 as u32;
+        let mid = (self.low64 >> 32) as u32;
+        let is_zero = lo == 0 && mid == 0 && self.hi == 0;
+        Decimal::from_parts_raw_unchecked(
+            lo,
+            mid,
             self.hi,
-            self.negative,
-            self.scale,
+            crate::decimal::flags(self.negative && !is_zero, self.scale),
         )
     }
 }

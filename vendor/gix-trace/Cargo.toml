@@ -10,15 +10,15 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
-edition = "2021"
-rust-version = "1.82"
+edition = "2024"
+rust-version = "1.85"
 name = "gix-trace"
-version = "0.1.17"
+version = "0.1.20"
 authors = ["Sebastian Thiel <sebastian.thiel@icloud.com>"]
 build = false
 include = [
-    "src/**/*",
-    "LICENSE-*",
+    "/src/**/*",
+    "/LICENSE-*",
 ]
 autolib = false
 autobins = false
@@ -29,6 +29,7 @@ description = "A crate to provide minimal `tracing` support that can be turned o
 readme = false
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/GitoxideLabs/gitoxide"
+resolver = "2"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -36,7 +37,7 @@ features = ["document-features"]
 
 [features]
 default = []
-tracing = ["dep:tracing-core"]
+tracing = ["dep:tracing"]
 tracing-detail = []
 
 [lib]
@@ -49,9 +50,11 @@ doctest = false
 version = "0.2.0"
 optional = true
 
-[dependencies.tracing-core]
-version = "0.1.36"
+[dependencies.tracing]
+version = "0.1.44"
+features = ["std"]
 optional = true
+default-features = false
 
 [lints.clippy]
 bool_to_int_with_if = "allow"

@@ -1,6 +1,6 @@
 [package]
 name = "handlebars"
-version = "6.4.0"
+version = "6.4.1"
 authors = ["Ning Sun <sunng@pm.me>"]
 description = "Handlebars templating implemented in Rust."
 license = "MIT"
@@ -10,16 +10,12 @@ homepage = "https://github.com/sunng87/handlebars-rust"
 repository = "https://github.com/sunng87/handlebars-rust"
 documentation = "https://docs.rs/crate/handlebars/"
 readme = "README.md"
-edition = "2021"
+edition = "2024"
 rust-version = "1.85"
 
 [lib]
 name = "handlebars"
 path = "src/lib.rs"
-
-[[bin]]
-name = "handlebars-cli"
-path = "src/cli.rs"
 
 [dependencies]
 log = { version = "0.4.0" }
@@ -41,7 +37,7 @@ serde_derive = "1.0.75"
 tempfile = "3.0.0"
 criterion = "0.8"
 tiny_http = "0.12"
-time = { version = "0.3.7", features = ["serde", "formatting", "parsing"]}
+time = { version = "0.3.47", features = ["serde", "formatting", "parsing"]}
 
 [target.'cfg(unix)'.dev-dependencies]
 pprof = { version = "0.15", features = ["flamegraph", "prost-codec"] }

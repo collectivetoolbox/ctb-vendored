@@ -163,17 +163,11 @@ impl BoolExt for bool {
     }
 }
 
-pub(crate) trait AsPtr {
-    #[inline(always)]
-    fn as_ptr(&self) -> *const Self { self }
-}
-impl<T: ?Sized> AsPtr for T {}
-
-pub(crate) trait AsMutPtr {
-    #[inline(always)]
-    fn as_mut_ptr(&mut self) -> *mut Self { self }
-}
-impl<T: ?Sized> AsMutPtr for T {}
+// FUTURE replace with std::ptr::from_{ref,mut}
+#[inline(always)]
+pub(crate) const fn ref2ptr<T: ?Sized>(r: &T) -> *const T { r }
+#[inline(always)]
+pub(crate) fn mut2ptr<T: ?Sized>(r: &mut T) -> *mut T { r }
 
 impl<T, E: std::fmt::Debug> DebugExpectExt for Result<T, E> {
     #[inline]
@@ -241,7 +235,7 @@ impl_subsize! {
     u16 to isize
 }
 
-// TODO(2.4.0) find a more elegant way
+// TODO find a more elegant way
 pub(crate) trait RawOsErrorExt {
     fn eeq(self, other: u32) -> bool;
 }
@@ -412,3 +406,22 @@ pub(crate) fn timeout_expiry(timeout: Duration) -> io::Result<Instant> {
         .checked_add(timeout)
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, msg))
 }
+
+#[cfg(panic = "unwind")]
+#[inline(never)]
+#[cold]
+#[track_caller]
+pub(crate) fn aborting_panic<M: std::any::Any + Send + 'static>(m: M) -> ! {
+    struct SilentBomb;
+    impl Drop for SilentBomb {
+        #[inline(always)]
+        fn drop(&mut self) { std::process::abort() }
+    }
+    let _bomb = SilentBomb;
+    // It would be pretty nice to be able to trigger the Usual Panic Things without proceeding
+    // with an unwind, but this is the best that current Rust offers and it's not too terribly
+    // expensive anyway.
+    std::panic::panic_any(m)
+}
+#[cfg(not(panic = "unwind"))]
+pub(crate) use std::panic::panic_any as aborting_panic;

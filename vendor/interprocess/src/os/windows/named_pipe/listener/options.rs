@@ -13,7 +13,7 @@ use {
 };
 
 /// Allows for thorough customization of [`PipeListener`]s during creation.
-// TODO(2.3.1) allow partial modification for later instances
+// TODO allow partial modification for later instances
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct PipeListenerOptions<'path> {
@@ -153,7 +153,7 @@ impl PipeListenerOptions<'_> {
     pub fn create<Rm: PipeModeTag, Sm: PipeModeTag>(&self) -> io::Result<PipeListener<Rm, Sm>> {
         let (owned_config, instance) =
             self._create(PipeListener::<Rm, Sm>::STREAM_ROLE, Rm::MODE)?;
-        Ok(PipeListener::from_handle_and_options(instance.into(), owned_config))
+        Ok(PipeListener::from_handle_and_options(instance, owned_config))
     }
 
     /// Alias for [`.create()`](Self::create) with the same `Rm` and `Sm`.

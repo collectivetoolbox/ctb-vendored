@@ -11,9 +11,9 @@
 
 [package]
 edition = "2021"
-rust-version = "1.60"
+rust-version = "1.85"
 name = "webbrowser"
-version = "1.1.0"
+version = "1.2.1"
 authors = ["Amod Malviya @amodm"]
 build = false
 autolib = false
@@ -88,13 +88,13 @@ version = "4"
 version = "0.5"
 
 [dev-dependencies.env_logger]
-version = "0.9.0"
+version = "0.11"
 
 [dev-dependencies.rand]
-version = "0.8"
+version = "0.10"
 
 [dev-dependencies.serial_test]
-version = "0.10"
+version = "3.4"
 
 [dev-dependencies.tokio]
 version = "1"
@@ -121,13 +121,14 @@ version = "0.3"
 features = ["Window"]
 
 [target.'cfg(target_os = "android")'.dependencies.jni]
-version = "0.21"
+version = "0.22.2"
 
 [target.'cfg(target_os = "android")'.dependencies.ndk-context]
 version = "0.1"
 
-[target.'cfg(target_os = "android")'.dev-dependencies.ndk-glue]
-version = ">= 0.3, <= 0.7"
+[target.'cfg(target_os = "android")'.dev-dependencies.android-activity]
+version = "0.6"
+features = ["native-activity"]
 
 [target.'cfg(target_os = "macos")'.dependencies.core-foundation]
 version = "0.10"

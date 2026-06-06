@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.82"
 name = "gix-bitmap"
-version = "0.2.15"
+version = "0.2.16"
 authors = ["Sebastian Thiel <sebastian.thiel@icloud.com>"]
 build = false
 exclude = ["CHANGELOG.md"]
@@ -34,7 +34,7 @@ test = true
 doctest = false
 
 [dependencies.thiserror]
-version = "2.0.17"
+version = "2.0.18"
 
 [dev-dependencies]
 

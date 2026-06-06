@@ -1,5 +1,140 @@
 # CHANGELOG
 
+0.2.28 (2026-05-28)
+===================
+This is a small release with a fix for test failures on 32-bit targets in
+`no-alloc` environments.
+
+Bug fixes:
+
+* [#573](https://github.com/BurntSushi/jiff/issues/573):
+Fix test failure on 32-bit targets in `no-alloc` environments.
+
+
+0.2.27 (2026-05-26)
+===================
+This is a small release with a bug fix for build errors on Windows for very old
+versions of Rust.
+
+Bug fixes:
+
+* [#566](https://github.com/BurntSushi/jiff/issues/566):
+Fix build error on Windows for very old versions of Rust (e.g., 1.71).
+
+
+0.2.26 (2026-05-25)
+===================
+This release has a couple enhancements.
+
+Firstly, Jiff now uses `windows-link` for calling FFI routines on Windows
+instead of `windows-sys`. Using `windows-link` means less churn and fewer
+duplicates in the dependency graph.
+
+Secondly, a new `jiff-sqlx 0.2.0` release has been put out to support
+`sqlx 0.9.0`.
+
+Enhancements:
+
+* [#538](https://github.com/BurntSushi/jiff/pull/538):
+Replace use of `windows-sys` with `windows-link` and inline bindings.
+* [#561](https://github.com/BurntSushi/jiff/pull/561):
+Update `jiff-sqlx` to use `sqlx 0.9.0` and release `jiff-sqlx 0.2.0`.
+
+Bug fixes:
+
+* [#548](https://github.com/BurntSushi/jiff/pull/548):
+Absolutetize incorrect relative size terms in the documentation of `RoundMode`.
+
+
+0.2.25 (2026-05-24)
+===================
+This release updates Jiff's bundled copy of the [IANA Time Zone Database]
+to `2026b`. See the [`2026b` release announcement] for more details.
+
+[`2026b` release announcement]: https://lists.iana.org//hyperkitty/list/tz-announce@iana.org/thread/VX2Z3CBO6KHTYZNBBKFFWM7ZCI6TVCXP/
+
+
+0.2.24 (2026-04-23)
+===================
+This release primarily adds a new `memory_usage` routine for reporting
+heap allocation sizes for the `TimeZone` and `Zoned` types. This
+release also acknowledges and updates the timeline expectations for a
+Jiff 1.0 release in `README.md`.
+
+Enhancements:
+
+* [#520](https://github.com/BurntSushi/jiff/issues/520):
+Add `memory_usage` to the `TimeZone` and `Zoned` types.
+* [#535](https://github.com/BurntSushi/jiff/pull/535):
+Improve comment in `Span::checked_add` example.
+
+Bug fixes:
+
+* [#541](https://github.com/BurntSushi/jiff/pull/541):
+Update Jiff 1.0 timeline.
+
+
+0.2.23 (2026-03-03)
+===================
+This release updates Jiff's bundled copy of the [IANA Time Zone Database]
+to `2026a`. See the [`2026a` release announcement] for more details.
+
+[`2026a` release announcement]: https://lists.iana.org/hyperkitty/list/tz-announce@iana.org/thread/ASPLBE3A4BAEXIOQ3KZ6EJSJWBU6L53G/
+
+0.2.22 (2026-02-28)
+===================
+This release includes a bug fix where fallible conversions from signed
+durations to unsigned durations could panic in some cases.
+
+Bug fixes:
+
+* [#526](https://github.com/BurntSushi/jiff/issues/526):
+Fix a panicking bug that occurs for
+`std::time::Duration::try_from(SignedDuration::new(0, -1))`.
+
+
+0.2.21 (2026-02-22)
+===================
+This release contains a performance improvement and a bug fix for
+`civil::Date::new` where it could panic on some inputs.
+
+Bug fixes:
+
+* [#523](https://github.com/BurntSushi/jiff/issues/523):
+Fix a bug where `Date::new` could panic. This was a regression introduced in
+`jiff 0.2.20`.
+
+Performance:
+
+* [#518](https://github.com/BurntSushi/jiff/pull/518):
+Improve `Timestamp` to `civil::DateTime` conversion performance by ~15%.
+
+
+0.2.20 (2026-02-11)
+===================
+This release contains a major internal refactor that moves off of using ranged
+integers internally. There are also some small bug fixes and added support for
+finding the system time zone on emscripten targets.
+
+Enhancements:
+
+* [#11](https://github.com/BurntSushi/jiff/issues/11):
+Stop using ranged integers internally.
+* [#490](https://github.com/BurntSushi/jiff/issues/490):
+Add support for retrieving the system time zone on emscripten targets.
+* [#500](https://github.com/BurntSushi/jiff/issues/500):
+Update comparison with the `time` crate in the Jiff documentation.
+* [#502](https://github.com/BurntSushi/jiff/issues/502):
+Enable some non-default features for the Rust Playground deployment.
+
+Bug fixes:
+
+* [#485](https://github.com/BurntSushi/jiff/issues/485):
+Fix bug with padding for negative integers in `strftime`.
+* [#486](https://github.com/BurntSushi/jiff/issues/486):
+Make `%^c` result in uppercase strings where appropriate.
+
+
 0.2.19 (2026-02-05)
 ===================
 This is a small release with a performance optimization (with respect to doing

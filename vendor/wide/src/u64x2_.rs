@@ -127,6 +127,8 @@ impl Mul for u64x2 {
   }
 }
 
+integer_impl_div_rem!(u64, u64x2, [0, 1]);
+
 impl Add<u64> for u64x2 {
   type Output = Self;
   #[inline]
@@ -363,40 +365,11 @@ macro_rules! impl_shr_t_for_u64x2 {
 }
 impl_shr_t_for_u64x2!(i8, u8, i16, u16, i32, u32, i64, u64, i128, u128);
 
+#[expect(deprecated)]
 impl CmpEq for u64x2 {
   type Output = Self;
   #[inline]
   fn simd_eq(self, rhs: Self) -> Self::Output {
-    Self::simd_eq(self, rhs)
-  }
-}
-
-impl CmpGt for u64x2 {
-  type Output = Self;
-  #[inline]
-  fn simd_gt(self, rhs: Self) -> Self::Output {
-    Self::simd_gt(self, rhs)
-  }
-}
-
-impl CmpLt for u64x2 {
-  type Output = Self;
-  #[inline]
-  fn simd_lt(self, rhs: Self) -> Self::Output {
-    // no lt, so just call gt with swapped args
-    Self::simd_gt(rhs, self)
-  }
-}
-
-impl u64x2 {
-  #[inline]
-  #[must_use]
-  pub const fn new(array: [u64; 2]) -> Self {
-    unsafe { core::mem::transmute(array) }
-  }
-  #[inline]
-  #[must_use]
-  pub fn simd_eq(self, rhs: Self) -> Self {
     pick! {
       if #[cfg(target_feature="sse4.1")] {
         Self { sse: cmp_eq_mask_i64_m128i(self.sse, rhs.sse) }
@@ -414,9 +387,13 @@ impl u64x2 {
       }
     }
   }
+}
+
+#[expect(deprecated)]
+impl CmpGt for u64x2 {
+  type Output = Self;
   #[inline]
-  #[must_use]
-  pub fn simd_gt(self, rhs: Self) -> Self {
+  fn simd_gt(self, rhs: Self) -> Self::Output {
     pick! {
       if #[cfg(target_feature="sse4.2")] {
         // no unsigned gt so inverting the high bit will get the correct result
@@ -435,13 +412,94 @@ impl u64x2 {
       }
     }
   }
+}
 
+#[expect(deprecated)]
+impl CmpLt for u64x2 {
+  type Output = Self;
   #[inline]
-  #[must_use]
-  pub fn simd_lt(self, rhs: Self) -> Self {
+  fn simd_lt(self, rhs: Self) -> Self::Output {
     // lt is just gt the other way around
     rhs.simd_gt(self)
   }
+}
+
+#[expect(deprecated)]
+impl CmpNe for u64x2 {
+  type Output = Self;
+  #[inline]
+  fn simd_ne(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(target_feature="sse4.1")] {
+        !self.simd_eq(rhs)
+      } else if #[cfg(target_feature="simd128")] {
+        Self { simd: u64x2_ne(self.simd, rhs.simd) }
+      } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
+        !self.simd_eq(rhs)
+      } else {
+        let s: [u64;2] = cast(self);
+        let r: [u64;2] = cast(rhs);
+        cast([
+          if s[0] != r[0] { -1_i64 } else { 0 },
+          if s[1] != r[1] { -1_i64 } else { 0 },
+        ])
+      }
+    }
+  }
+}
+
+#[expect(deprecated)]
+impl CmpLe for u64x2 {
+  type Output = Self;
+  #[inline]
+  fn simd_le(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(target_feature="sse4.1")] {
+        !self.simd_gt(rhs)
+      } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
+        !self.simd_gt(rhs)
+      } else {
+        let s: [u64;2] = cast(self);
+        let r: [u64;2] = cast(rhs);
+        cast([
+          if s[0] <= r[0] { -1_i64 } else { 0 },
+          if s[1] <= r[1] { -1_i64 } else { 0 },
+        ])
+      }
+    }
+  }
+}
+
+#[expect(deprecated)]
+impl CmpGe for u64x2 {
+  type Output = Self;
+  #[inline]
+  fn simd_ge(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(target_feature="sse4.1")] {
+        !self.simd_lt(rhs)
+      } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
+        !self.simd_lt(rhs)
+      } else {
+        let s: [u64;2] = cast(self);
+        let r: [u64;2] = cast(rhs);
+        cast([
+          if s[0] >= r[0] { -1_i64 } else { 0 },
+          if s[1] >= r[1] { -1_i64 } else { 0 },
+        ])
+      }
+    }
+  }
+}
+
+impl u64x2 {
+  #[inline]
+  #[must_use]
+  pub const fn new(array: [u64; 2]) -> Self {
+    unsafe { core::mem::transmute(array) }
+  }
+
+  simd_comparison_fns!();
 
   #[inline]
   #[must_use]
@@ -458,11 +516,72 @@ impl u64x2 {
       }
     }
   }
-  
+
   #[inline]
   #[must_use]
+  pub fn reduce_add(self) -> u64 {
+    cast(i64x2::reduce_add(cast(self)))
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn reduce_max(self) -> u64 {
+    pick! {
+      if #[cfg(any(target_feature="sse2", target_feature="simd128"))] {
+        let array: [u64; 2] = cast(self);
+        array[0].max(array[1])
+      } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
+        unsafe { vgetq_lane_u64(self.neon, 0).max(vgetq_lane_u64(self.neon, 1)) }
+      } else {
+        self.arr[0].max(self.arr[1])
+      }
+    }
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn reduce_min(self) -> u64 {
+    pick! {
+      if #[cfg(any(target_feature="sse2", target_feature="simd128"))] {
+        let array: [u64; 2] = cast(self);
+        array[0].min(array[1])
+      } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
+        unsafe { vgetq_lane_u64(self.neon, 0).min(vgetq_lane_u64(self.neon, 1)) }
+      } else {
+        self.arr[0].min(self.arr[1])
+      }
+    }
+  }
+
+  #[inline]
+  #[must_use]
+  #[doc(alias("movemask", "move_mask"))]
   pub fn to_bitmask(self) -> u32 {
     i64x2::to_bitmask(cast(self))
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn any(self) -> bool {
+    i64x2::any(cast(self))
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn all(self) -> bool {
+    i64x2::all(cast(self))
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn none(self) -> bool {
+    !self.any()
+  }
+
+  /// Transpose matrix of 2x2 `u64` matrix.
+  #[inline]
+  pub fn transpose(data: [u64x2; 2]) -> [u64x2; 2] {
+    cast(i64x2::transpose(cast(data)))
   }
 
   #[inline]
@@ -491,6 +610,63 @@ impl u64x2 {
   pub fn max(self, rhs: Self) -> Self {
     self.simd_gt(rhs).blend(self, rhs)
   }
+
+  integer_fn_clamp!();
+
+  #[inline]
+  #[must_use]
+  pub fn saturating_add(self, rhs: Self) -> Self {
+    pick! {
+      if #[cfg(any(target_feature="sse2", target_feature="simd128"))] {
+        let result = self + rhs;
+        result.simd_lt(self).blend(Self::MAX, result)
+      } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
+        unsafe { Self { neon: vqaddq_u64(self.neon, rhs.neon) } }
+      } else {
+        Self {
+          arr: [
+            self.arr[0].saturating_add(rhs.arr[0]),
+            self.arr[1].saturating_add(rhs.arr[1]),
+          ],
+        }
+      }
+    }
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn saturating_sub(self, rhs: Self) -> Self {
+    pick! {
+      if #[cfg(any(target_feature="sse2", target_feature="simd128"))] {
+        let result = self - rhs;
+        result.simd_gt(self).blend(Self::MIN, result)
+      } else if #[cfg(all(target_feature="neon",target_arch="aarch64"))]{
+        unsafe { Self { neon: vqsubq_u64(self.neon, rhs.neon) } }
+      } else {
+        Self {
+          arr: [
+            self.arr[0].saturating_sub(rhs.arr[0]),
+            self.arr[1].saturating_sub(rhs.arr[1]),
+          ],
+        }
+      }
+    }
+  }
+
+  /// Lanewise saturating multiply.
+  #[inline]
+  #[must_use]
+  pub fn saturating_mul(self, rhs: Self) -> Self {
+    let self_array = self.to_array();
+    let rhs_array = rhs.to_array();
+
+    Self::new([
+      self_array[0].saturating_mul(rhs_array[0]),
+      self_array[1].saturating_mul(rhs_array[1]),
+    ])
+  }
+
+  integer_fn_saturating_div!([0, 1]);
 
   #[inline]
   #[must_use]

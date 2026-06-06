@@ -1,6 +1,6 @@
 use {
     crate::{
-        os::windows::{winprelude::*, FileHandle, NeedsFlush},
+        os::windows::{c_wrappers, winprelude::*, NeedsFlush, OptArcIRC},
         UnpinExt, LOCK_POISON,
     },
     std::{
@@ -24,7 +24,7 @@ impl TokioFlusher {
     #[inline]
     pub(crate) async fn flush_atomic(
         &self,
-        file_handle: BorrowedHandle<'_>,
+        file_handle: &(impl OptArcIRC<Value = impl AsHandle + Send + Sync + 'static> + 'static),
         needs_flush: &NeedsFlush,
     ) -> io::Result<()> {
         future::poll_fn(|cx| self.poll_flush_atomic(file_handle, needs_flush, cx)).await
@@ -32,7 +32,7 @@ impl TokioFlusher {
 
     pub(crate) fn poll_flush_atomic(
         &self,
-        file_handle: BorrowedHandle<'_>,
+        file_handle: &(impl OptArcIRC<Value = impl AsHandle + Send + Sync + 'static> + 'static),
         needs_flush: &NeedsFlush,
         cx: &mut Context<'_>,
     ) -> Poll<io::Result<()>> {
@@ -61,12 +61,12 @@ impl TokioFlusher {
 
     pub(crate) fn poll_flush_mut(
         &self,
-        file_handle: BorrowedHandle<'_>,
+        file_handle: &(impl OptArcIRC<Value = impl AsHandle + Send + Sync + 'static> + 'static),
         needs_flush: &mut bool,
         cx: &mut Context<'_>,
     ) -> Poll<io::Result<()>> {
         if !*needs_flush {
-            // Idempotency optimization — don't flush unless there have been unflushed writes
+            // Idempotency optimization – don't flush unless there have been unflushed writes
             return Poll::Ready(Ok(()));
         }
 
@@ -83,14 +83,15 @@ impl TokioFlusher {
 
     fn ensure_flush_start<'opt>(
         join_handle: &'opt mut Option<FlushJH>,
-        file_handle: BorrowedHandle<'_>,
+        file_handle: &(impl OptArcIRC<Value = impl AsHandle + Send + Sync + 'static> + 'static),
     ) -> &'opt mut FlushJH {
         if let Some(jh) = join_handle {
             return jh;
         }
-        let handle = file_handle.as_int_handle();
-        let task = tokio::task::spawn_blocking(move || FileHandle::flush_hndl(handle));
-        join_handle.insert(task)
+        let fh = file_handle.refclone();
+        let task = tokio::task::spawn_blocking(move || c_wrappers::flush(fh.get().as_handle()));
+        let ret = join_handle.insert(task);
+        ret
     }
 }
 impl Default for TokioFlusher {

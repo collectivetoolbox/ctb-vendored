@@ -23,7 +23,7 @@ use crate::template::{
     BlockParam, DecoratorTemplate, HelperTemplate, Parameter, Template, TemplateElement,
     TemplateMapping,
 };
-use crate::{partial, RenderErrorReason};
+use crate::{RenderErrorReason, partial};
 
 const HELPER_MISSING: &str = "helperMissing";
 const BLOCK_HELPER_MISSING: &str = "blockHelperMissing";
@@ -42,7 +42,6 @@ pub struct RenderContext<'reg: 'rc, 'rc> {
     // copy-on-write context
     modified_context: Option<Rc<Context>>,
 
-    partials: BTreeMap<String, &'rc Template>,
     // when rendering partials, store rendered string into partial_block_stack
     // for `@partial-block` referencing. If it's a `{{> partial}}`, push `None`
     // to stack and report error when child partial try to referencing
@@ -80,7 +79,6 @@ impl<'reg: 'rc, 'rc> RenderContext<'reg, 'rc> {
 
         let modified_context = None;
         RenderContext {
-            partials: BTreeMap::new(),
             partial_block_stack: VecDeque::new(),
             local_helpers: BTreeMap::new(),
             current_template: None,
@@ -176,12 +174,14 @@ impl<'reg: 'rc, 'rc> RenderContext<'reg, 'rc> {
 
     /// Get registered partial in this render context
     pub fn get_partial(&self, name: &str) -> Option<&'rc Template> {
-        self.partials.get(name).copied()
-    }
+        // resolve partial from block
+        for block in &self.blocks {
+            if let Some(partial) = block.get_local_partial(name) {
+                return Some(partial);
+            }
+        }
 
-    /// Register a partial for this context
-    pub fn set_partial(&mut self, name: String, partial: &'rc Template) {
-        self.partials.insert(name, partial);
+        None
     }
 
     pub(crate) fn push_partial_block(&mut self, partial_block: Option<String>) {
@@ -215,11 +215,6 @@ impl<'reg: 'rc, 'rc> RenderContext<'reg, 'rc> {
         t: Option<&'rc BTreeMap<String, Cow<'rc, Template>>>,
     ) {
         self.dev_mode_templates = t;
-    }
-
-    /// Remove a registered partial
-    pub fn remove_partial(&mut self, name: &str) {
-        self.partials.remove(name);
     }
 
     fn get_local_var(&self, level: usize, name: &str) -> Option<&Json> {
@@ -329,7 +324,6 @@ impl fmt::Debug for RenderContext<'_, '_> {
             .field("dev_mode_templates", &self.dev_mode_templates)
             .field("blocks", &self.blocks)
             .field("modified_context", &self.modified_context)
-            .field("partials", &self.partials)
             .field("partial_block_stack", &self.partial_block_stack)
             .field("root_template", &self.root_template)
             .field("current_template", &self.current_template)
@@ -648,13 +642,13 @@ impl Parameter {
         rc: &mut RenderContext<'reg, 'rc>,
     ) -> Result<Cow<'rc, str>, RenderError> {
         match self {
-            Parameter::Name(ref name) => Ok(Cow::Borrowed(name)),
-            Parameter::Path(ref p) => Ok(Cow::Borrowed(p.raw())),
+            Parameter::Name(name) => Ok(Cow::Borrowed(name)),
+            Parameter::Path(p) => Ok(Cow::Borrowed(p.raw())),
             Parameter::Subexpression(_) => self
                 .expand(registry, ctx, rc)
                 .map(|v| v.value().render())
                 .map(Cow::Owned),
-            Parameter::Literal(ref j) => Ok(Cow::Owned(j.render())),
+            Parameter::Literal(j) => Ok(Cow::Owned(j.render())),
         }
     }
 
@@ -665,11 +659,11 @@ impl Parameter {
         rc: &mut RenderContext<'reg, 'rc>,
     ) -> Result<PathAndJson<'rc>, RenderError> {
         match self {
-            Parameter::Name(ref name) => {
+            Parameter::Name(name) => {
                 // FIXME: raise error when expanding with name?
                 Ok(PathAndJson::new(Some(name.to_owned()), ScopedJson::Missing))
             }
-            Parameter::Path(ref path) => {
+            Parameter::Path(path) => {
                 if let Some(rc_context) = rc.context() {
                     let result = rc.evaluate2(&rc_context, path)?;
                     Ok(PathAndJson::new(
@@ -681,8 +675,8 @@ impl Parameter {
                     Ok(PathAndJson::new(Some(path.raw().to_owned()), result))
                 }
             }
-            Parameter::Literal(ref j) => Ok(PathAndJson::new(None, ScopedJson::Constant(j))),
-            Parameter::Subexpression(ref t) => match *t.as_element() {
+            Parameter::Literal(j) => Ok(PathAndJson::new(None, ScopedJson::Constant(j))),
+            Parameter::Subexpression(t) => match *t.as_element() {
                 Expression(ref ht) => {
                     let name = ht.name.expand_as_name(registry, ctx, rc)?;
 
@@ -879,8 +873,8 @@ impl Renderable for TemplateElement {
         out: &mut dyn Output,
     ) -> Result<(), RenderError> {
         match self {
-            RawString(ref v) => indent_aware_write(v.as_ref(), rc, out),
-            Expression(ref ht) | HtmlExpression(ref ht) => {
+            RawString(v) => indent_aware_write(v.as_ref(), rc, out),
+            Expression(ht) | HtmlExpression(ht) => {
                 let is_html_expression = matches!(self, HtmlExpression(_));
                 if is_html_expression {
                     rc.set_disable_escape(true);
@@ -923,9 +917,9 @@ impl Renderable for TemplateElement {
 
                 result
             }
-            HelperBlock(ref ht) => render_helper(ht, registry, ctx, rc, out),
+            HelperBlock(ht) => render_helper(ht, registry, ctx, rc, out),
             DecoratorExpression(_) | DecoratorBlock(_) => self.eval(registry, ctx, rc),
-            PartialExpression(ref dt) | PartialBlock(ref dt) => {
+            PartialExpression(dt) | PartialBlock(dt) => {
                 let di = Decorator::try_from_template(dt, registry, ctx, rc)?;
 
                 let indent_directive_before = rc.get_indent_before_write();
@@ -1140,9 +1134,10 @@ mod test {
         let m: BTreeMap<String, String> = BTreeMap::new();
 
         let name = "invalid_template";
-        assert!(r
-            .register_template_string(name, "<h1>\n{{#if true}}\n  {{#each}}{{/each}}\n{{/if}}")
-            .is_ok());
+        assert!(
+            r.register_template_string(name, "<h1>\n{{#if true}}\n  {{#each}}{{/each}}\n{{/if}}")
+                .is_ok()
+        );
 
         if let Err(e) = r.render(name, &m) {
             assert_eq!(e.line_no.unwrap(), 3);
@@ -1157,15 +1152,17 @@ mod test {
     fn test_partial_failback_render() {
         let mut r = Registry::new();
 
-        assert!(r
-            .register_template_string("parent", "<html>{{> layout}}</html>")
-            .is_ok());
-        assert!(r
-            .register_template_string(
+        assert!(
+            r.register_template_string("parent", "<html>{{> layout}}</html>")
+                .is_ok()
+        );
+        assert!(
+            r.register_template_string(
                 "child",
                 "{{#*inline \"layout\"}}content{{/inline}}{{#> parent}}{{> seg}}{{/parent}}",
             )
-            .is_ok());
+            .is_ok()
+        );
         assert!(r.register_template_string("seg", "1234").is_ok());
 
         let r = r.render("child", &true).expect("should work");
@@ -1176,9 +1173,10 @@ mod test {
     fn test_key_with_slash() {
         let mut r = Registry::new();
 
-        assert!(r
-            .register_template_string("t", "{{#each this}}{{@key}}: {{this}}\n{{/each}}")
-            .is_ok());
+        assert!(
+            r.register_template_string("t", "{{#each this}}{{@key}}: {{this}}\n{{/each}}")
+                .is_ok()
+        );
 
         let r = r.render("t", &json!({"/foo": "bar"})).unwrap();
 
@@ -1270,9 +1268,10 @@ mod test {
     fn test_identifiers_starting_with_numbers() {
         let mut r = Registry::new();
 
-        assert!(r
-            .register_template_string("r1", "{{#if 0a}}true{{/if}}")
-            .is_ok());
+        assert!(
+            r.register_template_string("r1", "{{#if 0a}}true{{/if}}")
+                .is_ok()
+        );
         let r1 = r.render("r1", &json!({"0a": true})).unwrap();
         assert_eq!(r1, "true");
 

@@ -13,7 +13,7 @@
 edition = "2024"
 rust-version = "1.88.0"
 name = "boa_parser"
-version = "0.21.0"
+version = "0.21.1"
 authors = ["boa-dev"]
 build = false
 autolib = false
@@ -51,13 +51,13 @@ path = "src/lib.rs"
 version = "2.9.3"
 
 [dependencies.boa_ast]
-version = "~0.21.0"
+version = "~0.21.1"
 
 [dependencies.boa_interner]
-version = "~0.21.0"
+version = "~0.21.1"
 
 [dependencies.boa_macros]
-version = "~0.21.0"
+version = "~0.21.1"
 
 [dependencies.fast-float2]
 version = "0.2.3"

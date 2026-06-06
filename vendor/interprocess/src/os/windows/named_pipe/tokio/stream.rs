@@ -1,5 +1,6 @@
-// TODO(2.x.0) message reading disabled due to a lack of support in Mio; we should try to figure
-// something out, they need to add first-class message pipe support and handling of ERROR_MORE_DATA
+// TODO message reading disabled due to a lack of support in Mio; we should try to figure
+// something out, they need to add first-class message pipe support and handling of
+// ERROR_MORE_DATA
 
 mod error;
 pub use error::*;
@@ -8,12 +9,9 @@ mod r#impl;
 
 use {
     crate::os::windows::{
-        named_pipe::{
-            stream::{pipe_mode, PipeModeTag},
-            MaybeArc,
-        },
+        named_pipe::stream::{pipe_mode, PipeModeTag},
         winprelude::*,
-        NeedsFlush,
+        MaybeArc, NeedsFlush,
     },
     std::{io, marker::PhantomData, mem::ManuallyDrop},
     tokio::net::windows::named_pipe::{
@@ -39,7 +37,7 @@ use {
 #[cfg_attr(doc, doc = doctest_file::include_doctest!("examples/named_pipe/sync/stream/bytes.rs"))]
 /// ```
 pub struct PipeStream<Rm: PipeModeTag, Sm: PipeModeTag> {
-    raw: MaybeArc<RawPipeStream>,
+    raw: Sm::OptArc<RawPipeStream>,
     // This specializes to TokioFlusher for non-None send modes and to () for receive-only
     // streams, reducing the size of read halves.
     flusher: Sm::TokioFlusher,

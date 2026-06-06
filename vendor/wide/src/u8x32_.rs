@@ -55,6 +55,67 @@ impl Sub for u8x32 {
   }
 }
 
+impl Mul for u8x32 {
+  type Output = Self;
+
+  #[inline]
+  fn mul(self, rhs: Self) -> Self::Output {
+    // For x86, this technically can be done explicitly by converting to `i16`
+    // then converting back after multiplication, but that may not actually be
+    // faster than auto-vectorization.
+    let [self_a, self_b]: [u8x16; 2] = cast(self);
+    let [rhs_a, rhs_b]: [u8x16; 2] = cast(rhs);
+    cast([self_a * rhs_a, self_b * rhs_b])
+  }
+}
+
+integer_impl_div_rem!(
+  u8,
+  u8x32,
+  [
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+    21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+  ],
+);
+
+impl Shl for u8x32 {
+  type Output = Self;
+
+  /// Shifts lanes by the corresponding lane.
+  ///
+  /// Bitwise shift-left; yields `self << mask(rhs)`, where mask removes any
+  /// high-order bits of `rhs` that would cause the shift to exceed the bitwidth
+  /// of the type. (same as `wrapping_shl`)
+  #[inline]
+  fn shl(self, rhs: Self) -> Self::Output {
+    // For x86, this technically can be done explicitly by converting to `u16`
+    // or `u32` then converting back after multiplication, but that may not
+    // actually be faster than auto-vectorization.
+    let [self_a, self_b]: [u8x16; 2] = cast(self);
+    let [rhs_a, rhs_b]: [u8x16; 2] = cast(rhs);
+    cast([self_a << rhs_a, self_b << rhs_b])
+  }
+}
+
+impl Shr for u8x32 {
+  type Output = Self;
+
+  /// Shifts lanes by the corresponding lane.
+  ///
+  /// Bitwise shift-right; yields `self >> mask(rhs)`, where mask removes any
+  /// high-order bits of `rhs` that would cause the shift to exceed the bitwidth
+  /// of the type. (same as `wrapping_shr`)
+  #[inline]
+  fn shr(self, rhs: Self) -> Self::Output {
+    // For x86, this technically can be done explicitly by converting to `u16`
+    // or `u32` then converting back after multiplication, but that may not
+    // actually be faster than auto-vectorization.
+    let [self_a, self_b]: [u8x16; 2] = cast(self);
+    let [rhs_a, rhs_b]: [u8x16; 2] = cast(rhs);
+    cast([self_a >> rhs_a, self_b >> rhs_b])
+  }
+}
+
 impl Add<u8> for u8x32 {
   type Output = Self;
   #[inline]
@@ -71,6 +132,79 @@ impl Sub<u8> for u8x32 {
   }
 }
 
+impl Mul<u8> for u8x32 {
+  type Output = Self;
+
+  #[inline]
+  fn mul(self, rhs: u8) -> Self::Output {
+    self * Self::splat(rhs)
+  }
+}
+
+macro_rules! impl_shl_scalar {
+  ($Rhs:ident) => {
+    impl Shl<$Rhs> for u8x32 {
+      type Output = Self;
+
+      /// Shifts all lanes by a uniform value.
+      ///
+      /// Bitwise shift-left; yields `self << mask(rhs)`, where mask removes any
+      /// high-order bits of `rhs` that would cause the shift to exceed the
+      /// bitwidth of the type. (same as `wrapping_shl`)
+      #[inline]
+      fn shl(self, rhs: $Rhs) -> Self::Output {
+        // For x86, this technically can be done explicitly by converting
+        // to `u16` or `u32` then converting back after multiplication, but that
+        // may not actually be faster than auto-vectorization.
+        let [self_a, self_b]: [u8x16; 2] = cast(self);
+        cast([self_a << rhs, self_b << rhs])
+      }
+    }
+  };
+}
+impl_shl_scalar!(i8);
+impl_shl_scalar!(u8);
+impl_shl_scalar!(i16);
+impl_shl_scalar!(u16);
+impl_shl_scalar!(i32);
+impl_shl_scalar!(u32);
+impl_shl_scalar!(i64);
+impl_shl_scalar!(u64);
+impl_shl_scalar!(i128);
+impl_shl_scalar!(u128);
+
+macro_rules! impl_shr_scalar {
+  ($Rhs:ident) => {
+    impl Shr<$Rhs> for u8x32 {
+      type Output = Self;
+
+      /// Shifts all lanes by a uniform value.
+      ///
+      /// Bitwise shift-right; yields `self >> mask(rhs)`, where mask removes
+      /// any high-order bits of `rhs` that would cause the shift to exceed
+      /// the bitwidth of the type. (same as `wrapping_shr`)
+      #[inline]
+      fn shr(self, rhs: $Rhs) -> Self::Output {
+        // For x86, this technically can be done explicitly by converting
+        // to `u16` or `u32` then converting back after multiplication, but that
+        // may not actually be faster than auto-vectorization.
+        let [self_a, self_b]: [u8x16; 2] = cast(self);
+        cast([self_a >> rhs, self_b >> rhs])
+      }
+    }
+  };
+}
+impl_shr_scalar!(i8);
+impl_shr_scalar!(u8);
+impl_shr_scalar!(i16);
+impl_shr_scalar!(u16);
+impl_shr_scalar!(i32);
+impl_shr_scalar!(u32);
+impl_shr_scalar!(i64);
+impl_shr_scalar!(u64);
+impl_shr_scalar!(i128);
+impl_shr_scalar!(u128);
+
 impl Add<u8x32> for u8 {
   type Output = u8x32;
   #[inline]
@@ -84,6 +218,15 @@ impl Sub<u8x32> for u8 {
   #[inline]
   fn sub(self, rhs: u8x32) -> Self::Output {
     u8x32::splat(self).sub(rhs)
+  }
+}
+
+impl Mul<u8x32> for u8 {
+  type Output = u8x32;
+
+  #[inline]
+  fn mul(self, rhs: u8x32) -> Self::Output {
+    u8x32::splat(self) * rhs
   }
 }
 
@@ -138,6 +281,7 @@ impl BitXor for u8x32 {
   }
 }
 
+#[expect(deprecated)]
 impl CmpEq for u8x32 {
   type Output = Self;
   #[inline]
@@ -150,6 +294,102 @@ impl CmpEq for u8x32 {
           a : self.a.simd_eq(rhs.a),
           b : self.b.simd_eq(rhs.b),
         }
+      }
+    }
+  }
+}
+
+#[expect(deprecated)]
+impl CmpNe for u8x32 {
+  type Output = Self;
+  #[inline]
+  fn simd_ne(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(target_feature="avx2")] {
+        !self.simd_eq(rhs)
+      } else {
+        Self {
+          a : self.a.simd_ne(rhs.a),
+          b : self.b.simd_ne(rhs.b),
+        }
+      }
+    }
+  }
+}
+
+#[expect(deprecated)]
+impl CmpLt for u8x32 {
+  type Output = Self;
+  #[inline]
+  fn simd_lt(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(target_feature="avx2")] {
+        // Convert from u8 to i8.
+        let offset = Self::splat(0x80);
+        let self_i8 = self.bitxor(offset).avx;
+        let rhs_i8 = rhs.bitxor(offset).avx;
+        Self { avx: cmp_gt_mask_i8_m256i(rhs_i8, self_i8)}
+      } else {
+        Self { a: self.a.simd_lt(rhs.a), b: self.b.simd_lt(rhs.b) }
+      }
+    }
+  }
+}
+
+#[expect(deprecated)]
+impl CmpLe for u8x32 {
+  type Output = Self;
+  #[inline]
+  fn simd_le(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(target_feature="avx2")] {
+        // Convert from u8 to i8.
+        let offset = Self::splat(0x80);
+        let self_i8 = self.bitxor(offset).avx;
+        let rhs_i8 = rhs.bitxor(offset).avx;
+        let gt_mask = Self { avx : cmp_gt_mask_i8_m256i(self_i8,rhs_i8) };
+        Self { avx: gt_mask.bitxor(Self::splat(0xFF)).avx }
+      } else {
+        Self { a: self.a.simd_le(rhs.a), b: self.b.simd_le(rhs.b) }
+      }
+    }
+  }
+}
+
+#[expect(deprecated)]
+impl CmpGe for u8x32 {
+  type Output = Self;
+  #[inline]
+  fn simd_ge(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(target_feature="avx2")] {
+        // Convert from u8 to i8.
+        let offset = Self::splat(0x80);
+        let self_i8 = self.bitxor(offset).avx;
+        let rhs_i8 = rhs.bitxor(offset).avx;
+        let lt_mask = Self { avx: cmp_gt_mask_i8_m256i(rhs_i8, self_i8)};
+        Self { avx: lt_mask.bitxor(Self::splat(0xFF)).avx }
+      } else {
+        Self { a: self.a.simd_ge(rhs.a), b: self.b.simd_ge(rhs.b) }
+      }
+    }
+  }
+}
+
+#[expect(deprecated)]
+impl CmpGt for u8x32 {
+  type Output = Self;
+  #[inline]
+  fn simd_gt(self, rhs: Self) -> Self::Output {
+    pick! {
+      if #[cfg(target_feature="avx2")] {
+        // Convert from u8 to i8.
+        let offset = Self::splat(0x80);
+        let self_i8 = self.bitxor(offset).avx;
+        let rhs_i8 = rhs.bitxor(offset).avx;
+        Self { avx : cmp_gt_mask_i8_m256i(self_i8,rhs_i8) }
+      } else {
+        Self { a: self.a.simd_gt(rhs.a), b: self.b.simd_gt(rhs.b) }
       }
     }
   }
@@ -178,6 +418,9 @@ impl u8x32 {
   pub const fn new(array: [u8; 32]) -> Self {
     unsafe { core::mem::transmute(array) }
   }
+
+  simd_comparison_fns!();
+
   #[inline]
   #[must_use]
   pub fn blend(self, t: Self, f: Self) -> Self {
@@ -192,6 +435,27 @@ impl u8x32 {
       }
     }
   }
+
+  #[inline]
+  #[must_use]
+  pub fn reduce_add(self) -> u8 {
+    cast(i8x32::reduce_add(cast(self)))
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn reduce_max(self) -> u8 {
+    let array: [u8x16; 2] = cast(self);
+    array[0].max(array[1]).reduce_max()
+  }
+
+  #[inline]
+  #[must_use]
+  pub fn reduce_min(self) -> u8 {
+    let array: [u8x16; 2] = cast(self);
+    array[0].min(array[1]).reduce_min()
+  }
+
   #[inline]
   #[must_use]
   pub fn max(self, rhs: Self) -> Self {
@@ -220,6 +484,8 @@ impl u8x32 {
       }
     }
   }
+
+  integer_fn_clamp!();
 
   #[inline]
   #[must_use]
@@ -250,8 +516,23 @@ impl u8x32 {
     }
   }
 
+  /// Lanewise saturating multiply.
   #[inline]
   #[must_use]
+  pub fn saturating_mul(self, rhs: Self) -> Self {
+    let [self_a, self_b]: [u8x16; 2] = cast(self);
+    let [rhs_a, rhs_b]: [u8x16; 2] = cast(rhs);
+    cast([self_a.saturating_mul(rhs_a), self_b.saturating_mul(rhs_b)])
+  }
+
+  integer_fn_saturating_div!([
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+    21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+  ]);
+
+  #[inline]
+  #[must_use]
+  #[doc(alias("movemask", "move_mask"))]
   pub fn to_bitmask(self) -> u32 {
     i8x32::to_bitmask(cast(self)) as u32
   }
@@ -299,6 +580,13 @@ impl u8x32 {
   #[must_use]
   pub fn none(self) -> bool {
     !self.any()
+  }
+
+  /// Transpose matrix of 32x32 `u8` matrix. Currently not accelerated.
+  #[must_use]
+  #[inline]
+  pub fn transpose(data: [u8x32; 32]) -> [u8x32; 32] {
+    cast(i8x32::transpose(cast(data)))
   }
 
   #[inline]

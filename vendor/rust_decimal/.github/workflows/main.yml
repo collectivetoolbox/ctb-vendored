@@ -1,6 +1,6 @@
 on:
   pull_request:
-    types: [ opened, synchronize, reopened ]
+    types: [opened, synchronize, reopened]
   push:
     branches:
       - master
@@ -25,15 +25,15 @@ jobs:
     name: Check file formatting and style
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
         with:
           toolchain: stable
           components: clippy, rustfmt
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/registry
@@ -55,14 +55,14 @@ jobs:
     name: Check minimum rust version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
         with:
           toolchain: 1.67.1
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/registry
@@ -85,14 +85,14 @@ jobs:
     name: "Check documentation"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
         with:
           toolchain: nightly
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/registry
@@ -111,6 +111,7 @@ jobs:
       - standard_tests
       - dependency_tests
       - database_tests
+      - wasm_tests
       - fuzz_tests
     steps:
       - run: exit 0
@@ -125,58 +126,42 @@ jobs:
           - stable
           - beta
         include:
-          # This allows us to define targets in the future (e.g. wasm32-unknown-unknown)
           - name: stable
             rust: stable
           - name: beta
             rust: beta
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
         with:
           toolchain: ${{ matrix.rust }}
           targets: ${{ matrix.target }}
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
           key: tests-std-${{ matrix.rust }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.toml') }}
 
-      - uses: davidB/rust-cargo-make@v1
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get -y install libpq-dev
+      - uses: davidB/rust-cargo-make@291dc18d931d07d4960a5c40e9b6afcea9287f5b # v1.15.0
 
       - name: Run no_std tests
         run: cargo make test-no-std
-        env:
-          CI_DECIMAL_TEST_TARGET: ${{ matrix.target }}
 
       - name: Run default tests
         run: cargo make test-default
-        env:
-          CI_DECIMAL_TEST_TARGET: ${{ matrix.target }}
 
       - name: Run legacy operation tests
         run: cargo make test-legacy-ops
-        env:
-          CI_DECIMAL_TEST_TARGET: ${{ matrix.target }}
 
       - name: Run mathematical function tests
         run: cargo make test-maths
-        env:
-          CI_DECIMAL_TEST_TARGET: ${{ matrix.target }}
 
       - name: Run macro tests
         run: cargo make test-macros
-        env:
-          CI_DECIMAL_TEST_TARGET: ${{ matrix.target }}
 
   dependency_tests:
     name: "Dependency Tests"
@@ -188,43 +173,33 @@ jobs:
           - stable
           - beta
         include:
-          # This allows us to define targets in the future (e.g. wasm32-unknown-unknown)
           - name: stable
             rust: stable
           - name: beta
             rust: beta
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
         with:
           toolchain: ${{ matrix.rust }}
           targets: ${{ matrix.target }}
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
           key: tests-dep-${{ matrix.rust }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.toml') }}
 
-      - uses: davidB/rust-cargo-make@v1
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get -y install libpq-dev
+      - uses: davidB/rust-cargo-make@291dc18d931d07d4960a5c40e9b6afcea9287f5b # v1.15.0
 
       - name: Run serde tests
         run: cargo make test-serde
-        env:
-          CI_DECIMAL_TEST_TARGET: ${{ matrix.target }}
 
       - name: Run miscellaneous dependency tests
         run: cargo make test-misc
-        env:
-          CI_DECIMAL_TEST_TARGET: ${{ matrix.target }}
 
   database_tests:
     name: "Database Tests"
@@ -254,27 +229,27 @@ jobs:
       postgres:
         image: postgres:11.6
         env:
-          POSTGRES_PASSWORD: ''
+          POSTGRES_PASSWORD: ""
         ports:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
         with:
           toolchain: ${{ matrix.rust }}
           targets: ${{ matrix.target }}
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
           key: tests-pgsql-${{ matrix.rust }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.toml') }}
 
-      - uses: davidB/rust-cargo-make@v1
+      - uses: davidB/rust-cargo-make@291dc18d931d07d4960a5c40e9b6afcea9287f5b # v1.15.0
 
       - name: Install dependencies
         run: |
@@ -283,8 +258,6 @@ jobs:
 
       - name: Run database tests
         run: cargo make test-db-postgres-all
-        env:
-          CI_DECIMAL_TEST_TARGET: ${{ matrix.target }}
 
   mysql_tests:
     name: "Database Tests - MySQL"
@@ -305,17 +278,42 @@ jobs:
       mysql:
         image: mysql:8
         env:
-          MYSQL_ROOT_PASSWORD: ''
-          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+          MYSQL_ROOT_PASSWORD: ""
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
         ports:
           - 3306:3306
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
+        with:
+          toolchain: ${{ matrix.rust }}
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo registry
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: tests-mysql-${{ matrix.rust }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+
+      - uses: davidB/rust-cargo-make@291dc18d931d07d4960a5c40e9b6afcea9287f5b # v1.15.0
+
+      - name: Run database tests
+        run: cargo make test-db-mysql-all
+
+  wasm_tests:
+    name: "WASM Tests"
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: ${{ matrix.rust }}
-          targets: ${{ matrix.target }}
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+          components: clippy
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -323,29 +321,36 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: tests-mysql-${{ matrix.rust }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+          key: tests-wasm-stable-cargo-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            tests-wasm-stable-cargo-
 
-      - uses: davidB/rust-cargo-make@v1
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-      - name: Run database tests
-        run: cargo make test-db-mysql-all
-        env:
-          CI_DECIMAL_TEST_TARGET: ${{ matrix.target }}
+      - name: Check wasm build
+        run: cargo check --target wasm32-unknown-unknown --features wasm
+
+      - name: Run clippy for wasm
+        run: cargo clippy --target wasm32-unknown-unknown --features wasm
+
+      - name: Run wasm tests
+        run: wasm-pack test --node --features wasm
 
   fuzz_tests:
     name: Fuzz Tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
         with:
           toolchain: nightly
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/registry
@@ -355,7 +360,7 @@ jobs:
       - name: Install Cargo Fuzz
         run: cargo install cargo-fuzz
 
-      - uses: davidB/rust-cargo-make@v1
+      - uses: davidB/rust-cargo-make@291dc18d931d07d4960a5c40e9b6afcea9287f5b # v1.15.0
 
       - name: Run fuzz tests
         run: cargo make fuzz

@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.82"
 name = "gix-quote"
-version = "0.6.1"
+version = "0.6.2"
 authors = ["Sebastian Thiel <sebastian.thiel@icloud.com>"]
 build = false
 include = [
@@ -44,7 +44,7 @@ default-features = false
 version = "^0.3.1"
 
 [dependencies.thiserror]
-version = "2.0.17"
+version = "2.0.18"
 
 [lints.clippy]
 bool_to_int_with_if = "allow"

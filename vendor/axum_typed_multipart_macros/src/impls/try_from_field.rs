@@ -2,7 +2,6 @@ use crate::case_conversion::RenameCase;
 use crate::util::strip_leading_rawlit;
 use darling::{FromDeriveInput, FromVariant};
 use proc_macro::TokenStream;
-use proc_macro_error2::abort;
 use quote::quote;
 use syn::{Lit, LitStr};
 
@@ -39,7 +38,7 @@ struct TryFromFieldInputData {
     data: darling::ast::Data<FieldEnumData, ()>,
 
     #[darling(default)]
-    rename_all: Option<String>,
+    rename_all: Option<RenameCase>,
 }
 
 /// Derive `TryFromField` for arbitrary unit-enums.
@@ -48,32 +47,31 @@ pub fn macro_impl(input: TokenStream) -> TokenStream {
     let TryFromFieldInputData { ident, data, rename_all } =
         match TryFromFieldInputData::from_derive_input(&input) {
             Ok(input) => input,
-            Err(err) => abort!(input, err.to_string()),
+            Err(err) => return err.write_errors().into(),
         };
     let fields = data.take_enum().unwrap();
-    let rename_all = RenameCase::from_option_fallible(&ident, rename_all);
 
     let match_arms = fields.iter().map(|f| {
         let name = f.name(rename_all);
         let f_ident = &f.ident;
         let strlit = Lit::Str(LitStr::new(&name, f_ident.span()));
         quote! {
-            #strlit => Ok(Self::#f_ident)
+            #strlit => ::core::result::Result::Ok(Self::#f_ident)
         }
     });
 
     let res = quote! {
-        #[axum_typed_multipart::async_trait]
+        #[::axum_typed_multipart::async_trait]
         impl ::axum_typed_multipart::TryFromField for #ident {
             async fn try_from_field(
                 field: ::axum::extract::multipart::Field<'_>,
                 limit_bytes: ::core::option::Option<usize>,
             ) -> ::core::result::Result<Self, ::axum_typed_multipart::TypedMultipartError> {
-                let field_name = field.name().unwrap_or_default().to_string();
-                let value: String = ::axum_typed_multipart::TryFromField::try_from_field(field, limit_bytes).await?;
+                let field_name = <::std::string::String as ::core::convert::From<&str>>::from(field.name().unwrap_or_default());
+                let value: ::std::string::String = ::axum_typed_multipart::TryFromField::try_from_field(field, limit_bytes).await?;
                 match value.as_str() {
                     #(#match_arms),*,
-                    _ => Err(::axum_typed_multipart::TypedMultipartError::InvalidEnumValue {
+                    _ => ::core::result::Result::Err(::axum_typed_multipart::TypedMultipartError::InvalidEnumValue {
                         field_name,
                         value,
                     })

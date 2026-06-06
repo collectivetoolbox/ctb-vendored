@@ -351,13 +351,13 @@ dependencies = [
 
 [[package]]
 name = "wide"
-version = "1.1.1"
+version = "1.5.0"
 dependencies = [
  "bincode",
  "bytemuck",
  "criterion",
  "safe_arch",
- "serde",
+ "serde_core",
 ]
 
 [[package]]

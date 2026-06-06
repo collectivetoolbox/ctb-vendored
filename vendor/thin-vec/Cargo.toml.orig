@@ -1,18 +1,20 @@
 [package]
-edition = "2018"
 name = "thin-vec"
-version = "0.2.14"
+version = "0.2.18"
 authors = ["Aria Beingessner <a.beingessner@gmail.com>"]
-description = "A vec that takes up less space on the stack"
-license = "MIT/Apache-2.0"
-repository = "https://github.com/gankra/thin-vec"
-homepage = "https://github.com/gankra/thin-vec"
+edition = "2018"
+rust-version = "1.53"
+description = "A Vec that takes up less space on the stack."
 readme = "README.md"
+homepage = "https://github.com/mozilla/thin-vec"
+repository = "https://github.com/mozilla/thin-vec"
+license = "MIT OR Apache-2.0"
 
 [features]
 unstable = []
 default = ["std"]
 std = []
+const_new = []
 
 # Gecko specific features. These features cause thin-vec to have the same layout
 # and behaviour as nsTArray, allowing it to be used in C++ FFI. Requires
