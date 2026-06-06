@@ -10,20 +10,13 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
-edition = "2024"
-rust-version = "1.85"
+edition = "2021"
+rust-version = "1.56"
 name = "block-padding"
-version = "0.4.2"
+version = "0.3.3"
 authors = ["RustCrypto Developers"]
-build = false
-autolib = false
-autobins = false
-autoexamples = false
-autotests = false
-autobenches = false
 description = "Padding and unpadding of messages divided into blocks."
 documentation = "https://docs.rs/block-padding"
-readme = "README.md"
 keywords = [
     "padding",
     "pkcs7",
@@ -36,10 +29,17 @@ categories = [
 ]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/RustCrypto/utils"
+resolver = "1"
 
-[lib]
-name = "block_padding"
-path = "src/lib.rs"
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = [
+    "--cfg",
+    "docsrs",
+]
 
-[dependencies.hybrid-array]
-version = "0.4.3"
+[dependencies.generic-array]
+version = "0.14"
+
+[features]
+std = []

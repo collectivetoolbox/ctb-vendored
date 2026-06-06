@@ -10,10 +10,9 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
-edition = "2024"
-rust-version = "1.85"
+edition = "2018"
 name = "sha2"
-version = "0.11.0"
+version = "0.10.9"
 authors = ["RustCrypto Developers"]
 build = false
 autolib = false
@@ -28,6 +27,7 @@ including SHA-224, SHA-256, SHA-384, and SHA-512.
 documentation = "https://docs.rs/sha2"
 readme = "README.md"
 keywords = [
+    "crypto",
     "sha2",
     "hash",
     "digest",
@@ -41,15 +41,21 @@ repository = "https://github.com/RustCrypto/hashes"
 
 [package.metadata.docs.rs]
 all-features = true
+rustdoc-args = [
+    "--cfg",
+    "docsrs",
+]
 
 [features]
-alloc = ["digest/alloc"]
-default = [
-    "alloc",
-    "oid",
-]
+asm = ["sha2-asm"]
+asm-aarch64 = ["asm"]
+compress = []
+default = ["std"]
+force-soft = []
+force-soft-compact = []
+loongarch64_asm = []
 oid = ["digest/oid"]
-zeroize = ["digest/zeroize"]
+std = ["digest/std"]
 
 [lib]
 name = "sha2"
@@ -64,28 +70,21 @@ name = "mod"
 path = "benches/mod.rs"
 
 [dependencies.cfg-if]
-version = "1"
+version = "1.0"
 
 [dependencies.digest]
-version = "0.11"
+version = "0.10.7"
 
 [dev-dependencies.digest]
-version = "0.11"
+version = "0.10.7"
 features = ["dev"]
 
 [dev-dependencies.hex-literal]
-version = "1"
+version = "0.2.2"
 
 [target.'cfg(any(target_arch = "aarch64", target_arch = "x86_64", target_arch = "x86"))'.dependencies.cpufeatures]
-version = "0.3"
+version = "0.2"
 
-[lints.rust.unexpected_cfgs]
-level = "warn"
-priority = 0
-check-cfg = [
-    'cfg(sha2_backend, values("soft", "riscv-zknh"))',
-    'cfg(sha2_256_backend, values("aarch64-sha2", "soft", "riscv-zknh", "x86-sha"))',
-    'cfg(sha2_512_backend, values("aarch64-sha3", "soft", "riscv-zknh", "x86-avx2"))',
-    'cfg(sha2_backend_soft, values("compact"))',
-    'cfg(sha2_backend_riscv_zknh, values("compact"))',
-]
+[target.'cfg(any(target_arch = "aarch64", target_arch = "x86_64", target_arch = "x86"))'.dependencies.sha2-asm]
+version = "0.6.1"
+optional = true

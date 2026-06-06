@@ -1,6 +1,6 @@
 //! OID string parser with `const` support.
 
-use crate::{Arc, Error, ObjectIdentifier, Result, encoder::Encoder};
+use crate::{encoder::Encoder, Arc, Error, ObjectIdentifier, Result};
 
 /// Const-friendly OID string parser.
 ///
@@ -8,10 +8,10 @@ use crate::{Arc, Error, ObjectIdentifier, Result, encoder::Encoder};
 #[derive(Debug)]
 pub(crate) struct Parser {
     /// Current arc in progress
-    current_arc: Option<Arc>,
+    current_arc: Arc,
 
     /// BER/DER encoder
-    encoder: Encoder<{ ObjectIdentifier::MAX_SIZE }>,
+    encoder: Encoder,
 }
 
 impl Parser {
@@ -25,7 +25,7 @@ impl Parser {
 
         match bytes[0] {
             b'0'..=b'9' => Self {
-                current_arc: None,
+                current_arc: 0,
                 encoder: Encoder::new(),
             }
             .parse_bytes(bytes),
@@ -42,51 +42,33 @@ impl Parser {
     const fn parse_bytes(mut self, bytes: &[u8]) -> Result<Self> {
         match bytes {
             // TODO(tarcieri): use `?` when stable in `const fn`
-            [] => match self.current_arc {
-                Some(arc) => match self.encoder.arc(arc) {
-                    Ok(encoder) => {
-                        self.encoder = encoder;
-                        Ok(self)
-                    }
-                    Err(err) => Err(err),
-                },
-                None => Err(Error::TrailingDot),
+            [] => match self.encoder.arc(self.current_arc) {
+                Ok(encoder) => {
+                    self.encoder = encoder;
+                    Ok(self)
+                }
+                Err(err) => Err(err),
             },
+            // TODO(tarcieri): checked arithmetic
+            #[allow(clippy::integer_arithmetic)]
             [byte @ b'0'..=b'9', remaining @ ..] => {
                 let digit = byte.saturating_sub(b'0');
-                let arc = match self.current_arc {
-                    Some(arc) => arc,
-                    None => 0,
-                };
-
-                // TODO(tarcieri): use `and_then` when const traits are stable
-                self.current_arc = match arc.checked_mul(10) {
-                    Some(arc) => match arc.checked_add(digit as Arc) {
-                        None => return Err(Error::ArcTooBig),
-                        Some(arc) => Some(arc),
-                    },
-                    None => return Err(Error::ArcTooBig),
-                };
+                self.current_arc = self.current_arc * 10 + digit as Arc;
                 self.parse_bytes(remaining)
             }
             [b'.', remaining @ ..] => {
-                match self.current_arc {
-                    Some(arc) => {
-                        if remaining.is_empty() {
-                            return Err(Error::TrailingDot);
-                        }
+                if remaining.is_empty() {
+                    return Err(Error::TrailingDot);
+                }
 
-                        // TODO(tarcieri): use `?` when stable in `const fn`
-                        match self.encoder.arc(arc) {
-                            Ok(encoder) => {
-                                self.encoder = encoder;
-                                self.current_arc = None;
-                                self.parse_bytes(remaining)
-                            }
-                            Err(err) => Err(err),
-                        }
+                // TODO(tarcieri): use `?` when stable in `const fn`
+                match self.encoder.arc(self.current_arc) {
+                    Ok(encoder) => {
+                        self.encoder = encoder;
+                        self.current_arc = 0;
+                        self.parse_bytes(remaining)
                     }
-                    None => Err(Error::RepeatedDot),
+                    Err(err) => Err(err),
                 }
             }
             [byte, ..] => Err(Error::DigitExpected { actual: *byte }),
@@ -95,7 +77,6 @@ impl Parser {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::Parser;
     use crate::Error;

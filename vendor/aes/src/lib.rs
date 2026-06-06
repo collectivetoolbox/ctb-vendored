@@ -29,43 +29,42 @@
 //! ## ARMv8 intrinsics (Rust 1.61+)
 //! On `aarch64` targets including `aarch64-apple-darwin` (Apple M1) and Linux
 //! targets such as `aarch64-unknown-linux-gnu` and `aarch64-unknown-linux-musl`,
-//! support for using AES intrinsics provided by the ARMv8 Cryptography Extensions.
+//! support for using AES intrinsics provided by the ARMv8 Cryptography Extensions
+//! is available when using Rust 1.61 or above, and can be enabled using the
+//! `aes_armv8` configuration flag.
 //!
-//! On Linux and macOS, support for ARMv8 AES intrinsics is autodetected at
-//! runtime. On other platforms the `aes` target feature must be enabled via
-//! RUSTFLAGS.
+//! On Linux and macOS, when the `aes_armv8` flag is enabled support for AES
+//! intrinsics is autodetected at runtime. On other platforms the `aes`
+//! target feature must be enabled via RUSTFLAGS.
 //!
-//! ## `x86`/`x86_64` intrinsics (AES-NI and VAES)
+//! ## `x86`/`x86_64` intrinsics (AES-NI)
 //! By default this crate uses runtime detection on `i686`/`x86_64` targets
-//! in order to determine if AES-NI and VAES are available, and if they are
-//! not, it will fallback to using a constant-time software implementation.
+//! in order to determine if AES-NI is available, and if it is not, it will
+//! fallback to using a constant-time software implementation.
 //!
-//! Passing `RUSTFLAGS=-Ctarget-feature=+aes,+ssse3` explicitly at
-//! compile-time will override runtime detection and ensure that AES-NI is
-//! used or passing `RUSTFLAGS=-Ctarget-feature=+aes,+avx512f,+ssse3,+vaes`
-//! will ensure that AESNI and VAES are always used.
-//!
-//! Note: Enabling VAES256 or VAES512 still requires specifying `--cfg
-//! aes_backend = "avx256"` or `--cfg aes_backend = "avx512"` explicitly.
-//!
+//! Passing `RUSTFLAGS=-C target-feature=+aes,+ssse3` explicitly at compile-time
+//! will override runtime detection and ensure that AES-NI is always used.
 //! Programs built in this manner will crash with an illegal instruction on
-//! CPUs which do not have AES-NI and VAES enabled.
+//! CPUs which do not have AES-NI enabled.
 //!
 //! Note: runtime detection is not possible on SGX targets. Please use the
-//! aforementioned `RUSTFLAGS` to leverage AES-NI and VAES on these targets.
+//! afforementioned `RUSTFLAGS` to leverage AES-NI on these targets.
 //!
 //! # Examples
 //! ```
 //! use aes::Aes128;
-//! use aes::cipher::{Array, BlockCipherEncrypt, BlockCipherDecrypt, KeyInit};
+//! use aes::cipher::{
+//!     BlockCipher, BlockEncrypt, BlockDecrypt, KeyInit,
+//!     generic_array::GenericArray,
+//! };
 //!
-//! let key = Array::from([0u8; 16]);
-//! let mut block = Array::from([42u8; 16]);
+//! let key = GenericArray::from([0u8; 16]);
+//! let mut block = GenericArray::from([42u8; 16]);
 //!
 //! // Initialize cipher
 //! let cipher = Aes128::new(&key);
 //!
-//! let block_copy = block;
+//! let block_copy = block.clone();
 //!
 //! // Encrypt block in-place
 //! cipher.encrypt_block(&mut block);
@@ -77,7 +76,7 @@
 //! // Implementation supports parallel block processing. Number of blocks
 //! // processed in parallel depends in general on hardware capabilities.
 //! // This is achieved by instruction-level parallelism (ILP) on a single
-//! // CPU core, which is different from multi-threaded parallelism.
+//! // CPU core, which is differen from multi-threaded parallelism.
 //! let mut blocks = [block; 100];
 //! cipher.encrypt_blocks(&mut blocks);
 //!
@@ -102,15 +101,13 @@
 //!
 //! You can modify crate using the following configuration flags:
 //!
-//! - `aes_backend`: explicitly select one of the following backends:
-//!   - `soft`: force software backend
-//!   - `avx256`: force AVX2 backend
-//!   - `avx512`: force AVX-512 backend
-//! - `aes_backend_soft`: modify software backend:
-//!   - `compact`: use compact implementation (less performant, but results in a smaller binary)
+//! - `aes_armv8`: enable ARMv8 AES intrinsics (Rust 1.61+).
+//! - `aes_force_soft`: force software implementation.
+//! - `aes_compact`: reduce code size at the cost of slower performance
+//! (affects only software backend).
 //!
-//! It can be enabled using `RUSTFLAGS` environment variable
-//! (e.g. `RUSTFLAGS='--cfg aes_backend="soft"'`) or by modifying `.cargo/config`.
+//! It can be enabled using `RUSTFLAGS` environmental variable
+//! (e.g. `RUSTFLAGS="--cfg aes_compact"`) or by modifying `.cargo/config`.
 //!
 //! [AES]: https://en.wikipedia.org/wiki/Advanced_Encryption_Standard
 //! [fixslicing]: https://eprint.iacr.org/2020/1123.pdf
@@ -126,23 +123,24 @@
 #![warn(missing_docs, rust_2018_idioms)]
 
 #[cfg(feature = "hazmat")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hazmat")))]
 pub mod hazmat;
 
-#[macro_use]
-mod macros;
 mod soft;
 
-cpubits::cfg_if! {
-    if #[cfg(all(target_arch = "aarch64", not(aes_backend = "soft")))] {
+use cfg_if::cfg_if;
+
+cfg_if! {
+    if #[cfg(all(target_arch = "aarch64", aes_armv8, not(aes_force_soft)))] {
         mod armv8;
         mod autodetect;
         pub use autodetect::*;
     } else if #[cfg(all(
         any(target_arch = "x86", target_arch = "x86_64"),
-        not(aes_backend = "soft")
+        not(aes_force_soft)
     ))] {
-        mod x86;
         mod autodetect;
+        mod ni;
         pub use autodetect::*;
     } else {
         pub use soft::*;
@@ -150,7 +148,86 @@ cpubits::cfg_if! {
 }
 
 pub use cipher;
-use cipher::{array::Array, consts::U16};
+use cipher::{
+    consts::{U16, U8},
+    generic_array::GenericArray,
+};
 
 /// 128-bit AES block
-pub type Block = Array<u8, U16>;
+pub type Block = GenericArray<u8, U16>;
+/// Eight 128-bit AES blocks
+pub type Block8 = GenericArray<Block, U8>;
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "zeroize")]
+    #[test]
+    fn zeroize_works() {
+        use super::soft;
+
+        fn test_for<T: zeroize::ZeroizeOnDrop>(val: T) {
+            use core::mem::{size_of, ManuallyDrop};
+
+            let mut val = ManuallyDrop::new(val);
+            let ptr = &val as *const _ as *const u8;
+            let len = size_of::<ManuallyDrop<T>>();
+
+            unsafe { ManuallyDrop::drop(&mut val) };
+
+            let slice = unsafe { core::slice::from_raw_parts(ptr, len) };
+
+            assert!(slice.iter().all(|&byte| byte == 0));
+        }
+
+        let key_128 = [42; 16].into();
+        let key_192 = [42; 24].into();
+        let key_256 = [42; 32].into();
+
+        use cipher::KeyInit as _;
+        test_for(soft::Aes128::new(&key_128));
+        test_for(soft::Aes128Enc::new(&key_128));
+        test_for(soft::Aes128Dec::new(&key_128));
+        test_for(soft::Aes192::new(&key_192));
+        test_for(soft::Aes192Enc::new(&key_192));
+        test_for(soft::Aes192Dec::new(&key_192));
+        test_for(soft::Aes256::new(&key_256));
+        test_for(soft::Aes256Enc::new(&key_256));
+        test_for(soft::Aes256Dec::new(&key_256));
+
+        #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), not(aes_force_soft)))]
+        {
+            use super::ni;
+
+            cpufeatures::new!(aes_intrinsics, "aes");
+            if aes_intrinsics::get() {
+                test_for(ni::Aes128::new(&key_128));
+                test_for(ni::Aes128Enc::new(&key_128));
+                test_for(ni::Aes128Dec::new(&key_128));
+                test_for(ni::Aes192::new(&key_192));
+                test_for(ni::Aes192Enc::new(&key_192));
+                test_for(ni::Aes192Dec::new(&key_192));
+                test_for(ni::Aes256::new(&key_256));
+                test_for(ni::Aes256Enc::new(&key_256));
+                test_for(ni::Aes256Dec::new(&key_256));
+            }
+        }
+
+        #[cfg(all(target_arch = "aarch64", aes_armv8, not(aes_force_soft)))]
+        {
+            use super::armv8;
+
+            cpufeatures::new!(aes_intrinsics, "aes");
+            if aes_intrinsics::get() {
+                test_for(armv8::Aes128::new(&key_128));
+                test_for(armv8::Aes128Enc::new(&key_128));
+                test_for(armv8::Aes128Dec::new(&key_128));
+                test_for(armv8::Aes192::new(&key_192));
+                test_for(armv8::Aes192Enc::new(&key_192));
+                test_for(armv8::Aes192Dec::new(&key_192));
+                test_for(armv8::Aes256::new(&key_256));
+                test_for(armv8::Aes256Enc::new(&key_256));
+                test_for(armv8::Aes256Dec::new(&key_256));
+            }
+        }
+    }
+}

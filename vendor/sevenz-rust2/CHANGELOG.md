@@ -5,24 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.21.0 - 2026-04-25
-
-### Changed
-
-- Bumped MSRV to 1.93 (required by `nt-time` 0.15)
-
-### Updated
-
-- Bumped `nt-time` to 0.15 (#105)
-- Bumped `aes` to 0.9 and `cbc` to 0.2 (cipher 0.5) (#111, #110)
-
-### Fixed
-
-- `K_ANTI` property block was not written for archives containing only anti-items, so anti-items
-  were extracted as 0-byte files instead of acting as deletion markers (#112, thanks @uraf)
-- `compress_path` no longer emits a spurious entry for the root directory itself when compressing
-  a directory tree (#79, thanks @super1207)
-
 ## 0.20.2 - 2026-02-24
 
 ### Fixed

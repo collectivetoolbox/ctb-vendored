@@ -404,25 +404,6 @@ fn compress_with_zstd_algorithm() {
     test_compression_method(&[EncoderMethod::ZSTD.into()]);
 }
 
-#[cfg(all(feature = "compress", feature = "util"))]
-#[test]
-fn anti_item_roundtrip() {
-    let mut bytes = Vec::new();
-    {
-        let mut writer = ArchiveWriter::new(Cursor::new(&mut bytes)).unwrap();
-        let mut entry = ArchiveEntry::new_file("deleted.txt");
-        entry.is_anti_item = true;
-        writer.push_archive_entry::<&[u8]>(entry, None).unwrap();
-        writer.finish().unwrap();
-    }
-
-    let reader = ArchiveReader::new(Cursor::new(bytes.as_slice()), Password::empty()).unwrap();
-    assert_eq!(reader.archive().files.len(), 1);
-    let entry = &reader.archive().files[0];
-    assert_eq!(entry.name(), "deleted.txt");
-    assert!(entry.is_anti_item(), "entry should be an anti-item");
-}
-
 #[cfg(all(feature = "compress", feature = "aes256"))]
 #[test]
 fn encrypted_file_header_requires_password_to_read() {
@@ -448,34 +429,4 @@ fn encrypted_file_header_requires_password_to_read() {
         result.is_err(),
         "Reading an encrypted archive header without a password should not be possible"
     );
-}
-
-#[cfg(all(feature = "compress", feature = "util"))]
-#[test]
-fn compress_path_does_not_emit_root_dir_entry() {
-    let temp_dir = tempdir().unwrap();
-    let folder = temp_dir.path().join("folder");
-    std::fs::create_dir(&folder).unwrap();
-    std::fs::write(folder.join("file1.txt"), "hello").unwrap();
-    std::fs::create_dir(folder.join("sub")).unwrap();
-    std::fs::write(folder.join("sub").join("file2.txt"), "world").unwrap();
-
-    let dest = temp_dir.path().join("folder.7z");
-    compress_to_path(&folder, &dest).expect("compress ok");
-
-    let reader = ArchiveReader::new(File::open(&dest).unwrap(), Password::empty()).unwrap();
-    let names: Vec<String> = reader
-        .archive()
-        .files
-        .iter()
-        .map(|f| f.name().replace('\\', "/"))
-        .collect();
-
-    assert!(
-        !names.iter().any(|n| n.is_empty() || n == "folder"),
-        "root directory should not appear as an entry, got: {names:?}"
-    );
-    assert!(names.iter().any(|n| n == "file1.txt"));
-    assert!(names.iter().any(|n| n == "sub"));
-    assert!(names.iter().any(|n| n == "sub/file2.txt"));
 }

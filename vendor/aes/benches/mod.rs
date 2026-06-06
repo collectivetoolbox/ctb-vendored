@@ -1,7 +1,7 @@
 #![feature(test)]
 extern crate test;
 
-use cipher::{KeyInit, block_decryptor_bench, block_encryptor_bench};
+use cipher::{block_decryptor_bench, block_encryptor_bench, KeyInit};
 
 block_encryptor_bench!(
     Key: aes::Aes128,

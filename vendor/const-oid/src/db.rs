@@ -9,13 +9,31 @@
 //! [RFC 5280]: https://datatracker.ietf.org/doc/html/rfc5280
 //! [Object Identifier Descriptors]: https://www.iana.org/assignments/ldap-parameters/ldap-parameters.xhtml#ldap-parameters-3
 
-#![allow(clippy::arithmetic_side_effects, missing_docs)]
+#![allow(clippy::integer_arithmetic, missing_docs)]
 
-mod generated;
+mod gen;
 
-pub use generated::*;
+pub use gen::*;
 
 use crate::{Error, ObjectIdentifier};
+
+/// A const implementation of byte equals.
+const fn eq(lhs: &[u8], rhs: &[u8]) -> bool {
+    if lhs.len() != rhs.len() {
+        return false;
+    }
+
+    let mut i = 0usize;
+    while i < lhs.len() {
+        if lhs[i] != rhs[i] {
+            return false;
+        }
+
+        i += 1;
+    }
+
+    true
+}
 
 /// A const implementation of case-insensitive ASCII equals.
 const fn eq_case(lhs: &[u8], rhs: &[u8]) -> bool {
@@ -57,8 +75,7 @@ impl<'a> Database<'a> {
 
         while i < self.0.len() {
             let lhs = self.0[i].0;
-
-            if lhs.ber.eq(&oid.ber) {
+            if lhs.length == oid.length && eq(&lhs.bytes, &oid.bytes) {
                 return Some(self.0[i].1);
             }
 
@@ -110,7 +127,7 @@ impl<'a> Iterator for Names<'a> {
         while i < self.database.0.len() {
             let lhs = self.database.0[i].0;
 
-            if lhs.ber.eq(&self.oid.ber) {
+            if lhs.as_bytes().eq(self.oid.as_bytes()) {
                 self.position = i + 1;
                 return Some(self.database.0[i].1);
             }
