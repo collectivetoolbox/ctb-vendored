@@ -16,12 +16,12 @@ use std::env;
 
 use heck::{ToKebabCase, ToLowerCamelCase, ToShoutySnakeCase, ToSnakeCase, ToUpperCamelCase};
 use proc_macro2::{self, Span, TokenStream};
-use quote::{ToTokens, format_ident, quote, quote_spanned};
+use quote::{format_ident, quote, quote_spanned, ToTokens};
 use syn::DeriveInput;
-use syn::{self, Attribute, Field, Ident, LitStr, Type, Variant, ext::IdentExt, spanned::Spanned};
+use syn::{self, ext::IdentExt, spanned::Spanned, Attribute, Field, Ident, LitStr, Type, Variant};
 
 use crate::attr::{AttrKind, AttrValue, ClapAttr, MagicAttrName};
-use crate::utils::{Sp, Ty, extract_doc_comment, format_doc_comment, inner_type, is_simple_ty};
+use crate::utils::{extract_doc_comment, format_doc_comment, inner_type, is_simple_ty, Sp, Ty};
 
 /// Default casing style for generated arguments.
 pub(crate) const DEFAULT_CASING: CasingStyle = CasingStyle::Kebab;
@@ -1263,14 +1263,7 @@ impl Method {
             lit = LitStr::new(&edited, lit.span());
         }
 
-        let env_var_lit = LitStr::new(env_var, ident.span());
-        Ok(Some(Method::new(
-            ident,
-            quote!({
-                let _ = ::core::env!(#env_var_lit);
-                #lit
-            }),
-        )))
+        Ok(Some(Method::new(ident, quote!(#lit))))
     }
 
     pub(crate) fn args(&self) -> &TokenStream {
@@ -1280,7 +1273,7 @@ impl Method {
 
 impl ToTokens for Method {
     fn to_tokens(&self, ts: &mut TokenStream) {
-        let Method { name, args } = self;
+        let Method { ref name, ref args } = self;
 
         let tokens = quote!( .#name(#args) );
 

@@ -14,7 +14,7 @@
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, quote_spanned};
-use syn::{Data, DeriveInput, FieldsUnnamed, Generics, Variant, spanned::Spanned};
+use syn::{spanned::Spanned, Data, DeriveInput, FieldsUnnamed, Generics, Variant};
 
 use crate::derives::args;
 use crate::derives::args::collect_args_fields;
@@ -218,10 +218,7 @@ fn gen_augment(
                 let subcommand_var = Ident::new("__clap_subcommand", Span::call_site());
                 let arg_block = match variant.fields {
                     Named(_) => {
-                        abort!(
-                            variant,
-                            "invalid variant for `#[command(subcommand)]`, expected a newtype variant"
-                        )
+                        abort!(variant, "invalid variant for `#[command(subcommand)]`, expected a newtype variant")
                     }
                     Unit => quote!( #subcommand_var ),
                     Unnamed(FieldsUnnamed { ref unnamed, .. }) if unnamed.len() == 1 => {
@@ -241,10 +238,7 @@ fn gen_augment(
                         }
                     }
                     Unnamed(..) => {
-                        abort!(
-                            variant,
-                            "invalid variant for `#[command(subcommand)]`, expected a newtype variant"
-                        )
+                        abort!(variant, "invalid variant for `#[command(subcommand)]`, expected a newtype variant")
                     }
                 };
 
@@ -321,10 +315,7 @@ fn gen_augment(
                         }
                     }
                     Unnamed(..) => {
-                        abort!(
-                            variant,
-                            "invalid variant for `#[command(subcommand)]`, expected a newtype variant"
-                        )
+                        abort!(variant, "invalid variant for `#[command(subcommand)]`, expected a newtype variant")
                     }
                 };
 
@@ -610,7 +601,7 @@ fn gen_update_from_arg_matches(variants: &[(&Variant, Item)]) -> Result<TokenStr
             Unnamed(ref fields) => {
                 if fields.unnamed.len() == 1 {
                     (
-                        quote!((__clap_arg)),
+                        quote!((ref mut __clap_arg)),
                         quote!(clap::FromArgMatches::update_from_arg_matches_mut(
                             __clap_arg,
                             __clap_arg_matches
