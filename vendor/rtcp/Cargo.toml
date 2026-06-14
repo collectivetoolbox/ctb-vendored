@@ -12,7 +12,7 @@
 [package]
 edition = "2021"
 name = "rtcp"
-version = "0.14.0"
+version = "0.17.1"
 authors = [
     "Rain Liu <yliu@webrtc.rs>",
     "Michael Uti <utimichael9@gmail.com>",
@@ -27,7 +27,7 @@ description = "A pure Rust implementation of RTCP"
 homepage = "https://webrtc.rs"
 documentation = "https://docs.rs/rtcp"
 readme = "README.md"
-license = "MIT OR Apache-2.0"
+license = "MIT/Apache-2.0"
 repository = "https://github.com/webrtc-rs/webrtc/tree/master/rtcp"
 
 [lib]
@@ -41,7 +41,7 @@ version = "1"
 version = "1"
 
 [dependencies.util]
-version = "0.12.0"
+version = "0.17.1"
 features = ["marshal"]
 default-features = false
 package = "webrtc-util"

@@ -3,9 +3,13 @@ name = "rkyv_derive"
 description = "Derive macro for rkyv"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
+readme = "../README.md"
 repository.workspace = true
+keywords = ["archive", "rkyv", "serialization", "zero-copy", "no_std"]
+categories = ["encoding", "no-std", "no-std::no-alloc"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -13,17 +17,13 @@ repository.workspace = true
 proc-macro = true
 
 [dependencies]
-proc-macro2.workspace = true
-syn.workspace = true
-quote.workspace = true
+proc-macro2 = { workspace = true, features = ["proc-macro"] }
+syn = { workspace = true, features = ["clone-impls", "derive", "parsing", "printing", "proc-macro"] }
+quote = { workspace = true, features = ["proc-macro"] }
 
 [features]
 default = []
-arbitrary_enum_discriminant = []
-archive_be = []
-archive_le = []
-copy = []
-strict = []
+bytecheck  = []
 
 [package.metadata.docs.rs]
 all-features = true

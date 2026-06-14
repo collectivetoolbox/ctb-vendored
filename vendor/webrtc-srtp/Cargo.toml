@@ -12,7 +12,7 @@
 [package]
 edition = "2021"
 name = "webrtc-srtp"
-version = "0.16.0"
+version = "0.17.1"
 authors = ["Rain Liu <yliu@webrtc.rs>"]
 build = false
 autolib = false
@@ -24,7 +24,7 @@ description = "A pure Rust implementation of SRTP"
 homepage = "https://webrtc.rs"
 documentation = "https://docs.rs/webrtc-srtp"
 readme = "README.md"
-license = "MIT OR Apache-2.0"
+license = "MIT/Apache-2.0"
 repository = "https://github.com/webrtc-rs/webrtc/tree/master/srtp"
 
 [features]
@@ -72,10 +72,10 @@ version = "0.10.72"
 optional = true
 
 [dependencies.rtcp]
-version = "0.14.0"
+version = "0.17.1"
 
 [dependencies.rtp]
-version = "0.14.0"
+version = "0.17.1"
 
 [dependencies.sha1]
 version = "0.10"
@@ -102,7 +102,7 @@ features = [
 ]
 
 [dependencies.util]
-version = "0.12.0"
+version = "0.17.1"
 features = [
     "conn",
     "buffer",

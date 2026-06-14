@@ -11,8 +11,9 @@
 
 [package]
 edition = "2021"
+rust-version = "1.81"
 name = "rkyv_derive"
-version = "0.7.46"
+version = "0.8.16"
 authors = ["David Koloski <djkoloski@gmail.com>"]
 build = false
 autolib = false
@@ -21,7 +22,19 @@ autoexamples = false
 autotests = false
 autobenches = false
 description = "Derive macro for rkyv"
-readme = false
+readme = "README.md"
+keywords = [
+    "archive",
+    "rkyv",
+    "serialization",
+    "zero-copy",
+    "no_std",
+]
+categories = [
+    "encoding",
+    "no-std",
+    "no-std::no-alloc",
+]
 license = "MIT"
 repository = "https://github.com/rkyv/rkyv"
 
@@ -29,12 +42,8 @@ repository = "https://github.com/rkyv/rkyv"
 all-features = true
 
 [features]
-arbitrary_enum_discriminant = []
-archive_be = []
-archive_le = []
-copy = []
+bytecheck = []
 default = []
-strict = []
 
 [lib]
 name = "rkyv_derive"
@@ -42,10 +51,22 @@ path = "src/lib.rs"
 proc-macro = true
 
 [dependencies.proc-macro2]
-version = "1.0"
+version = "1"
+features = ["proc-macro"]
+default-features = false
 
 [dependencies.quote]
-version = "1.0"
+version = "1"
+features = ["proc-macro"]
+default-features = false
 
 [dependencies.syn]
-version = "1.0"
+version = "2.0.73"
+features = [
+    "clone-impls",
+    "derive",
+    "parsing",
+    "printing",
+    "proc-macro",
+]
+default-features = false

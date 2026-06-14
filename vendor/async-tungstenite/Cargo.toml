@@ -13,7 +13,7 @@
 edition = "2018"
 rust-version = "1.64"
 name = "async-tungstenite"
-version = "0.31.0"
+version = "0.32.1"
 authors = ["Sebastian Dröge <sebastian@centricular.com>"]
 build = false
 include = [
@@ -108,6 +108,10 @@ tokio-rustls-manual-roots = ["__rustls-tls"]
 tokio-rustls-native-certs = [
     "__rustls-tls",
     "rustls-native-certs",
+]
+tokio-rustls-platform-verifier = [
+    "__rustls-tls",
+    "rustls-platform-verifier",
 ]
 tokio-rustls-webpki-roots = [
     "__rustls-tls",
@@ -287,6 +291,10 @@ optional = true
 version = "1.0.1"
 optional = true
 
+[dependencies.rustls-platform-verifier]
+version = "0.6"
+optional = true
+
 [dependencies.tokio]
 version = "1.0"
 features = ["net"]
@@ -294,7 +302,7 @@ optional = true
 default-features = false
 
 [dependencies.tungstenite]
-version = "0.27"
+version = "0.28"
 default-features = false
 
 [dependencies.webpki-roots]
@@ -337,7 +345,7 @@ version = "1.0"
 features = ["full"]
 
 [dev-dependencies.tungstenite]
-version = "0.27"
+version = "0.28"
 features = ["url"]
 
 [dev-dependencies.url]

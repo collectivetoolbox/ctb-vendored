@@ -12,7 +12,7 @@
 [package]
 edition = "2021"
 name = "webrtc"
-version = "0.14.0"
+version = "0.17.1"
 authors = ["Rain Liu <yliu@webrtc.rs>"]
 build = false
 autolib = false
@@ -24,7 +24,7 @@ description = "A pure Rust implementation of WebRTC API"
 homepage = "https://webrtc.rs"
 documentation = "https://docs.rs/webrtc"
 readme = "README.md"
-license = "MIT OR Apache-2.0"
+license = "MIT/Apache-2.0"
 repository = "https://github.com/webrtc-rs/webrtc"
 
 [features]
@@ -49,21 +49,21 @@ version = "0.1"
 version = "1"
 
 [dependencies.data]
-version = "0.12.0"
+version = "0.17.1"
 package = "webrtc-data"
 
 [dependencies.dtls]
-version = "0.13.0"
+version = "0.17.1"
 
 [dependencies.hex]
 version = "0.4"
 
 [dependencies.ice]
-version = "0.14.0"
+version = "0.17.1"
 package = "webrtc-ice"
 
 [dependencies.interceptor]
-version = "0.15.0"
+version = "0.17.1"
 
 [dependencies.lazy_static]
 version = "1.4"
@@ -72,11 +72,11 @@ version = "1.4"
 version = "0.4"
 
 [dependencies.mdns]
-version = "0.10.0"
+version = "0.17.1"
 package = "webrtc-mdns"
 
 [dependencies.media]
-version = "0.11.0"
+version = "0.17.1"
 package = "webrtc-media"
 
 [dependencies.pem]
@@ -103,17 +103,17 @@ version = "1.9.5"
 version = "0.17.14"
 
 [dependencies.rtcp]
-version = "0.14.0"
+version = "0.17.1"
 
 [dependencies.rtp]
-version = "0.14.0"
+version = "0.17.1"
 
 [dependencies.sctp]
-version = "0.13.0"
+version = "0.17.1"
 package = "webrtc-sctp"
 
 [dependencies.sdp]
-version = "0.10.0"
+version = "0.17.1"
 
 [dependencies.serde]
 version = "1"
@@ -130,11 +130,11 @@ version = "0.2"
 features = ["serde"]
 
 [dependencies.srtp]
-version = "0.16.0"
+version = "0.17.1"
 package = "webrtc-srtp"
 
 [dependencies.stun]
-version = "0.9.0"
+version = "0.17.0"
 
 [dependencies.thiserror]
 version = "1"
@@ -155,7 +155,7 @@ features = [
 ]
 
 [dependencies.turn]
-version = "0.11.0"
+version = "0.17.1"
 
 [dependencies.unicase]
 version = "2.8"
@@ -164,7 +164,8 @@ version = "2.8"
 version = "2"
 
 [dependencies.util]
-version = "0.12.0"
+version = "0.17.1"
+default-features = false
 package = "webrtc-util"
 
 [dependencies.waitgroup]

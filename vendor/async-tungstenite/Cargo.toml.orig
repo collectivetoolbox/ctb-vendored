@@ -8,7 +8,7 @@ license = "MIT"
 homepage = "https://github.com/sdroege/async-tungstenite"
 repository = "https://github.com/sdroege/async-tungstenite"
 documentation = "https://docs.rs/async-tungstenite"
-version = "0.31.0"
+version = "0.32.1"
 edition = "2018"
 readme = "README.md"
 include = ["examples/**/*", "src/**/*", "LICENSE", "README.md", "CHANGELOG.md"]
@@ -27,6 +27,7 @@ tokio-native-tls = ["tokio-runtime", "real-tokio-native-tls", "real-native-tls",
 tokio-rustls-manual-roots = ["__rustls-tls"]
 tokio-rustls-webpki-roots = ["__rustls-tls", "webpki-roots"]
 tokio-rustls-native-certs = ["__rustls-tls", "rustls-native-certs"]
+tokio-rustls-platform-verifier = ["__rustls-tls", "rustls-platform-verifier"]
 tokio-openssl = ["tokio-runtime", "real-tokio-openssl", "openssl"]
 verbose-logging = []
 url = ["tungstenite/url"]
@@ -51,7 +52,7 @@ default-features = false
 features = ["sink"]
 
 [dependencies.tungstenite]
-version = "0.27"
+version = "0.28"
 default-features = false
 
 [dependencies.async-std]
@@ -109,6 +110,10 @@ version = "1.0.1"
 optional = true
 version = "0.8"
 
+[dependencies.rustls-platform-verifier]
+optional = true
+version = "0.6"
+
 [dependencies.webpki-roots]
 optional = true
 version = "1.0"
@@ -133,7 +138,7 @@ hyper-util = { version = "0.1", features = ["tokio"] }
 http-body-util = "0.1"
 
 [dev-dependencies.tungstenite]
-version = "0.27"
+version = "0.28"
 features = ["url"]
 
 [[example]]

@@ -1,34 +1,31 @@
-//! [`CheckBytes`](crate::CheckBytes) implementations for uuid.
+use uuid_1::Uuid;
 
-use crate::CheckBytes;
-use uuid::{Bytes, Uuid};
+use crate::{rancor::Fallible, CheckBytes};
 
-impl<C: ?Sized> CheckBytes<C> for Uuid {
-    type Error = <Bytes as CheckBytes<C>>::Error;
-
-    unsafe fn check_bytes<'a>(
-        value: *const Self,
-        context: &mut C,
-    ) -> Result<&'a Self, Self::Error> {
-        // Safety: cast is OK because Uuid is repr(transparent)
-        Bytes::check_bytes(value.cast(), context)?;
-        Ok(&*value)
+// SAFETY: `Uuid` is `#[repr(transparent)]` around an inner `Bytes`, which is a
+// simple byte array. Byte arrays are always valid.
+unsafe impl<C: Fallible + ?Sized> CheckBytes<C> for Uuid {
+    #[inline]
+    unsafe fn check_bytes(_: *const Self, _: &mut C) -> Result<(), C::Error> {
+        Ok(())
     }
 }
 
 #[cfg(test)]
-mod bytecheck_tests {
-    use crate::CheckBytes;
-    use uuid::Uuid;
+mod tests {
+    use uuid_1::Uuid;
+
+    use crate::{check_bytes, rancor::Infallible};
 
     #[test]
     fn test_check_bytes() {
         let uuid_str = "f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4";
         let u = Uuid::parse_str(uuid_str).unwrap();
 
-        // Safety: the pointer is aligned and points to enough bytes to represent a Uuid
+        // SAFETY: `&u` is aligned and points to enough bytes to represent a
+        // `Uuid`.
         unsafe {
-            Uuid::check_bytes(&u as *const Uuid, &mut ()).expect("failed to check uuid");
+            check_bytes::<_, Infallible>(&u).expect("failed to check uuid");
         }
     }
 }

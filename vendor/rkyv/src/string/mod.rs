@@ -2,71 +2,111 @@
 
 pub mod repr;
 
-use crate::{Fallible, SerializeUnsized};
 use core::{
     borrow::Borrow,
-    cmp, fmt, hash,
-    ops::{Deref, Index, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive},
-    pin::Pin,
+    cmp,
+    error::Error,
+    fmt, hash,
+    ops::{
+        Deref, Index, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
+        RangeToInclusive,
+    },
     str,
 };
+
+use munge::munge;
+use rancor::{fail, Fallible, Source};
 use repr::{ArchivedStringRepr, INLINE_CAPACITY};
+
+use crate::{
+    primitive::FixedUsize, seal::Seal, Place, Portable, SerializeUnsized,
+};
 
 /// An archived [`String`].
 ///
-/// This has inline and out-of-line representations. Short strings will use the available space
-/// inside the structure to store the string, and long strings will store a
-/// [`RelPtr`](crate::RelPtr) to a `str` instead.
+/// This has inline and out-of-line representations. Short strings will use the
+/// available space inside the structure to store the string, and long strings
+/// will store a [`RelPtr`](crate::RelPtr) to a `str` instead.
 #[repr(transparent)]
-pub struct ArchivedString(repr::ArchivedStringRepr);
+#[cfg_attr(
+    feature = "bytecheck",
+    derive(bytecheck::CheckBytes),
+    bytecheck(verify)
+)]
+#[derive(Portable)]
+#[rkyv(crate)]
+pub struct ArchivedString {
+    repr: ArchivedStringRepr,
+}
 
 impl ArchivedString {
     /// Extracts a string slice containing the entire `ArchivedString`.
     #[inline]
     pub fn as_str(&self) -> &str {
-        self.0.as_str()
+        self.repr.as_str()
     }
 
-    /// Extracts a pinned mutable string slice containing the entire `ArchivedString`.
+    /// Extracts a sealed mutable string slice containing the entire
+    /// `ArchivedString`.
     #[inline]
-    pub fn pin_mut_str(self: Pin<&mut Self>) -> Pin<&mut str> {
-        unsafe { self.map_unchecked_mut(|s| s.0.as_mut_str()) }
+    pub fn as_str_seal(this: Seal<'_, Self>) -> Seal<'_, str> {
+        munge!(let Self { repr } = this);
+        ArchivedStringRepr::as_str_seal(repr)
     }
 
     /// Resolves an archived string from a given `str`.
-    ///
-    /// # Safety
-    ///
-    /// - `pos` must be the position of `out` within the archive
-    /// - `resolver` must be the result of serializing `value`
     #[inline]
-    pub unsafe fn resolve_from_str(
+    pub fn resolve_from_str(
         value: &str,
-        pos: usize,
         resolver: StringResolver,
-        out: *mut Self,
+        out: Place<Self>,
     ) {
+        munge!(let ArchivedString { repr } = out);
         if value.len() <= repr::INLINE_CAPACITY {
-            ArchivedStringRepr::emplace_inline(value, out.cast());
+            unsafe {
+                ArchivedStringRepr::emplace_inline(value, repr.ptr());
+            }
         } else {
-            ArchivedStringRepr::emplace_out_of_line(value, pos, resolver.pos, out.cast());
+            unsafe {
+                ArchivedStringRepr::emplace_out_of_line(
+                    value,
+                    resolver.pos as usize,
+                    repr,
+                );
+            }
         }
     }
 
     /// Serializes an archived string from a given `str`.
-    #[inline]
     pub fn serialize_from_str<S: Fallible + ?Sized>(
         value: &str,
         serializer: &mut S,
     ) -> Result<StringResolver, S::Error>
     where
+        S::Error: Source,
         str: SerializeUnsized<S>,
     {
         if value.len() <= INLINE_CAPACITY {
             Ok(StringResolver { pos: 0 })
+        } else if value.len() as FixedUsize > repr::OUT_OF_LINE_CAPACITY {
+            #[derive(Debug)]
+            struct StringTooLongError;
+
+            impl fmt::Display for StringTooLongError {
+                fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                    write!(
+                        f,
+                        "String was too long for the archived representation",
+                    )
+                }
+            }
+
+            impl Error for StringTooLongError {}
+
+            fail!(StringTooLongError);
         } else {
             Ok(StringResolver {
-                pos: value.serialize_unsized(serializer)?,
+                pos: value.serialize_unsized(serializer)? as FixedUsize,
             })
         }
     }
@@ -112,7 +152,6 @@ impl fmt::Display for ArchivedString {
 impl Eq for ArchivedString {}
 
 impl hash::Hash for ArchivedString {
-    #[inline]
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         self.as_str().hash(state)
     }
@@ -217,55 +256,49 @@ impl PartialOrd<ArchivedString> for str {
 
 /// The resolver for `String`.
 pub struct StringResolver {
-    pos: usize,
+    pos: FixedUsize,
 }
 
-#[cfg(feature = "validation")]
-const _: () = {
-    use crate::validation::{owned::OwnedPointerError, ArchiveContext};
-    use bytecheck::{CheckBytes, Error};
+#[cfg(feature = "bytecheck")]
+mod verify {
+    use bytecheck::{
+        rancor::{Fallible, Source},
+        CheckBytes, Verify,
+    };
 
-    impl<C: ArchiveContext + ?Sized> CheckBytes<C> for ArchivedString
+    use crate::{
+        string::{repr::ArchivedStringRepr, ArchivedString},
+        validation::{ArchiveContext, ArchiveContextExt},
+    };
+
+    unsafe impl<C> Verify<C> for ArchivedString
     where
-        C::Error: Error + 'static,
+        C: Fallible + ArchiveContext + ?Sized,
+        C::Error: Source,
     {
-        type Error = OwnedPointerError<
-            <ArchivedStringRepr as CheckBytes<C>>::Error,
-            <str as CheckBytes<C>>::Error,
-            C::Error,
-        >;
-
-        #[inline]
-        unsafe fn check_bytes<'a>(
-            value: *const Self,
-            context: &mut C,
-        ) -> Result<&'a Self, Self::Error> {
-            // The repr is always valid
-            let repr = ArchivedStringRepr::check_bytes(value.cast(), context)
-                .map_err(OwnedPointerError::PointerCheckBytesError)?;
-
-            if repr.is_inline() {
-                str::check_bytes(repr.as_str_ptr(), context)
-                    .map_err(OwnedPointerError::ValueCheckBytesError)?;
+        fn verify(&self, context: &mut C) -> Result<(), C::Error> {
+            if self.repr.is_inline() {
+                unsafe {
+                    str::check_bytes(self.repr.as_str_ptr(), context)?;
+                }
             } else {
-                let base = value.cast();
-                let offset = repr.out_of_line_offset();
-                let metadata = repr.len();
+                let base =
+                    (&self.repr as *const ArchivedStringRepr).cast::<u8>();
+                let offset = unsafe { self.repr.out_of_line_offset() };
+                let metadata = self.repr.len();
 
-                let ptr = context
-                    .check_subtree_ptr::<str>(base, offset, metadata)
-                    .map_err(OwnedPointerError::ContextError)?;
+                let address = base.wrapping_offset(offset).cast::<()>();
+                let ptr = ptr_meta::from_raw_parts(address, metadata);
 
-                let range = context
-                    .push_prefix_subtree(ptr)
-                    .map_err(OwnedPointerError::ContextError)?;
-                str::check_bytes(ptr, context).map_err(OwnedPointerError::ValueCheckBytesError)?;
-                context
-                    .pop_prefix_range(range)
-                    .map_err(OwnedPointerError::ContextError)?;
+                context.in_subtree(ptr, |context| {
+                    // SAFETY: `in_subtree` has guaranteed that `ptr` is
+                    // properly aligned and points to enough bytes to represent
+                    // the pointed-to `str`.
+                    unsafe { str::check_bytes(ptr, context) }
+                })?;
             }
 
-            Ok(&*value)
+            Ok(())
         }
     }
-};
+}

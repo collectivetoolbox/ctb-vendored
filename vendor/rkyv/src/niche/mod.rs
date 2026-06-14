@@ -1,5 +1,6 @@
 //! Manually niched type replacements.
 
-#[cfg(feature = "alloc")]
+pub mod niched_option;
+pub mod niching;
 pub mod option_box;
 pub mod option_nonzero;

@@ -88,6 +88,7 @@ pub struct MediaEngine {
     // If we have attempted to negotiate a codec type yet.
     pub(crate) negotiated_video: AtomicBool,
     pub(crate) negotiated_audio: AtomicBool,
+    pub(crate) negotiate_multi_codecs: AtomicBool,
 
     pub(crate) video_codecs: Vec<RTCRtpCodecParameters>,
     pub(crate) audio_codecs: Vec<RTCRtpCodecParameters>,
@@ -104,7 +105,7 @@ impl MediaEngine {
     /// register_default_codecs is not safe for concurrent use.
     pub fn register_default_codecs(&mut self) -> Result<()> {
         // Default Audio Codecs
-        for codec in vec![
+        for codec in [
             RTCRtpCodecParameters {
                 capability: RTCRtpCodecCapability {
                     mime_type: MIME_TYPE_OPUS.to_owned(),
@@ -283,6 +284,62 @@ impl MediaEngine {
                 payload_type: 123,
                 ..Default::default()
             },
+            // H.264 High Profile, Level 4.0 (20 Mbps, 720p60/1080p30)
+            RTCRtpCodecParameters {
+                capability: RTCRtpCodecCapability {
+                    mime_type: MIME_TYPE_H264.to_owned(),
+                    clock_rate: 90000,
+                    channels: 0,
+                    sdp_fmtp_line:
+                        "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=640028"
+                            .to_owned(),
+                    rtcp_feedback: video_rtcp_feedback.clone(),
+                },
+                payload_type: 118,
+                ..Default::default()
+            },
+            // H.264 High Profile, Level 4.1 (50 Mbps, 720p120/1080p60)
+            RTCRtpCodecParameters {
+                capability: RTCRtpCodecCapability {
+                    mime_type: MIME_TYPE_H264.to_owned(),
+                    clock_rate: 90000,
+                    channels: 0,
+                    sdp_fmtp_line:
+                        "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=640029"
+                            .to_owned(),
+                    rtcp_feedback: video_rtcp_feedback.clone(),
+                },
+                payload_type: 119,
+                ..Default::default()
+            },
+            // H.264 High Profile, Level 4.2 (50 Mbps, 1080p64)
+            RTCRtpCodecParameters {
+                capability: RTCRtpCodecCapability {
+                    mime_type: MIME_TYPE_H264.to_owned(),
+                    clock_rate: 90000,
+                    channels: 0,
+                    sdp_fmtp_line:
+                        "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=64002a"
+                            .to_owned(),
+                    rtcp_feedback: video_rtcp_feedback.clone(),
+                },
+                payload_type: 120,
+                ..Default::default()
+            },
+            // H.264 High Profile, Level 5.1 (240 Mbps, 4K30)
+            RTCRtpCodecParameters {
+                capability: RTCRtpCodecCapability {
+                    mime_type: MIME_TYPE_H264.to_owned(),
+                    clock_rate: 90000,
+                    channels: 0,
+                    sdp_fmtp_line:
+                        "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=640033"
+                            .to_owned(),
+                    rtcp_feedback: video_rtcp_feedback.clone(),
+                },
+                payload_type: 121,
+                ..Default::default()
+            },
             RTCRtpCodecParameters {
                 capability: RTCRtpCodecCapability {
                     mime_type: MIME_TYPE_AV1.to_owned(),
@@ -459,6 +516,17 @@ impl MediaEngine {
             header_extensions: self.header_extensions.clone(),
             ..Default::default()
         }
+    }
+
+    /// set_multi_codec_negotiation enables or disables the negotiation of multiple codecs.
+    pub(crate) fn set_multi_codec_negotiation(&self, negotiate_multi_codecs: bool) {
+        self.negotiate_multi_codecs
+            .store(negotiate_multi_codecs, Ordering::SeqCst);
+    }
+
+    /// multi_codec_negotiation returns the current state of the negotiation of multiple codecs.
+    pub(crate) fn multi_codec_negotiation(&self) -> bool {
+        self.negotiate_multi_codecs.load(Ordering::SeqCst)
     }
 
     pub(crate) async fn get_codec_by_payload(
@@ -653,12 +721,14 @@ impl MediaEngine {
         desc: &SessionDescription,
     ) -> Result<()> {
         for media in &desc.media_descriptions {
-            let typ = if !self.negotiated_audio.load(Ordering::SeqCst)
+            let typ = if (!self.negotiated_audio.load(Ordering::SeqCst)
+                || self.negotiate_multi_codecs.load(Ordering::SeqCst))
                 && media.media_name.media.to_lowercase() == "audio"
             {
                 self.negotiated_audio.store(true, Ordering::SeqCst);
                 RTPCodecType::Audio
-            } else if !self.negotiated_video.load(Ordering::SeqCst)
+            } else if (!self.negotiated_video.load(Ordering::SeqCst)
+                || self.negotiate_multi_codecs.load(Ordering::SeqCst))
                 && media.media_name.media.to_lowercase() == "video"
             {
                 self.negotiated_video.store(true, Ordering::SeqCst);
