@@ -11,9 +11,9 @@
 
 [package]
 edition = "2024"
-rust-version = "1.88.0"
+rust-version = "1.91.0"
 name = "boa_interner"
-version = "0.21.1"
+version = "1.0.0-dev"
 authors = ["boa-dev"]
 build = false
 autolib = false
@@ -35,7 +35,6 @@ categories = [
 ]
 license = "Unlicense OR MIT"
 repository = "https://github.com/boa-dev/boa"
-resolver = "2"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -54,16 +53,18 @@ features = ["derive"]
 optional = true
 
 [dependencies.boa_gc]
-version = "~0.21.0"
+version = "~1.0.0-dev"
+path = "../gc"
 
 [dependencies.boa_macros]
-version = "~0.21.1"
+version = "~1.0.0-dev"
+path = "../macros"
 
 [dependencies.hashbrown]
-version = "0.16.0"
+version = "0.17.1"
 
 [dependencies.indexmap]
-version = "2.11.4"
+version = "2.14.0"
 default-features = false
 
 [dependencies.once_cell]
@@ -77,7 +78,7 @@ features = ["macros"]
 default-features = false
 
 [dependencies.rustc-hash]
-version = "2.1.1"
+version = "2.1.2"
 default-features = false
 
 [dependencies.serde]

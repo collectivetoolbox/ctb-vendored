@@ -11,10 +11,12 @@
 
 [package]
 edition = "2018"
+rust-version = "1.82"
 name = "intrusive-collections"
-version = "0.9.7"
+version = "0.10.2"
 authors = ["Amanieu d'Antras <amanieu@gmail.com>"]
 build = false
+autolib = false
 autobins = false
 autoexamples = false
 autotests = false
@@ -32,8 +34,13 @@ categories = [
     "data-structures",
     "no-std",
 ]
-license = "Apache-2.0/MIT"
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/Amanieu/intrusive-rs"
+
+[features]
+alloc = []
+default = ["alloc"]
+nightly = []
 
 [lib]
 name = "intrusive_collections"
@@ -50,8 +57,3 @@ version = "0.3.0"
 
 [dev-dependencies.typed-arena]
 version = "2.0.1"
-
-[features]
-alloc = []
-default = ["alloc"]
-nightly = []

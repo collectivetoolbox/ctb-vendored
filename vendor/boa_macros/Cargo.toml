@@ -11,9 +11,9 @@
 
 [package]
 edition = "2024"
-rust-version = "1.88.0"
+rust-version = "1.91.0"
 name = "boa_macros"
-version = "0.21.1"
+version = "1.0.0-dev"
 authors = ["boa-dev"]
 build = false
 autolib = false
@@ -25,7 +25,6 @@ description = "Macros for the Boa JavaScript engine."
 readme = false
 license = "Unlicense OR MIT"
 repository = "https://github.com/boa-dev/boa"
-resolver = "2"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -43,23 +42,23 @@ name = "str"
 path = "tests/str.rs"
 
 [dependencies.cfg-if]
-version = "1.0.1"
+version = "1.0.4"
 
 [dependencies.cow-utils]
 version = "0.1.3"
 
 [dependencies.lz4_flex]
-version = "0.11.5"
+version = "0.13.1"
 optional = true
 
 [dependencies.proc-macro2]
 version = "1.0"
 
 [dependencies.quote]
-version = "1.0.41"
+version = "1.0.45"
 
 [dependencies.syn]
-version = "2.0.104"
+version = "2.0.116"
 features = [
     "full",
     "visit-mut",

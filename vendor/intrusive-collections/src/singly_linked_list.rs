@@ -271,15 +271,17 @@ impl AtomicLink {
         self.next.store(ATOMIC_UNLINKED_MARKER, Ordering::Release);
     }
 
-    /// Access the `next` pointer in an exclusive context.
-    ///
-    /// # Safety
-    ///
-    /// This can only be called after `acquire_link` has been succesfully called.
     #[inline]
-    unsafe fn next_exclusive(&self) -> &Cell<Option<NonNull<AtomicLink>>> {
-        // This is safe because currently AtomicPtr<AtomicLink> has the same representation Cell<Option<NonNull<AtomicLink>>>.
-        core::mem::transmute(&self.next)
+    fn next(&self) -> Option<NonNull<AtomicLink>> {
+        NonNull::new(self.next.load(Ordering::Relaxed))
+    }
+
+    #[inline]
+    fn set_next(&self, next: Option<NonNull<AtomicLink>>) {
+        self.next.store(
+            next.map(|x| x.as_ptr()).unwrap_or(null_mut()),
+            Ordering::Relaxed,
+        );
     }
 }
 
@@ -359,12 +361,12 @@ unsafe impl link_ops::LinkOps for AtomicLinkOps {
 unsafe impl SinglyLinkedListOps for AtomicLinkOps {
     #[inline]
     unsafe fn next(&self, ptr: Self::LinkPtr) -> Option<Self::LinkPtr> {
-        ptr.as_ref().next_exclusive().get()
+        ptr.as_ref().next()
     }
 
     #[inline]
     unsafe fn set_next(&mut self, ptr: Self::LinkPtr, next: Option<Self::LinkPtr>) {
-        ptr.as_ref().next_exclusive().set(next);
+        ptr.as_ref().set_next(next);
     }
 }
 
@@ -377,8 +379,7 @@ unsafe impl XorLinkedListOps for AtomicLinkOps {
     ) -> Option<Self::LinkPtr> {
         let packed = ptr
             .as_ref()
-            .next_exclusive()
-            .get()
+            .next()
             .map(|x| x.as_ptr() as usize)
             .unwrap_or(0);
         let raw = packed ^ prev.map(|x| x.as_ptr() as usize).unwrap_or(0);
@@ -394,8 +395,7 @@ unsafe impl XorLinkedListOps for AtomicLinkOps {
     ) -> Option<Self::LinkPtr> {
         let packed = ptr
             .as_ref()
-            .next_exclusive()
-            .get()
+            .next()
             .map(|x| x.as_ptr() as usize)
             .unwrap_or(0);
         let raw = packed ^ next.map(|x| x.as_ptr() as usize).unwrap_or(0);
@@ -413,7 +413,7 @@ unsafe impl XorLinkedListOps for AtomicLinkOps {
             ^ next.map(|x| x.as_ptr() as usize).unwrap_or(0);
 
         let new_next = NonNull::new(new_packed as *mut _);
-        ptr.as_ref().next_exclusive().set(new_next);
+        ptr.as_ref().set_next(new_next);
     }
 
     #[inline]
@@ -425,8 +425,7 @@ unsafe impl XorLinkedListOps for AtomicLinkOps {
     ) {
         let packed = ptr
             .as_ref()
-            .next_exclusive()
-            .get()
+            .next()
             .map(|x| x.as_ptr() as usize)
             .unwrap_or(0);
         let new_packed = packed
@@ -434,7 +433,7 @@ unsafe impl XorLinkedListOps for AtomicLinkOps {
             ^ new.map(|x| x.as_ptr() as usize).unwrap_or(0);
 
         let new_next = NonNull::new(new_packed as *mut _);
-        ptr.as_ref().next_exclusive().set(new_next);
+        ptr.as_ref().set_next(new_next);
     }
 }
 
@@ -542,6 +541,19 @@ where
         Some(unsafe { &*self.list.adapter.get_value(self.current?) })
     }
 
+    /// Returns a raw pointer to the object that the cursor is currently
+    /// pointing to.
+    ///
+    /// This returns `None` if the cursor is currently pointing to the null
+    /// object.
+    #[inline]
+    pub fn get_ptr(&self) -> Option<NonNull<<A::PointerOps as PointerOps>::Value>> {
+        unsafe {
+            let ptr = self.list.adapter.get_value(self.current?);
+            Some(NonNull::new_unchecked(ptr.cast_mut()))
+        }
+    }
+
     /// Clones and returns the pointer that points to the element that the
     /// cursor is referencing.
     ///
@@ -613,6 +625,19 @@ where
     #[inline]
     pub fn get(&self) -> Option<&<A::PointerOps as PointerOps>::Value> {
         Some(unsafe { &*self.list.adapter.get_value(self.current?) })
+    }
+
+    /// Returns a raw pointer to the object that the cursor is currently
+    /// pointing to.
+    ///
+    /// This returns `None` if the cursor is currently pointing to the null
+    /// object.
+    #[inline]
+    pub fn get_ptr(&self) -> Option<NonNull<<A::PointerOps as PointerOps>::Value>> {
+        unsafe {
+            let ptr = self.list.adapter.get_value(self.current?);
+            Some(NonNull::new_unchecked(ptr.cast_mut()))
+        }
     }
 
     /// Returns a read-only cursor pointing to the current element.
@@ -1142,6 +1167,7 @@ where
 unsafe impl<A: Adapter + Sync> Sync for SinglyLinkedList<A>
 where
     <A::PointerOps as PointerOps>::Value: Sync,
+    <A::PointerOps as PointerOps>::Pointer: Sync,
     A::LinkOps: SinglyLinkedListOps,
 {
 }
@@ -1284,6 +1310,7 @@ mod tests {
     use crate::UnsafeRef;
 
     use super::{CursorOwning, Link, SinglyLinkedList};
+    use core::ptr::NonNull;
     use std::fmt;
     use std::format;
     use std::rc::Rc;
@@ -1299,9 +1326,9 @@ mod tests {
             write!(f, "{}", self.value)
         }
     }
-    intrusive_adapter!(RcObjAdapter1 = Rc<Obj>: Obj { link1: Link });
-    intrusive_adapter!(RcObjAdapter2 = Rc<Obj>: Obj { link2: Link });
-    intrusive_adapter!(UnsafeRefObjAdapter1 = UnsafeRef<Obj>: Obj { link1: Link });
+    intrusive_adapter!(RcObjAdapter1 = Rc<Obj>: Obj { link1 => Link });
+    intrusive_adapter!(RcObjAdapter2 = Rc<Obj>: Obj { link2 => Link });
+    intrusive_adapter!(UnsafeRefObjAdapter1 = UnsafeRef<Obj>: Obj { link1 => Link });
 
     fn make_rc_obj(value: u32) -> Rc<Obj> {
         Rc::new(make_obj(value))
@@ -1349,6 +1376,7 @@ mod tests {
         let mut cur = l.cursor_mut();
         assert!(cur.is_null());
         assert!(cur.get().is_none());
+        assert!(cur.get_ptr().is_none());
         assert!(cur.remove_next().is_none());
         assert_eq!(
             cur.replace_next_with(a.clone()).unwrap_err().as_ref() as *const _,
@@ -1368,30 +1396,37 @@ mod tests {
         cur.move_next();
         assert!(!cur.is_null());
         assert_eq!(cur.get().unwrap() as *const _, a.as_ref() as *const _);
+        assert_eq!(cur.get_ptr().unwrap(), NonNull::from(a.as_ref()));
 
         {
             let mut cur2 = cur.as_cursor();
             assert_eq!(cur2.get().unwrap() as *const _, a.as_ref() as *const _);
+            assert_eq!(cur2.get_ptr().unwrap(), NonNull::from(a.as_ref()));
             assert_eq!(cur2.peek_next().get().unwrap().value, 2);
             cur2.move_next();
             assert_eq!(cur2.get().unwrap().value, 2);
             cur2.move_next();
             assert_eq!(cur2.get().unwrap() as *const _, c.as_ref() as *const _);
+            assert_eq!(cur2.get_ptr().unwrap(), NonNull::from(c.as_ref()));
             cur2.move_next();
             assert!(cur2.is_null());
             assert!(cur2.clone().get().is_none());
+            assert!(cur2.get_ptr().is_none());
         }
         assert_eq!(cur.get().unwrap() as *const _, a.as_ref() as *const _);
+        assert_eq!(cur.get_ptr().unwrap(), NonNull::from(a.as_ref()));
 
         assert_eq!(
             cur.remove_next().unwrap().as_ref() as *const _,
             b.as_ref() as *const _
         );
         assert_eq!(cur.get().unwrap() as *const _, a.as_ref() as *const _);
+        assert_eq!(cur.get_ptr().unwrap(), NonNull::from(a.as_ref()));
         cur.insert_after(b.clone());
         assert_eq!(cur.get().unwrap() as *const _, a.as_ref() as *const _);
         cur.move_next();
         assert_eq!(cur.get().unwrap() as *const _, b.as_ref() as *const _);
+        assert_eq!(cur.get_ptr().unwrap(), NonNull::from(b.as_ref()));
         assert_eq!(
             cur.remove_next().unwrap().as_ref() as *const _,
             c.as_ref() as *const _
@@ -1399,6 +1434,7 @@ mod tests {
         assert!(!c.link1.is_linked());
         assert!(a.link1.is_linked());
         assert_eq!(cur.get().unwrap() as *const _, b.as_ref() as *const _);
+        assert_eq!(cur.get_ptr().unwrap(), NonNull::from(b.as_ref()));
         cur.move_next();
         assert!(cur.is_null());
         assert_eq!(
@@ -1410,6 +1446,7 @@ mod tests {
         assert!(cur.is_null());
         cur.move_next();
         assert_eq!(cur.get().unwrap() as *const _, c.as_ref() as *const _);
+        assert_eq!(cur.get_ptr().unwrap(), NonNull::from(c.as_ref()));
         assert_eq!(
             cur.replace_next_with(a.clone()).unwrap().as_ref() as *const _,
             b.as_ref() as *const _
@@ -1418,6 +1455,7 @@ mod tests {
         assert!(!b.link1.is_linked());
         assert!(c.link1.is_linked());
         assert_eq!(cur.get().unwrap() as *const _, c.as_ref() as *const _);
+        assert_eq!(cur.get_ptr().unwrap(), NonNull::from(c.as_ref()));
     }
 
     #[test]
@@ -1653,7 +1691,7 @@ mod tests {
             link: Link,
             value: &'a T,
         }
-        intrusive_adapter!(ObjAdapter<'a, T> = &'a Obj<'a, T>: Obj<'a, T> {link: Link} where T: 'a);
+        intrusive_adapter!(ObjAdapter<'a, T> = &'a Obj<'a, T>: Obj<'a, T> {link => Link} where T: 'a);
 
         let v = 5;
         let a = Obj {
@@ -1677,7 +1715,7 @@ mod tests {
                 link: Link,
                 value: usize,
             }
-            intrusive_adapter!(ObjAdapter = $ptr<Obj>: Obj { link: Link });
+            intrusive_adapter!(ObjAdapter = $ptr<Obj>: Obj { link => Link });
 
             let a = $ptr::new(Obj {
                 link: Link::new(),
@@ -1704,5 +1742,50 @@ mod tests {
     #[test]
     fn test_clone_pointer_arc() {
         test_clone_pointer!(Arc, std::sync::Arc);
+    }
+
+    #[cfg(miri)]
+    #[test]
+    fn atomic_link_is_linked_races_with_list_mutation() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+        use std::thread;
+
+        struct Obj {
+            link: super::AtomicLink,
+            value: usize,
+        }
+        intrusive_adapter!(ObjAdapter = Arc<Obj>: Obj { link => super::AtomicLink });
+
+        let obj = Arc::new(Obj {
+            link: super::AtomicLink::new(),
+            value: 1,
+        });
+        let mut list = SinglyLinkedList::new(ObjAdapter::new());
+        list.push_front(obj.clone());
+
+        let mutation_done = AtomicBool::new(false);
+        thread::scope(|scope| {
+            let obj = &obj;
+            let reader_done = &mutation_done;
+            scope.spawn(move || {
+                while !reader_done.load(Ordering::Relaxed) {
+                    thread::yield_now();
+                }
+                // UB: `AtomicLink::is_linked` performs an atomic load, but
+                // `AtomicLinkOps` writes the same `next` pointer through a
+                // transmuted `Cell` while safe list mutation is in progress.
+                let _ = obj.link.is_linked();
+            });
+
+            let list = &mut list;
+            let writer_done = &mutation_done;
+            scope.spawn(move || {
+                let value = list.pop_front().unwrap();
+                assert_eq!(value.value, 1);
+                list.push_front(value);
+                writer_done.store(true, Ordering::Relaxed);
+            });
+        });
     }
 }

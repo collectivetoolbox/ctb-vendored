@@ -20,9 +20,6 @@ use crate::link_ops::{self, DefaultLinkOps};
 use crate::pointer_ops::PointerOps;
 use crate::singly_linked_list::SinglyLinkedListOps;
 use crate::Adapter;
-// Necessary for Rust 1.56 compatability
-#[allow(unused_imports)]
-use crate::unchecked_option::UncheckedOptionExt;
 
 // =============================================================================
 // XorLinkedListOps
@@ -297,15 +294,14 @@ impl AtomicLink {
         self.packed.store(UNLINKED_MARKER, Ordering::Release);
     }
 
-    /// Access the `packed` pointer in an exclusive context.
-    ///
-    /// # Safety
-    ///
-    /// This can only be called after `acquire_link` has been succesfully called.
     #[inline]
-    unsafe fn packed_exclusive(&self) -> &Cell<usize> {
-        // This is safe because currently AtomicUsize has the same representation Cell<usize>.
-        core::mem::transmute(&self.packed)
+    fn packed(&self) -> usize {
+        self.packed.load(Ordering::Relaxed)
+    }
+
+    #[inline]
+    fn set_packed(&self, packed: usize) {
+        self.packed.store(packed, Ordering::Relaxed);
     }
 }
 
@@ -391,8 +387,7 @@ unsafe impl XorLinkedListOps for AtomicLinkOps {
         ptr: Self::LinkPtr,
         prev: Option<Self::LinkPtr>,
     ) -> Option<Self::LinkPtr> {
-        let raw =
-            ptr.as_ref().packed_exclusive().get() ^ prev.map(|x| x.as_ptr() as usize).unwrap_or(0);
+        let raw = ptr.as_ref().packed() ^ prev.map(|x| x.as_ptr() as usize).unwrap_or(0);
         NonNull::new(raw as *mut _)
     }
 
@@ -402,8 +397,7 @@ unsafe impl XorLinkedListOps for AtomicLinkOps {
         ptr: Self::LinkPtr,
         next: Option<Self::LinkPtr>,
     ) -> Option<Self::LinkPtr> {
-        let raw =
-            ptr.as_ref().packed_exclusive().get() ^ next.map(|x| x.as_ptr() as usize).unwrap_or(0);
+        let raw = ptr.as_ref().packed() ^ next.map(|x| x.as_ptr() as usize).unwrap_or(0);
         NonNull::new(raw as *mut _)
     }
 
@@ -416,7 +410,7 @@ unsafe impl XorLinkedListOps for AtomicLinkOps {
     ) {
         let new_packed = prev.map(|x| x.as_ptr() as usize).unwrap_or(0)
             ^ next.map(|x| x.as_ptr() as usize).unwrap_or(0);
-        ptr.as_ref().packed_exclusive().set(new_packed);
+        ptr.as_ref().set_packed(new_packed);
     }
 
     #[inline]
@@ -426,26 +420,25 @@ unsafe impl XorLinkedListOps for AtomicLinkOps {
         old: Option<Self::LinkPtr>,
         new: Option<Self::LinkPtr>,
     ) {
-        let new_packed = ptr.as_ref().packed_exclusive().get()
+        let new_packed = ptr.as_ref().packed()
             ^ old.map(|x| x.as_ptr() as usize).unwrap_or(0)
             ^ new.map(|x| x.as_ptr() as usize).unwrap_or(0);
 
-        ptr.as_ref().packed_exclusive().set(new_packed);
+        ptr.as_ref().set_packed(new_packed);
     }
 }
 
 unsafe impl SinglyLinkedListOps for AtomicLinkOps {
     #[inline]
     unsafe fn next(&self, ptr: Self::LinkPtr) -> Option<Self::LinkPtr> {
-        let raw = ptr.as_ref().packed_exclusive().get();
+        let raw = ptr.as_ref().packed();
         NonNull::new(raw as *mut _)
     }
 
     #[inline]
     unsafe fn set_next(&mut self, ptr: Self::LinkPtr, next: Option<Self::LinkPtr>) {
         ptr.as_ref()
-            .packed_exclusive()
-            .set(next.map(|x| x.as_ptr() as usize).unwrap_or(0));
+            .set_packed(next.map(|x| x.as_ptr() as usize).unwrap_or(0));
     }
 }
 
@@ -465,6 +458,28 @@ unsafe fn link_between<T: XorLinkedListOps>(
         link_ops.set(next, Some(ptr), next_of_next);
     }
     link_ops.set(ptr, prev, next);
+}
+
+/// Splices the non-empty range from `start` to `end` between `prev` and `next`.
+///
+/// This only rewires the XOR links. Callers must update list endpoints and
+/// cursor state separately.
+#[inline]
+unsafe fn splice_between<T: XorLinkedListOps>(
+    link_ops: &mut T,
+    start: T::LinkPtr,
+    end: T::LinkPtr,
+    prev: Option<T::LinkPtr>,
+    next: Option<T::LinkPtr>,
+) {
+    if let Some(prev) = prev {
+        link_ops.replace_next_or_prev(prev, next, Some(start));
+    }
+    if let Some(next) = next {
+        link_ops.replace_next_or_prev(next, prev, Some(end));
+    }
+    link_ops.replace_next_or_prev(start, None, prev);
+    link_ops.replace_next_or_prev(end, None, next);
 }
 
 // =============================================================================
@@ -515,6 +530,19 @@ where
     #[inline]
     pub fn get(&self) -> Option<&'a <A::PointerOps as PointerOps>::Value> {
         Some(unsafe { &*self.list.adapter.get_value(self.current?) })
+    }
+
+    /// Returns a raw pointer to the object that the cursor is currently
+    /// pointing to.
+    ///
+    /// This returns `None` if the cursor is currently pointing to the null
+    /// object.
+    #[inline]
+    pub fn get_ptr(&self) -> Option<NonNull<<A::PointerOps as PointerOps>::Value>> {
+        unsafe {
+            let ptr = self.list.adapter.get_value(self.current?);
+            Some(NonNull::new_unchecked(ptr.cast_mut()))
+        }
     }
 
     /// Clones and returns the pointer that points to the element that the
@@ -628,6 +656,19 @@ where
     #[inline]
     pub fn get(&self) -> Option<&<A::PointerOps as PointerOps>::Value> {
         Some(unsafe { &*self.list.adapter.get_value(self.current?) })
+    }
+
+    /// Returns a raw pointer to the object that the cursor is currently
+    /// pointing to.
+    ///
+    /// This returns `None` if the cursor is currently pointing to the null
+    /// object.
+    #[inline]
+    pub fn get_ptr(&self) -> Option<NonNull<<A::PointerOps as PointerOps>::Value>> {
+        unsafe {
+            let ptr = self.list.adapter.get_value(self.current?);
+            Some(NonNull::new_unchecked(ptr.cast_mut()))
+        }
     }
 
     /// Returns a read-only cursor pointing to the current element.
@@ -916,24 +957,18 @@ where
 
                 let link_ops = self.list.adapter.link_ops_mut();
 
-                if let Some(current) = self.current {
-                    if let Some(next) = self.next {
-                        link_ops.replace_next_or_prev(next, Some(current), Some(tail));
-                        link_ops.replace_next_or_prev(tail, None, Some(next));
-                    }
-                    link_ops.replace_next_or_prev(head, None, Some(current));
+                splice_between(link_ops, head, tail, self.current, self.next);
+                if self.current.is_some() {
                     self.next = list.head;
-                    link_ops.set(current, self.prev, self.next);
                 } else {
-                    if let Some(x) = self.list.head {
-                        link_ops.replace_next_or_prev(tail, None, Some(x));
-                        link_ops.replace_next_or_prev(x, None, Some(tail));
-                    }
                     self.list.head = list.head;
-                    self.next = list.head;
                 }
                 if self.list.tail == self.current {
                     self.list.tail = list.tail;
+                }
+                if self.current.is_none() {
+                    self.prev = self.list.tail;
+                    self.next = self.list.head;
                 }
                 list.head = None;
                 list.tail = None;
@@ -954,24 +989,18 @@ where
 
                 let link_ops = self.list.adapter.link_ops_mut();
 
-                if let Some(current) = self.current {
-                    if let Some(prev) = self.prev {
-                        link_ops.replace_next_or_prev(prev, Some(current), Some(head));
-                        link_ops.replace_next_or_prev(head, None, Some(prev));
-                    }
-                    link_ops.replace_next_or_prev(tail, None, Some(current));
+                splice_between(link_ops, head, tail, self.prev, self.current);
+                if self.current.is_some() {
                     self.prev = list.tail;
-                    link_ops.set(current, self.prev, self.next);
                 } else {
-                    if let Some(x) = self.list.tail {
-                        link_ops.replace_next_or_prev(head, None, Some(x));
-                        link_ops.replace_next_or_prev(x, None, Some(head));
-                    }
-                    self.list.head = list.head;
-                    self.next = list.head;
-                }
-                if self.list.tail == self.current {
                     self.list.tail = list.tail;
+                }
+                if self.list.head == self.current {
+                    self.list.head = list.head;
+                }
+                if self.current.is_none() {
+                    self.prev = self.list.tail;
+                    self.next = self.list.head;
                 }
                 list.head = None;
                 list.tail = None;
@@ -1587,6 +1616,7 @@ where
 unsafe impl<A: Adapter + Sync> Sync for XorLinkedList<A>
 where
     <A::PointerOps as PointerOps>::Value: Sync,
+    <A::PointerOps as PointerOps>::Pointer: Sync,
     A::LinkOps: XorLinkedListOps,
 {
 }
@@ -1774,6 +1804,7 @@ mod tests {
     use super::{CursorOwning, Link, XorLinkedList};
     use core::cell::Cell;
     use core::ptr;
+    use core::ptr::NonNull;
     use std::boxed::Box;
     use std::fmt;
     use std::format;
@@ -1790,9 +1821,9 @@ mod tests {
             write!(f, "{}", self.value)
         }
     }
-    intrusive_adapter!(RcObjAdapter1 = Rc<Obj>: Obj { link1: Link });
-    intrusive_adapter!(RcObjAdapter2 = Rc<Obj>: Obj { link2: Link });
-    intrusive_adapter!(UnsafeRefObjAdapter1 = UnsafeRef<Obj>: Obj { link1: Link });
+    intrusive_adapter!(RcObjAdapter1 = Rc<Obj>: Obj { link1 => Link });
+    intrusive_adapter!(RcObjAdapter2 = Rc<Obj>: Obj { link2 => Link });
+    intrusive_adapter!(UnsafeRefObjAdapter1 = UnsafeRef<Obj>: Obj { link1 => Link });
 
     fn make_rc_obj(value: u32) -> Rc<Obj> {
         Rc::new(make_obj(value))
@@ -1841,6 +1872,7 @@ mod tests {
         let mut cur = l.cursor_mut();
         assert!(cur.is_null());
         assert!(cur.get().is_none());
+        assert!(cur.get_ptr().is_none());
         assert!(cur.remove().is_none());
         assert_eq!(
             cur.replace_with(a.clone()).unwrap_err().as_ref() as *const _,
@@ -1859,16 +1891,19 @@ mod tests {
         assert!(cur.peek_prev().is_null());
         assert!(!cur.is_null());
         assert_eq!(cur.get().unwrap() as *const _, a.as_ref() as *const _);
+        assert_eq!(cur.get_ptr().unwrap(), NonNull::from(a.as_ref()));
 
         {
             let mut cur2 = cur.as_cursor();
             assert_eq!(cur2.get().unwrap() as *const _, a.as_ref() as *const _);
+            assert_eq!(cur2.get_ptr().unwrap(), NonNull::from(a.as_ref()));
             assert_eq!(cur2.peek_next().get().unwrap().value, 2);
             cur2.move_next();
             assert_eq!(cur2.get().unwrap().value, 2);
             cur2.move_next();
             assert_eq!(cur2.peek_prev().get().unwrap().value, 2);
             assert_eq!(cur2.get().unwrap() as *const _, c.as_ref() as *const _);
+            assert_eq!(cur2.get_ptr().unwrap(), NonNull::from(c.as_ref()));
             cur2.move_prev();
             assert_eq!(cur2.get().unwrap() as *const _, b.as_ref() as *const _);
             cur2.move_next();
@@ -1876,8 +1911,10 @@ mod tests {
             cur2.move_next();
             assert!(cur2.is_null());
             assert!(cur2.clone().get().is_none());
+            assert!(cur2.get_ptr().is_none());
         }
         assert_eq!(cur.get().unwrap() as *const _, a.as_ref() as *const _);
+        assert_eq!(cur.get_ptr().unwrap(), NonNull::from(a.as_ref()));
 
         cur.move_next();
         assert_eq!(
@@ -1885,10 +1922,12 @@ mod tests {
             b.as_ref() as *const _
         );
         assert_eq!(cur.get().unwrap() as *const _, c.as_ref() as *const _);
+        assert_eq!(cur.get_ptr().unwrap(), NonNull::from(c.as_ref()));
         cur.insert_after(b.clone());
         assert_eq!(cur.get().unwrap() as *const _, c.as_ref() as *const _);
         cur.move_prev();
         assert_eq!(cur.get().unwrap() as *const _, a.as_ref() as *const _);
+        assert_eq!(cur.get_ptr().unwrap(), NonNull::from(a.as_ref()));
         assert_eq!(
             cur.remove().unwrap().as_ref() as *const _,
             a.as_ref() as *const _
@@ -1896,6 +1935,7 @@ mod tests {
         assert!(!a.link1.is_linked());
         assert!(c.link1.is_linked());
         assert_eq!(cur.get().unwrap() as *const _, c.as_ref() as *const _);
+        assert_eq!(cur.get_ptr().unwrap(), NonNull::from(c.as_ref()));
         assert_eq!(
             cur.replace_with(a.clone()).unwrap().as_ref() as *const _,
             c.as_ref() as *const _
@@ -1903,6 +1943,7 @@ mod tests {
         assert!(a.link1.is_linked());
         assert!(!c.link1.is_linked());
         assert_eq!(cur.get().unwrap() as *const _, a.as_ref() as *const _);
+        assert_eq!(cur.get_ptr().unwrap(), NonNull::from(a.as_ref()));
         cur.move_next();
         assert_eq!(
             cur.replace_with(c.clone()).unwrap().as_ref() as *const _,
@@ -1912,6 +1953,7 @@ mod tests {
         assert!(!b.link1.is_linked());
         assert!(c.link1.is_linked());
         assert_eq!(cur.get().unwrap() as *const _, c.as_ref() as *const _);
+        assert_eq!(cur.get_ptr().unwrap(), NonNull::from(c.as_ref()));
     }
 
     #[test]
@@ -2054,6 +2096,45 @@ mod tests {
         assert_eq!(l1.iter().map(|x| x.value).collect::<Vec<_>>(), [1, 3, 4, 2]);
         assert_eq!(l2.iter().map(|x| x.value).collect::<Vec<_>>(), []);
         assert_eq!(l3.iter().map(|x| x.value).collect::<Vec<_>>(), []);
+    }
+
+    #[test]
+    fn splice_boundary_cases() {
+        let values =
+            |list: &XorLinkedList<RcObjAdapter1>| list.iter().map(|x| x.value).collect::<Vec<_>>();
+
+        let mut list = XorLinkedList::new(RcObjAdapter1::new());
+        for value in [1, 2, 3] {
+            list.push_back(make_rc_obj(value));
+        }
+        let mut inserted = XorLinkedList::new(RcObjAdapter1::new());
+        inserted.push_back(make_rc_obj(4));
+        inserted.push_back(make_rc_obj(5));
+        list.back_mut().splice_before(inserted);
+        assert_eq!(values(&list), [1, 2, 4, 5, 3]);
+        assert_eq!(list.back().get().unwrap().value, 3);
+        assert_eq!(
+            list.iter().rev().map(|x| x.value).collect::<Vec<_>>(),
+            [3, 5, 4, 2, 1]
+        );
+
+        let mut inserted = XorLinkedList::new(RcObjAdapter1::new());
+        inserted.push_back(make_rc_obj(6));
+        list.front_mut().splice_before(inserted);
+        assert_eq!(values(&list), [6, 1, 2, 4, 5, 3]);
+        assert_eq!(list.front().get().unwrap().value, 6);
+
+        let mut inserted = XorLinkedList::new(RcObjAdapter1::new());
+        inserted.push_back(make_rc_obj(7));
+        list.cursor_mut().splice_before(inserted);
+        assert_eq!(values(&list), [6, 1, 2, 4, 5, 3, 7]);
+        assert_eq!(list.back().get().unwrap().value, 7);
+
+        let mut inserted = XorLinkedList::new(RcObjAdapter1::new());
+        inserted.push_back(make_rc_obj(8));
+        list.cursor_mut().splice_after(inserted);
+        assert_eq!(values(&list), [8, 6, 1, 2, 4, 5, 3, 7]);
+        assert_eq!(list.front().get().unwrap().value, 8);
     }
 
     #[test]
@@ -2253,7 +2334,7 @@ mod tests {
             link: Link,
             value: &'a T,
         }
-        intrusive_adapter!(ObjAdapter<'a, T> = &'a Obj<'a, T>: Obj<'a, T> {link: Link} where T: 'a);
+        intrusive_adapter!(ObjAdapter<'a, T> = &'a Obj<'a, T>: Obj<'a, T> {link => Link} where T: 'a);
 
         let v = 5;
         let a = Obj {
@@ -2281,7 +2362,7 @@ mod tests {
                 self.value.set(val + 1);
             }
         }
-        intrusive_adapter!(ObjAdapter<'a> = Box<Obj<'a>>: Obj<'a> {link: Link});
+        intrusive_adapter!(ObjAdapter<'a> = Box<Obj<'a>>: Obj<'a> {link => Link});
 
         let v = Cell::new(0);
         let obj = Obj {
@@ -2314,7 +2395,7 @@ mod tests {
                 link: Link,
                 value: usize,
             }
-            intrusive_adapter!(ObjAdapter = $ptr<Obj>: Obj { link: Link });
+            intrusive_adapter!(ObjAdapter = $ptr<Obj>: Obj { link => Link });
 
             let a = $ptr::new(Obj {
                 link: Link::new(),
@@ -2341,5 +2422,134 @@ mod tests {
     #[test]
     fn test_clone_pointer_arc() {
         test_clone_pointer!(Arc, std::sync::Arc);
+    }
+
+    #[cfg(miri)]
+    #[test]
+    fn splice_before_head_corrupts_head_link() {
+        struct Obj {
+            link: Link,
+            value: u32,
+        }
+        intrusive_adapter!(ObjAdapter = Box<Obj>: Obj { link => Link });
+
+        let mut list = XorLinkedList::new(ObjAdapter::new());
+        list.push_back(Box::new(Obj {
+            link: Link::new(),
+            value: 1,
+        }));
+        list.push_back(Box::new(Obj {
+            link: Link::new(),
+            value: 2,
+        }));
+
+        let mut inserted = XorLinkedList::new(ObjAdapter::new());
+        inserted.push_back(Box::new(Obj {
+            link: Link::new(),
+            value: 3,
+        }));
+        inserted.push_back(Box::new(Obj {
+            link: Link::new(),
+            value: 4,
+        }));
+
+        {
+            let mut cursor = list.front_mut();
+            // UB: splicing before the current head should move `list.head` to
+            // the spliced list's head. The implementation leaves `head`
+            // pointing at the old node even though that node now has a
+            // previous neighbor, so traversal reconstructs and dereferences a
+            // bogus XOR pointer.
+            cursor.splice_before(inserted);
+        }
+
+        let _ = list.iter().map(|x| x.value).collect::<Vec<_>>();
+    }
+
+    #[cfg(miri)]
+    #[test]
+    fn splice_before_null_corrupts_tail_link() {
+        struct Obj {
+            link: Link,
+            value: u32,
+        }
+        intrusive_adapter!(ObjAdapter = Box<Obj>: Obj { link => Link });
+
+        let mut list = XorLinkedList::new(ObjAdapter::new());
+        list.push_back(Box::new(Obj {
+            link: Link::new(),
+            value: 1,
+        }));
+        list.push_back(Box::new(Obj {
+            link: Link::new(),
+            value: 2,
+        }));
+
+        let mut inserted = XorLinkedList::new(ObjAdapter::new());
+        inserted.push_back(Box::new(Obj {
+            link: Link::new(),
+            value: 3,
+        }));
+        inserted.push_back(Box::new(Obj {
+            link: Link::new(),
+            value: 4,
+        }));
+
+        {
+            let mut cursor = list.cursor_mut();
+            // UB: splicing before the null cursor means appending to the
+            // non-empty list. The implementation overwrites `head` instead of
+            // updating `tail`, making the new head encode a non-null previous
+            // pointer. Iteration then materializes and dereferences an invalid
+            // pointer.
+            cursor.splice_before(inserted);
+        }
+
+        let _ = list.iter().map(|x| x.value).collect::<Vec<_>>();
+    }
+
+    #[cfg(miri)]
+    #[test]
+    fn atomic_link_is_linked_races_with_list_mutation() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+        use std::thread;
+
+        struct Obj {
+            link: super::AtomicLink,
+            value: usize,
+        }
+        intrusive_adapter!(ObjAdapter = Arc<Obj>: Obj { link => super::AtomicLink });
+
+        let obj = Arc::new(Obj {
+            link: super::AtomicLink::new(),
+            value: 1,
+        });
+        let mut list = XorLinkedList::new(ObjAdapter::new());
+        list.push_back(obj.clone());
+
+        let mutation_done = AtomicBool::new(false);
+        thread::scope(|scope| {
+            let obj = &obj;
+            let reader_done = &mutation_done;
+            scope.spawn(move || {
+                while !reader_done.load(Ordering::Relaxed) {
+                    thread::yield_now();
+                }
+                // UB: `AtomicLink::is_linked` performs an atomic load, but
+                // `AtomicLinkOps` updates the packed link word through a
+                // transmuted `Cell` during safe list mutation.
+                let _ = obj.link.is_linked();
+            });
+
+            let list = &mut list;
+            let writer_done = &mutation_done;
+            scope.spawn(move || {
+                let value = list.pop_front().unwrap();
+                assert_eq!(value.value, 1);
+                list.push_back(value);
+                writer_done.store(true, Ordering::Relaxed);
+            });
+        });
     }
 }

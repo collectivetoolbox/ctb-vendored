@@ -2,15 +2,13 @@
 
 [![Crate][crate-image]][crate-link]
 [![Docs][docs-image]][docs-link]
+[![Build Status][build-image]][build-link]
 ![Apache2/MIT licensed][license-image]
 ![Rust Version][rustc-image]
 [![Project Chat][chat-image]][chat-link]
-[![Build Status][build-image]][build-link]
 [![HAZMAT][hazmat-image]][hazmat-link]
 
 Pure Rust implementation of the [ChaCha20 Stream Cipher][1].
-
-[Documentation][docs-link]
 
 <img src="https://raw.githubusercontent.com/RustCrypto/meta/master/img/stream-ciphers/chacha20.png" width="300px">
 
@@ -33,9 +31,10 @@ work on stable Rust with the following `RUSTFLAGS`:
 
 - `x86` / `x86_64`
   - `avx2`: (~1.4cpb) `-Ctarget-cpu=haswell -Ctarget-feature=+avx2`
-  - `sse2`: (~2.5cpb) `-Ctarget-feature=+sse2` (on by default on x86 CPUs)
+  - `sse2`: (~1.6cpb) `-Ctarget-feature=+sse2` (on by default on x86 CPUs)
+  - `avx512`: `-Ctarget-feature=+avx512f,+avx512vl --cfg chacha20_avx512` requires Rust 1.89+
 - `aarch64`
-  - `neon` (~2-3x faster than `soft`) requires Rust 1.61+ and the `neon` feature enabled
+  - `neon` (~2-3x faster than `soft`) requires the `neon` feature enabled
 - Portable
   - `soft`: (~5 cpb on x86/x86_64)
 
@@ -62,18 +61,6 @@ findings. We would like to thank [MobileCoin][9] for funding the audit.
 All implementations contained in the crate (along with the underlying ChaCha20
 stream cipher itself) are designed to execute in constant time.
 
-## Minimum Supported Rust Version
-
-Rust **1.56** or higher.
-
-Minimum supported Rust version can be changed in the future, but it will be
-done with a minor version bump.
-
-## SemVer Policy
-
-- All on-by-default features of this library are covered by SemVer
-- MSRV is considered exempt from SemVer as noted above
-
 ## License
 
 Licensed under either of:
@@ -95,12 +82,12 @@ dual licensed as above, without any additional terms or conditions.
 [crate-link]: https://crates.io/crates/chacha20
 [docs-image]: https://docs.rs/chacha20/badge.svg
 [docs-link]: https://docs.rs/chacha20/
+[build-image]: https://github.com/RustCrypto/stream-ciphers/actions/workflows/chacha20.yml/badge.svg
+[build-link]: https://github.com/RustCrypto/stream-ciphers/actions/workflows/chacha20.yml
 [license-image]: https://img.shields.io/badge/license-Apache2.0/MIT-blue.svg
-[rustc-image]: https://img.shields.io/badge/rustc-1.56+-blue.svg
+[rustc-image]: https://img.shields.io/badge/rustc-1.85+-blue.svg
 [chat-image]: https://img.shields.io/badge/zulip-join_chat-blue.svg
 [chat-link]: https://rustcrypto.zulipchat.com/#narrow/stream/260049-stream-ciphers
-[build-image]: https://github.com/RustCrypto/stream-ciphers/workflows/chacha20/badge.svg?branch=master&event=push
-[build-link]: https://github.com/RustCrypto/stream-ciphers/actions?query=workflow%3Achacha20
 [hazmat-image]: https://img.shields.io/badge/crypto-hazmat%E2%9A%A0-red.svg
 [hazmat-link]: https://github.com/RustCrypto/meta/blob/master/HAZMAT.md
 
@@ -113,5 +100,5 @@ dual licensed as above, without any additional terms or conditions.
 [5]: https://en.wikipedia.org/wiki/Authenticated_encryption
 [6]: https://github.com/RustCrypto/AEADs/tree/master/chacha20poly1305
 [7]: https://github.com/RustCrypto/AEADs
-[8]: https://research.nccgroup.com/2020/02/26/public-report-rustcrypto-aes-gcm-and-chacha20poly1305-implementation-review/
+[8]: https://web.archive.org/web/20240108154854/https://research.nccgroup.com/wp-content/uploads/2020/02/NCC_Group_MobileCoin_RustCrypto_AESGCM_ChaCha20Poly1305_Implementation_Review_2020-02-12_v1.0.pdf
 [9]: https://www.mobilecoin.com/

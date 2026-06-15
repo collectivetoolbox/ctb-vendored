@@ -1,5 +1,4 @@
-Macros for all your token pasting needs
-=======================================
+# Macros for all your token pasting needs
 
 [<img alt="github" src="https://img.shields.io/badge/github-as1100k/pastey-8da0cb?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/as1100k/pastey)
 [<img alt="crates.io" src="https://img.shields.io/crates/v/pastey.svg?style=for-the-badge&color=fc8d62&logo=rust" height="20">](https://crates.io/crates/pastey)
@@ -8,13 +7,11 @@ Macros for all your token pasting needs
 
 **_`pastey` is the fork of `paste` and is aimed to be a drop-in replacement with additional features for
 `paste` crate_**
-
-<br/>
-
 <details>
 <summary>Migrating from <code>paste</code> crate</summary>
 
-Migrating from `paste` crate to `pastey` is super simple, just change the following in your `Cargo.toml`
+Migrating from `paste` crate to `pastey` is super simple, just change the following
+in your `Cargo.toml`
 
 ```diff
 [dependencies]
@@ -31,8 +28,6 @@ Or even better way:
 ```
 
 </details>
-
-<br>
 
 ## Quick Start
 
@@ -66,8 +61,6 @@ fn main() {
     );
 }
 ```
-
-<br>
 
 ## More elaborate example
 
@@ -117,9 +110,19 @@ make_a_struct_and_getters!(S { a, b, c });
 fn call_some_getters(s: &S) -> bool {
     s.get_a() == s.get_b() && s.get_c().is_empty()
 }
+let s = S {
+    a: String::from("x"),
+    b: String::from("x"),
+    c: String::new(),
+ };
+ assert!(call_some_getters(&s));
+ let s2 = S {
+     a: String::from("x"),
+     b: String::from("y"),
+     c: String::new(),
+ };
+ assert!(!call_some_getters(&s2));
 ```
-
-<br>
 
 ## Case conversion
 
@@ -129,7 +132,7 @@ The `pastey` crate supports the following case modfiers:
 |------------------------------------|---------------------------------------|
 | `$var:lower`                       | Lower Case                            |
 | `$var:upper`                       | Upper Case                            |
-| `$var:snake`                       | [Snake Case]                          |
+| `$var:snake`                       | Snake Case                            |
 | `$var:camel` or `$var:upper_camel` | Upper Camel Case                      |
 | `$var:lower_camel`                 | Lower Camel Case [#4]                 |
 | `$var:camel_edge`                  | Covers Edge cases of Camel Case. [#3] |
@@ -162,12 +165,45 @@ The precise Unicode conversions are as defined by [`str::to_lowercase`] and
 [`str::to_lowercase`]: https://doc.rust-lang.org/std/primitive.str.html#method.to_lowercase
 [`str::to_uppercase`]: https://doc.rust-lang.org/std/primitive.str.html#method.to_uppercase
 
-<br>
+## Replace modifier
+
+The `replace` modifier allows you to perform string replacement on identifiers,
+using the same semantics as [`str::replace`]. This is useful for transforming
+identifiers by removing or substituting substrings.
+
+[`str::replace`]: https://doc.rust-lang.org/std/primitive.str.html#method.replace
+```rust
+use pastey::paste;
+
+macro_rules! m {
+    ($(($command:ident, $from:ident)),+) => {
+        paste! {
+            $(pub struct $command {})*
+
+            pub enum Command {
+                $(
+                    [< $command:replace($from, "") >] ( $command )
+                ),*
+            }
+        }
+    }
+}
+
+m! {
+    (CommandFoo, Command),
+    (CommandBar, Command),
+    (HelloWorld, Hello)
+}
+
+let command_bar = Command::Bar(CommandBar {});
+let command_foo = Command::Foo(CommandFoo {});
+let command_hello = Command::World(HelloWorld {});
+```
 
 ## Raw Identifier Generation
 
-`pastey` now supports raw identifiers using a special raw mode. By prefixing a token with `#`
-inside the paste syntax, it treats that token as a raw identifier.
+`pastey` now supports raw identifiers using a special raw mode. By prefixing a
+token with `#` inside the paste syntax, it treats that token as a raw identifier.
 
 ```rust
 use pastey::paste;
@@ -192,9 +228,8 @@ fn test_fn() {
     let _ = Loop::r#loop();
     let _ = Loopxyz::loop_xyz();
 }
+test_fn();
 ```
-
-<br>
 
 ## Pasting documentation strings
 
@@ -208,7 +243,7 @@ macro_rules! method_new {
     ($ret:ident) => {
         paste! {
             #[doc = "Create a new `" $ret "` object."]
-            pub fn new() -> $ret { todo!() }
+            pub fn new() -> $ret { $ret {} }
         }
     };
 }
@@ -216,15 +251,15 @@ macro_rules! method_new {
 pub struct Pastey {}
 
 method_new!(Pastey);  // expands to #[doc = "Create a new `Paste` object"]
+let _ = new();
 ```
-
-<br>
 
 #### Credits
 
 <sup>
-This crate is the fork of <a href="https://github.com/dtolnay/paste"><code>paste</code></a> and I appreciate the efforts of
-@dtolnay and other contributors.
+This crate is the fork of <a href="https://github.com/dtolnay/paste"><code>paste</code></a>
+and I appreciate the efforts of <a href="https://github.com/dtolnay">@dtolnay</a>
+and other contributors.
 </sup>
 
 #### License

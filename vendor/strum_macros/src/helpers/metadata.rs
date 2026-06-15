@@ -1,4 +1,3 @@
-use proc_macro2::TokenStream;
 use syn::{
     parenthesized,
     parse::{Parse, ParseStream},
@@ -16,19 +15,25 @@ pub mod kw {
 
     // enum metadata
     custom_keyword!(serialize_all);
+    custom_keyword!(const_into_str);
     custom_keyword!(use_phf);
     custom_keyword!(prefix);
+    custom_keyword!(suffix);
+    custom_keyword!(parse_err_ty);
+    custom_keyword!(parse_err_fn);
 
     // enum discriminant metadata
     custom_keyword!(derive);
     custom_keyword!(name);
     custom_keyword!(vis);
+    custom_keyword!(doc);
 
     // variant metadata
     custom_keyword!(message);
     custom_keyword!(detailed_message);
     custom_keyword!(serialize);
     custom_keyword!(to_string);
+    custom_keyword!(transparent);
     custom_keyword!(disabled);
     custom_keyword!(default);
     custom_keyword!(default_with);
@@ -51,6 +56,19 @@ pub enum EnumMeta {
         kw: kw::prefix,
         prefix: LitStr,
     },
+    Suffix {
+        kw: kw::suffix,
+        suffix: LitStr,
+    },
+    ParseErrTy {
+        kw: kw::parse_err_ty,
+        path: Path,
+    },
+    ParseErrFn {
+        kw: kw::parse_err_fn,
+        path: Path,
+    },
+    ConstIntoStr(kw::const_into_str),
 }
 
 impl Parse for EnumMeta {
@@ -80,6 +98,23 @@ impl Parse for EnumMeta {
             input.parse::<Token![=]>()?;
             let prefix = input.parse()?;
             Ok(EnumMeta::Prefix { kw, prefix })
+        } else if lookahead.peek(kw::suffix) {
+            let kw = input.parse::<kw::suffix>()?;
+            input.parse::<Token![=]>()?;
+            let suffix = input.parse()?;
+            Ok(EnumMeta::Suffix { kw, suffix })
+        } else if lookahead.peek(kw::parse_err_ty) {
+            let kw = input.parse::<kw::parse_err_ty>()?;
+            input.parse::<Token![=]>()?;
+            let path: Path = input.parse()?;
+            Ok(EnumMeta::ParseErrTy { kw, path })
+        } else if lookahead.peek(kw::parse_err_fn) {
+            let kw = input.parse::<kw::parse_err_fn>()?;
+            input.parse::<Token![=]>()?;
+            let path: Path = input.parse()?;
+            Ok(EnumMeta::ParseErrFn { kw, path })
+        } else if lookahead.peek(kw::const_into_str) {
+            Ok(EnumMeta::ConstIntoStr(input.parse()?))
         } else {
             Err(lookahead.error())
         }
@@ -87,21 +122,21 @@ impl Parse for EnumMeta {
 }
 
 pub enum EnumDiscriminantsMeta {
-    Derive { kw: kw::derive, paths: Vec<Path> },
+    Derive { _kw: kw::derive, paths: Vec<Path> },
     Name { kw: kw::name, name: Ident },
     Vis { kw: kw::vis, vis: Visibility },
-    Other { path: Path, nested: TokenStream },
+    Other { passthrough_meta: Meta },
 }
 
 impl Parse for EnumDiscriminantsMeta {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         if input.peek(kw::derive) {
-            let kw = input.parse()?;
+            let _kw = input.parse()?;
             let content;
             parenthesized!(content in input);
             let paths = content.parse_terminated(Path::parse, Token![,])?;
             Ok(EnumDiscriminantsMeta::Derive {
-                kw,
+                _kw,
                 paths: paths.into_iter().collect(),
             })
         } else if input.peek(kw::name) {
@@ -117,11 +152,8 @@ impl Parse for EnumDiscriminantsMeta {
             let vis = content.parse()?;
             Ok(EnumDiscriminantsMeta::Vis { kw, vis })
         } else {
-            let path = input.parse()?;
-            let content;
-            parenthesized!(content in input);
-            let nested = content.parse()?;
-            Ok(EnumDiscriminantsMeta::Other { path, nested })
+            let passthrough_meta = input.parse()?;
+            Ok(EnumDiscriminantsMeta::Other { passthrough_meta })
         }
     }
 }
@@ -154,7 +186,7 @@ pub enum VariantMeta {
         value: LitStr,
     },
     Serialize {
-        kw: kw::serialize,
+        _kw: kw::serialize,
         value: LitStr,
     },
     Documentation {
@@ -164,6 +196,7 @@ pub enum VariantMeta {
         kw: kw::to_string,
         value: LitStr,
     },
+    Transparent(kw::transparent),
     Disabled(kw::disabled),
     Default(kw::default),
     DefaultWith {
@@ -175,8 +208,8 @@ pub enum VariantMeta {
         value: bool,
     },
     Props {
-        kw: kw::props,
-        props: Vec<(LitStr, LitStr)>,
+        _kw: kw::props,
+        props: Vec<(LitStr, Lit)>,
     },
 }
 
@@ -194,15 +227,17 @@ impl Parse for VariantMeta {
             let value = input.parse()?;
             Ok(VariantMeta::DetailedMessage { kw, value })
         } else if lookahead.peek(kw::serialize) {
-            let kw = input.parse()?;
+            let _kw = input.parse()?;
             let _: Token![=] = input.parse()?;
             let value = input.parse()?;
-            Ok(VariantMeta::Serialize { kw, value })
+            Ok(VariantMeta::Serialize { _kw, value })
         } else if lookahead.peek(kw::to_string) {
             let kw = input.parse()?;
             let _: Token![=] = input.parse()?;
             let value = input.parse()?;
             Ok(VariantMeta::ToString { kw, value })
+        } else if lookahead.peek(kw::transparent) {
+            Ok(VariantMeta::Transparent(input.parse()?))
         } else if lookahead.peek(kw::disabled) {
             Ok(VariantMeta::Disabled(input.parse()?))
         } else if lookahead.peek(kw::default) {
@@ -222,12 +257,12 @@ impl Parse for VariantMeta {
             };
             Ok(VariantMeta::AsciiCaseInsensitive { kw, value })
         } else if lookahead.peek(kw::props) {
-            let kw = input.parse()?;
+            let _kw = input.parse()?;
             let content;
             parenthesized!(content in input);
             let props = content.parse_terminated(Prop::parse, Token![,])?;
             Ok(VariantMeta::Props {
-                kw,
+                _kw,
                 props: props
                     .into_iter()
                     .map(|Prop(k, v)| (LitStr::new(&k.to_string(), k.span()), v))
@@ -239,7 +274,7 @@ impl Parse for VariantMeta {
     }
 }
 
-struct Prop(Ident, LitStr);
+struct Prop(Ident, Lit);
 
 impl Parse for Prop {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -295,7 +330,6 @@ fn get_metadata_inner<'a, T: Parse>(
         })
 }
 
-#[derive(Debug)]
 pub enum InnerVariantMeta {
     DefaultWith { kw: kw::default_with, value: LitStr },
 }

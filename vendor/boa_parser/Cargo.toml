@@ -11,9 +11,9 @@
 
 [package]
 edition = "2024"
-rust-version = "1.88.0"
+rust-version = "1.91.0"
 name = "boa_parser"
-version = "0.21.1"
+version = "1.0.0-dev"
 authors = ["boa-dev"]
 build = false
 autolib = false
@@ -35,7 +35,6 @@ categories = [
 ]
 license = "Unlicense OR MIT"
 repository = "https://github.com/boa-dev/boa"
-resolver = "2"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -48,22 +47,25 @@ name = "boa_parser"
 path = "src/lib.rs"
 
 [dependencies.bitflags]
-version = "2.9.3"
+version = "2.13.0"
 
 [dependencies.boa_ast]
-version = "~0.21.1"
+version = "~1.0.0-dev"
+path = "../ast"
 
 [dependencies.boa_interner]
-version = "~0.21.1"
+version = "~1.0.0-dev"
+path = "../interner"
 
 [dependencies.boa_macros]
-version = "~0.21.1"
+version = "~1.0.0-dev"
+path = "../macros"
 
 [dependencies.fast-float2]
 version = "0.2.3"
 
 [dependencies.icu_properties]
-version = "~2.0.0"
+version = "~2.2.0"
 default-features = true
 
 [dependencies.num-bigint]
@@ -73,16 +75,20 @@ version = "0.4.6"
 version = "0.2.19"
 
 [dependencies.regress]
-version = "0.10.4"
+version = "0.11.1"
 features = ["utf16"]
 
 [dependencies.rustc-hash]
-version = "2.1.1"
+version = "2.1.2"
 features = ["std"]
 default-features = false
 
 [dev-dependencies.indoc]
-version = "2.0.6"
+version = "2.0.7"
+
+[dev-dependencies.strum]
+version = "0.28"
+features = ["derive"]
 
 [lints.clippy]
 dbg_macro = "warn"

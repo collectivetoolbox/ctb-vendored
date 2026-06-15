@@ -11,9 +11,9 @@
 
 [package]
 edition = "2024"
-rust-version = "1.88.0"
+rust-version = "1.91.0"
 name = "boa_ast"
-version = "0.21.1"
+version = "1.0.0-dev"
 authors = ["boa-dev"]
 build = false
 autolib = false
@@ -35,7 +35,6 @@ categories = [
 ]
 license = "Unlicense OR MIT"
 repository = "https://github.com/boa-dev/boa"
-resolver = "2"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -68,26 +67,29 @@ features = ["derive"]
 optional = true
 
 [dependencies.bitflags]
-version = "2.9.3"
+version = "2.13.0"
 
 [dependencies.boa_interner]
-version = "~0.21.1"
+version = "~1.0.0-dev"
+path = "../interner"
 
 [dependencies.boa_macros]
-version = "~0.21.1"
+version = "~1.0.0-dev"
+path = "../macros"
 
 [dependencies.boa_string]
-version = "~0.21.1"
+version = "~1.0.0-dev"
+path = "../string"
 
 [dependencies.indexmap]
-version = "2.11.4"
+version = "2.14.0"
 default-features = false
 
 [dependencies.num-bigint]
 version = "0.4.6"
 
 [dependencies.rustc-hash]
-version = "2.1.1"
+version = "2.1.2"
 features = ["std"]
 default-features = false
 
@@ -95,6 +97,10 @@ default-features = false
 version = "1.0.219"
 features = ["derive"]
 optional = true
+
+[dependencies.strum]
+version = "0.28"
+features = ["derive"]
 
 [lints.clippy]
 dbg_macro = "warn"

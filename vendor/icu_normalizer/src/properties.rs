@@ -140,7 +140,7 @@ impl CanonicalComposition {
     ///
     /// [📚 Help choosing a constructor](icu_provider::constructors)
     #[cfg(feature = "compiled_data")]
-    #[allow(clippy::new_ret_no_self)]
+    #[expect(clippy::new_ret_no_self)]
     pub const fn new() -> CanonicalCompositionBorrowed<'static> {
         CanonicalCompositionBorrowed::new()
     }
@@ -298,7 +298,7 @@ impl CanonicalDecompositionBorrowed<'_> {
             return Decomposed::Default;
         }
         // The loop is only broken out of as goto forward
-        #[allow(clippy::never_loop)]
+        #[expect(clippy::never_loop)]
         loop {
             let high_zeros = (decomposition & HIGH_ZEROS_MASK) == 0;
             let low_zeros = (decomposition & LOW_ZEROS_MASK) == 0;
@@ -467,7 +467,7 @@ impl CanonicalDecomposition {
     ///
     /// [📚 Help choosing a constructor](icu_provider::constructors)
     #[cfg(feature = "compiled_data")]
-    #[allow(clippy::new_ret_no_self)]
+    #[expect(clippy::new_ret_no_self)]
     pub const fn new() -> CanonicalDecompositionBorrowed<'static> {
         CanonicalDecompositionBorrowed::new()
     }
@@ -514,7 +514,7 @@ impl CanonicalDecomposition {
     }
 }
 
-/// Borrowed version of lookup of the Canonical_Combining_Class Unicode property.
+/// Borrowed version of lookup of the `Canonical_Combining_Class` Unicode property.
 ///
 /// # Example
 ///
@@ -571,7 +571,12 @@ impl CanonicalCombiningClassMapBorrowed<'_> {
     /// `CanonicalCombiningClass`.
     #[inline(always)]
     pub fn get_u8(&self, c: char) -> u8 {
-        self.get32_u8(u32::from(c))
+        let trie_value = self.decompositions.trie.get(c);
+        if trie_value_has_ccc(trie_value) {
+            trie_value as u8
+        } else {
+            ccc!(NotReordered, 0).to_icu4c_value()
+        }
     }
 
     /// Look up the canonical combining class for a scalar value
@@ -610,7 +615,7 @@ impl CanonicalCombiningClassMapBorrowed<'_> {
     }
 }
 
-/// Lookup of the Canonical_Combining_Class Unicode property.
+/// Lookup of the `Canonical_Combining_Class` Unicode property.
 #[derive(Debug)]
 pub struct CanonicalCombiningClassMap {
     /// The data trie
@@ -638,7 +643,7 @@ impl CanonicalCombiningClassMap {
     ///
     /// [📚 Help choosing a constructor](icu_provider::constructors)
     #[cfg(feature = "compiled_data")]
-    #[allow(clippy::new_ret_no_self)]
+    #[expect(clippy::new_ret_no_self)]
     pub const fn new() -> CanonicalCombiningClassMapBorrowed<'static> {
         CanonicalCombiningClassMapBorrowed::new()
     }

@@ -11,9 +11,9 @@
 
 [package]
 edition = "2024"
-rust-version = "1.88.0"
+rust-version = "1.91.0"
 name = "boa_string"
-version = "0.21.1"
+version = "1.0.0-dev"
 authors = ["boa-dev"]
 build = false
 autolib = false
@@ -22,7 +22,7 @@ autoexamples = false
 autotests = false
 autobenches = false
 description = "Boa is a Javascript lexer, parser and compiler written in Rust. Currently, it has support for some of the language."
-readme = "README.md"
+readme = "../../README.md"
 keywords = [
     "javascript",
     "js",
@@ -34,7 +34,6 @@ categories = [
 ]
 license = "Unlicense OR MIT"
 repository = "https://github.com/boa-dev/boa"
-resolver = "2"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -47,13 +46,13 @@ path = "src/lib.rs"
 version = "0.2.3"
 
 [dependencies.itoa]
-version = "1.0.15"
+version = "1.0.18"
 
-[dependencies.paste]
-version = "1.0"
+[dependencies.pastey]
+version = "0.2.3"
 
 [dependencies.rustc-hash]
-version = "2.1.1"
+version = "2.1.2"
 features = ["std"]
 default-features = false
 

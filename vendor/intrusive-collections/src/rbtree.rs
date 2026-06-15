@@ -25,9 +25,6 @@ use crate::singly_linked_list::SinglyLinkedListOps;
 use crate::xor_linked_list::XorLinkedListOps;
 use crate::Adapter;
 use crate::KeyAdapter;
-// Necessary for Rust 1.56 compatability
-#[allow(unused_imports)]
-use crate::unchecked_option::UncheckedOptionExt;
 
 // =============================================================================
 // RBTreeOps
@@ -406,15 +403,15 @@ impl AtomicLink {
             .store(UNLINKED_MARKER, atomic::Ordering::Release);
     }
 
-    /// Access `parent_color` in an exclusive context.
-    ///
-    /// # Safety
-    ///
-    /// This can only be called after `acquire_link` has been succesfully called.
     #[inline]
-    unsafe fn parent_color_exclusive(&self) -> &Cell<usize> {
-        // This is safe because currently AtomicUsize has the same representation Cell<usize>.
-        core::mem::transmute(&self.parent_color)
+    fn parent_color(&self) -> usize {
+        self.parent_color.load(atomic::Ordering::Relaxed)
+    }
+
+    #[inline]
+    fn set_parent_color(&self, parent_color: usize) {
+        self.parent_color
+            .store(parent_color, atomic::Ordering::Relaxed);
     }
 }
 
@@ -481,9 +478,7 @@ impl AtomicLinkOps {
             Color::Black => 1,
         };
         let parent_usize = parent.map(|x| x.as_ptr() as usize).unwrap_or(0);
-        ptr.as_ref()
-            .parent_color_exclusive()
-            .set((parent_usize & !1) | bit);
+        ptr.as_ref().set_parent_color((parent_usize & !1) | bit);
     }
 }
 
@@ -526,13 +521,13 @@ unsafe impl RBTreeOps for AtomicLinkOps {
 
     #[inline]
     unsafe fn parent(&self, ptr: Self::LinkPtr) -> Option<Self::LinkPtr> {
-        let parent_usize = ptr.as_ref().parent_color_exclusive().get() & !1;
+        let parent_usize = ptr.as_ref().parent_color() & !1;
         NonNull::new(parent_usize as *mut AtomicLink)
     }
 
     #[inline]
     unsafe fn color(&self, ptr: Self::LinkPtr) -> Color {
-        if ptr.as_ref().parent_color_exclusive().get() & 1 == 1 {
+        if ptr.as_ref().parent_color() & 1 == 1 {
             Color::Black
         } else {
             Color::Red
@@ -1084,6 +1079,19 @@ where
         Some(unsafe { &*self.tree.adapter.get_value(self.current?) })
     }
 
+    /// Returns a raw pointer to the object that the cursor is currently
+    /// pointing to.
+    ///
+    /// This returns `None` if the cursor is currently pointing to the null
+    /// object.
+    #[inline]
+    pub fn get_ptr(&self) -> Option<NonNull<<A::PointerOps as PointerOps>::Value>> {
+        unsafe {
+            let ptr = self.tree.adapter.get_value(self.current?);
+            Some(NonNull::new_unchecked(ptr.cast_mut()))
+        }
+    }
+
     /// Clones and returns the pointer that points to the element that the
     /// cursor is referencing.
     ///
@@ -1184,6 +1192,19 @@ where
     #[inline]
     pub fn get(&self) -> Option<&<A::PointerOps as PointerOps>::Value> {
         Some(unsafe { &*self.tree.adapter.get_value(self.current?) })
+    }
+
+    /// Returns a raw pointer to the object that the cursor is currently
+    /// pointing to.
+    ///
+    /// This returns `None` if the cursor is currently pointing to the null
+    /// object.
+    #[inline]
+    pub fn get_ptr(&self) -> Option<NonNull<<A::PointerOps as PointerOps>::Value>> {
+        unsafe {
+            let ptr = self.tree.adapter.get_value(self.current?);
+            Some(NonNull::new_unchecked(ptr.cast_mut()))
+        }
     }
 
     /// Returns a read-only cursor pointing to the current element.
@@ -2043,7 +2064,7 @@ where
     /// Panics if the new element is already linked to a different intrusive
     /// collection.
     #[inline]
-    pub fn insert<'a>(&'a mut self, val: <A::PointerOps as PointerOps>::Pointer) -> CursorMut<'_, A>
+    pub fn insert<'a>(&'a mut self, val: <A::PointerOps as PointerOps>::Pointer) -> CursorMut<'a, A>
     where
         <A as KeyAdapter<'a>>::Key: Ord,
     {
@@ -2184,6 +2205,7 @@ where
 unsafe impl<A: Adapter + Sync> Sync for RBTree<A>
 where
     <A::PointerOps as PointerOps>::Value: Sync,
+    <A::PointerOps as PointerOps>::Pointer: Sync,
     A::LinkOps: RBTreeOps,
 {
 }
@@ -2456,23 +2478,28 @@ where
         let head = self.head?;
         let link_ops = self.tree.adapter.link_ops_mut();
         unsafe {
+            let parent = link_ops.parent(head);
+            let right = link_ops.right(head);
+
             // Remove the node from the tree. Since head is always the
             // left-most node, we can infer the following:
             // - head.left is null.
             // - head is a left child of its parent (or the root node).
-            if let Some(parent) = link_ops.parent(head) {
-                link_ops.set_left(parent, link_ops.right(head));
+            if let Some(parent) = parent {
+                link_ops.set_left(parent, right);
             } else {
-                self.tree.root = link_ops.right(head);
-                if link_ops.right(head).is_none() {
-                    self.tail = None;
-                }
+                self.tree.root = right;
             }
-            if let Some(right) = link_ops.right(head) {
-                link_ops.set_parent(right, link_ops.parent(head));
+            if let Some(right) = right {
+                link_ops.set_parent(right, parent);
+            }
+            if let Some(right) = right {
                 self.head = Some(first_child(link_ops, right));
             } else {
-                self.head = link_ops.parent(head);
+                self.head = parent;
+            }
+            if self.head.is_none() {
+                self.tail = None;
             }
             link_ops.release_link(head);
             Some(
@@ -2495,23 +2522,28 @@ where
         let tail = self.tail?;
         let link_ops = self.tree.adapter.link_ops_mut();
         unsafe {
+            let parent = link_ops.parent(tail);
+            let left = link_ops.left(tail);
+
             // Remove the node from the tree. Since tail is always the
             // right-most node, we can infer the following:
             // - tail.right is null.
             // - tail is a right child of its parent (or the root node).
-            if let Some(parent) = link_ops.parent(tail) {
-                link_ops.set_right(parent, link_ops.left(tail));
+            if let Some(parent) = parent {
+                link_ops.set_right(parent, left);
             } else {
-                self.tree.root = link_ops.left(tail);
-                if link_ops.left(tail).is_none() {
-                    self.tail = None;
-                }
+                self.tree.root = left;
             }
-            if let Some(left) = link_ops.left(tail) {
-                link_ops.set_parent(left, link_ops.parent(tail));
+            if let Some(left) = left {
+                link_ops.set_parent(left, parent);
+            }
+            if let Some(left) = left {
                 self.tail = Some(last_child(link_ops, left));
             } else {
-                self.tail = link_ops.parent(tail);
+                self.tail = parent;
+            }
+            if self.tail.is_none() {
+                self.head = None;
             }
             link_ops.release_link(tail);
             Some(
@@ -2533,6 +2565,7 @@ mod tests {
     use super::{CursorOwning, Entry, KeyAdapter, Link, PointerOps, RBTree};
     use crate::{Bound::*, UnsafeRef};
     use alloc::boxed::Box;
+    use core::ptr::NonNull;
     use rand::prelude::*;
     use rand_xorshift::XorShiftRng;
     use std::fmt;
@@ -2550,7 +2583,7 @@ mod tests {
             write!(f, "{}", self.value)
         }
     }
-    intrusive_adapter!(RcObjAdapter = Rc<Obj>: Obj { link: Link });
+    intrusive_adapter!(RcObjAdapter = Rc<Obj>: Obj { link => Link });
 
     impl<'a> KeyAdapter<'a> for RcObjAdapter {
         type Key = i32;
@@ -2559,7 +2592,7 @@ mod tests {
         }
     }
 
-    intrusive_adapter!(UnsafeRefObjAdapter = UnsafeRef<Obj>: Obj { link: Link });
+    intrusive_adapter!(UnsafeRefObjAdapter = UnsafeRef<Obj>: Obj { link => Link });
 
     impl<'a> KeyAdapter<'a> for UnsafeRefObjAdapter {
         type Key = i32;
@@ -2618,6 +2651,7 @@ mod tests {
         let mut cur = t.cursor_mut();
         assert!(cur.is_null());
         assert!(cur.get().is_none());
+        assert!(cur.get_ptr().is_none());
         assert!(cur.remove().is_none());
 
         cur.insert_before(a.clone());
@@ -2632,16 +2666,19 @@ mod tests {
         assert!(cur.peek_prev().is_null());
         assert!(!cur.is_null());
         assert_eq!(cur.get().unwrap() as *const _, a.as_ref() as *const _);
+        assert_eq!(cur.get_ptr().unwrap(), NonNull::from(a.as_ref()));
 
         {
             let mut cur2 = cur.as_cursor();
             assert_eq!(cur2.get().unwrap() as *const _, a.as_ref() as *const _);
+            assert_eq!(cur2.get_ptr().unwrap(), NonNull::from(a.as_ref()));
             assert_eq!(cur2.peek_next().get().unwrap().value, 2);
             cur2.move_next();
             assert_eq!(cur2.get().unwrap().value, 2);
             cur2.move_next();
             assert_eq!(cur2.peek_prev().get().unwrap().value, 2);
             assert_eq!(cur2.get().unwrap() as *const _, c.as_ref() as *const _);
+            assert_eq!(cur2.get_ptr().unwrap(), NonNull::from(c.as_ref()));
             cur2.move_prev();
             assert_eq!(cur2.get().unwrap() as *const _, b.as_ref() as *const _);
             cur2.move_next();
@@ -2649,8 +2686,10 @@ mod tests {
             cur2.move_next();
             assert!(cur2.is_null());
             assert!(cur2.clone().get().is_none());
+            assert!(cur2.get_ptr().is_none());
         }
         assert_eq!(cur.get().unwrap() as *const _, a.as_ref() as *const _);
+        assert_eq!(cur.get_ptr().unwrap(), NonNull::from(a.as_ref()));
 
         let a2 = make_rc_obj(1);
         let b2 = make_rc_obj(2);
@@ -3075,6 +3114,60 @@ mod tests {
     }
 
     #[test]
+    fn into_iter_alternating_ends() {
+        fn build_tree(values: &[i32]) -> RBTree<RcObjAdapter> {
+            let mut tree = RBTree::new(RcObjAdapter::new());
+            for value in values {
+                tree.insert(make_rc_obj(*value));
+            }
+            tree
+        }
+
+        for len in 0..16 {
+            let ascending = (0..len).collect::<Vec<_>>();
+            let descending = (0..len).rev().collect::<Vec<_>>();
+            let mut zigzag = Vec::new();
+            let mut low = 0;
+            let mut high = len;
+            while low < high {
+                zigzag.push(low);
+                low += 1;
+                if low < high {
+                    high -= 1;
+                    zigzag.push(high);
+                }
+            }
+
+            let mut expected = Vec::new();
+            let mut front = 0;
+            let mut back = len;
+            while front < back {
+                back -= 1;
+                expected.push(back);
+                if front < back {
+                    expected.push(front);
+                    front += 1;
+                }
+            }
+
+            for values in [&ascending[..], &descending[..], &zigzag[..]] {
+                let mut iter = build_tree(values).into_iter();
+                let mut removed = Vec::new();
+                loop {
+                    match iter.next_back() {
+                        Some(value) => removed.push(value.value),
+                        None => break,
+                    }
+                    if let Some(value) = iter.next() {
+                        removed.push(value.value);
+                    }
+                }
+                assert_eq!(removed, expected);
+            }
+        }
+    }
+
+    #[test]
     fn test_find() {
         let v = (0..10).map(|x| make_rc_obj(x * 10)).collect::<Vec<_>>();
         let mut t = RBTree::new(RcObjAdapter::new());
@@ -3291,7 +3384,7 @@ mod tests {
             link: Link,
             value: &'a T,
         }
-        intrusive_adapter!(RcObjAdapter<'a, T> = &'a Obj<'a, T>: Obj<'a, T> {link: Link} where T: 'a);
+        intrusive_adapter!(RcObjAdapter<'a, T> = &'a Obj<'a, T>: Obj<'a, T> {link => Link} where T: 'a);
         impl<'a, 'b, T: 'a + 'b> KeyAdapter<'a> for RcObjAdapter<'b, T> {
             type Key = &'a T;
             fn get_key(&self, value: &'a Obj<'b, T>) -> &'a T {
@@ -3321,7 +3414,7 @@ mod tests {
                 link: Link,
                 value: usize,
             }
-            intrusive_adapter!(RcObjAdapter = $ptr<Obj>: Obj { link: Link });
+            intrusive_adapter!(RcObjAdapter = $ptr<Obj>: Obj { link => Link });
             impl<'a> KeyAdapter<'a> for RcObjAdapter {
                 type Key = usize;
                 fn get_key(&self, value: &'a Obj) -> usize {
@@ -3354,5 +3447,90 @@ mod tests {
     #[test]
     fn test_clone_pointer_arc() {
         test_clone_pointer!(Arc, std::sync::Arc);
+    }
+
+    #[cfg(miri)]
+    #[test]
+    fn into_iter_next_after_next_back_uses_removed_tail() {
+        struct Obj {
+            link: Link,
+            value: i32,
+        }
+        intrusive_adapter!(ObjAdapter = Box<Obj>: Obj { link => Link });
+        impl<'a> KeyAdapter<'a> for ObjAdapter {
+            type Key = i32;
+
+            fn get_key(&self, value: &'a Obj) -> i32 {
+                value.value
+            }
+        }
+
+        let mut tree = RBTree::new(ObjAdapter::new());
+        tree.insert(Box::new(Obj {
+            link: Link::new(),
+            value: 1,
+        }));
+
+        let mut iter = tree.into_iter();
+        drop(iter.next_back().unwrap());
+
+        // UB: `IntoIter::next_back` clears `tail` when it removes the only
+        // node, but it leaves `head` pointing at that removed node. Alternating
+        // back to `next` dereferences the freed link.
+        let _ = iter.next();
+    }
+
+    #[cfg(miri)]
+    #[test]
+    fn atomic_link_is_linked_races_with_tree_mutation() {
+        use std::sync::{Arc, Barrier};
+        use std::thread;
+
+        struct Obj {
+            link: super::AtomicLink,
+            value: i32,
+        }
+        intrusive_adapter!(ObjAdapter = Arc<Obj>: Obj { link => super::AtomicLink });
+        impl<'a> KeyAdapter<'a> for ObjAdapter {
+            type Key = i32;
+
+            fn get_key(&self, value: &'a Obj) -> i32 {
+                value.value
+            }
+        }
+
+        let obj = Arc::new(Obj {
+            link: super::AtomicLink::new(),
+            value: 1,
+        });
+        let mut tree = RBTree::new(ObjAdapter::new());
+        tree.insert(obj.clone());
+
+        let barrier = Barrier::new(3);
+        thread::scope(|scope| {
+            let obj = &obj;
+            let reader_barrier = &barrier;
+            scope.spawn(move || {
+                reader_barrier.wait();
+                // UB: `AtomicLink::is_linked` performs an atomic load, but
+                // `AtomicLinkOps` updates the same `parent_color` word through
+                // a transmuted `Cell` during safe tree insertion. An outside
+                // `Arc` holder can observe it concurrently.
+                let _ = obj.link.is_linked();
+                reader_barrier.wait();
+            });
+
+            let tree = &mut tree;
+            let writer_barrier = &barrier;
+            scope.spawn(move || {
+                writer_barrier.wait();
+                let value = tree.front_mut().remove().unwrap();
+                tree.insert(value);
+                writer_barrier.wait();
+            });
+
+            barrier.wait();
+            barrier.wait();
+        });
     }
 }

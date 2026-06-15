@@ -11,7 +11,7 @@
 
 [package]
 edition = "2024"
-rust-version = "1.88.0"
+rust-version = "1.91.0"
 name = "tag_ptr"
 version = "0.1.0"
 authors = ["boa-dev"]
@@ -22,7 +22,7 @@ autoexamples = false
 autotests = false
 autobenches = false
 description = "Utility library that enables a pointer to be associated with a tag of type `usize`"
-readme = "README.md"
+readme = "../../README.md"
 keywords = [
     "tag",
     "pointer",
@@ -30,7 +30,6 @@ keywords = [
 categories = ["data-structures"]
 license = "Unlicense OR MIT"
 repository = "https://github.com/boa-dev/boa"
-resolver = "2"
 
 [package.metadata.docs.rs]
 all-features = true

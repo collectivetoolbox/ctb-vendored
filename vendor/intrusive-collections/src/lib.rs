@@ -33,7 +33,7 @@
 //!
 //! // The adapter describes how an object can be inserted into an intrusive
 //! // collection. This is automatically generated using a macro.
-//! intrusive_adapter!(TestAdapter = Box<Test>: Test { link: LinkedListLink });
+//! intrusive_adapter!(TestAdapter = Box<Test>: Test { link => LinkedListLink });
 //!
 //! // Create a list and some objects
 //! let mut list = LinkedList::new(TestAdapter::new());
@@ -106,10 +106,10 @@
 //!     value: i32,
 //! }
 //!
-//! intrusive_adapter!(MyAdapter = Rc<Test>: Test { link: LinkedListLink });
-//! intrusive_adapter!(MyAdapter2 = Rc<Test>: Test { link2: SinglyLinkedListLink });
-//! intrusive_adapter!(MyAdapter3 = Rc<Test>: Test { link3: XorLinkedListLink });
-//! intrusive_adapter!(MyAdapter4 = Rc<Test>: Test { link4: RBTreeLink });
+//! intrusive_adapter!(MyAdapter = Rc<Test>: Test { link => LinkedListLink });
+//! intrusive_adapter!(MyAdapter2 = Rc<Test>: Test { link2 => SinglyLinkedListLink });
+//! intrusive_adapter!(MyAdapter3 = Rc<Test>: Test { link3 => XorLinkedListLink });
+//! intrusive_adapter!(MyAdapter4 = Rc<Test>: Test { link4 => RBTreeLink });
 //! impl<'a> KeyAdapter<'a> for MyAdapter4 {
 //!     type Key = i32;
 //!     fn get_key(&self, x: &'a Test) -> i32 { x.value }
@@ -145,6 +145,10 @@
 //! `CursorMut` can be used to mutate the collection, but you may only use one
 //! of them at a time.
 //!
+//! Use `get` to access the current element by reference, or `get_ptr` to obtain
+//! the raw pointer for pointer identity or FFI interop. Both return `None` when
+//! the cursor is pointing at the null position.
+//!
 //! Cursors are a very powerful abstraction since they allow a collection to be
 //! mutated safely while it is being iterated on. For example, here is a
 //! function which removes all values within a given range from a `RBTree`:
@@ -158,7 +162,7 @@
 //!     value: i32,
 //! }
 //!
-//! intrusive_adapter!(ElementAdapter = Box<Element>: Element { link: RBTreeLink });
+//! intrusive_adapter!(ElementAdapter = Box<Element>: Element { link => RBTreeLink });
 //! impl<'a> KeyAdapter<'a> for ElementAdapter {
 //!     type Key = i32;
 //!     fn get_key(&self, e: &'a Element) -> i32 { e.value }
@@ -197,7 +201,7 @@
 //! }
 //!
 //! // Note that we use a plain reference as the pointer type for the collection.
-//! intrusive_adapter!(ValueAdapter<'a> = &'a Value: Value { link: LinkedListLink });
+//! intrusive_adapter!(ValueAdapter<'a> = &'a Value: Value { link => LinkedListLink });
 //!
 //! // Create an arena and a list. Note that since stack objects are dropped in
 //! // reverse order, the Arena must be created before the LinkedList. This
@@ -286,7 +290,6 @@ mod adapter;
 mod key_adapter;
 mod link_ops;
 mod pointer_ops;
-mod unchecked_option;
 
 pub mod linked_list;
 pub mod rbtree;
