@@ -19,21 +19,20 @@ Add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-downcast-rs = "1.2.1"
+downcast-rs = "2.0.1"
 ```
 
 This crate is `no_std` compatible. To use it without `std`:
 
 ```toml
 [dependencies]
-downcast-rs = { version = "1.2.0", default-features = false }
+downcast-rs = { version = "2.0.1", default-features = false }
 ```
 
-To make a trait downcastable, make it extend either `downcast::Downcast` or
-`downcast::DowncastSync` and invoke `impl_downcast!` on it as in the examples
-below.
+To make a trait downcastable, make it extend either `Downcast` or `DowncastSync`
+and invoke `impl_downcast!` on it as in the examples below.
 
-Since 1.2.0, the minimum supported Rust version is 1.36 due to needing stable access to alloc.
+Since 2.0.0, the minimum supported Rust version is 1.56.
 
 ```rust
 trait Trait: Downcast {}
@@ -69,9 +68,6 @@ impl_downcast!(concrete TraitConcrete2<u32> assoc H=f64);
 ## Example without generics
 
 ```rust
-// Import macro via `macro_use` pre-1.30.
-#[macro_use]
-extern crate downcast_rs;
 use downcast_rs::DowncastSync;
 
 // To create a trait with downcasting methods, extend `Downcast` or `DowncastSync`
@@ -89,7 +85,7 @@ impl Base for Bar {}
 
 fn main() {
     // Create a trait object.
-    let mut base: Box<Base> = Box::new(Foo(42));
+    let mut base: Box<dyn Base> = Box::new(Foo(42));
 
     // Try sequential downcasts.
     if let Some(foo) = base.downcast_ref::<Foo>() {
@@ -100,19 +96,21 @@ fn main() {
 
     assert!(base.is::<Foo>());
 
-    // Fail to convert `Box<Base>` into `Box<Bar>`.
+    // Fail to convert `Box<dyn Base>` into `Box<Bar>`.
     let res = base.downcast::<Bar>();
     assert!(res.is_err());
     let base = res.unwrap_err();
-    // Convert `Box<Base>` into `Box<Foo>`.
+    // Convert `Box<dyn Base>` into `Box<Foo>`.
     assert_eq!(42, base.downcast::<Foo>().map_err(|_| "Shouldn't happen.").unwrap().0);
 
     // Also works with `Rc`.
-    let mut rc: Rc<Base> = Rc::new(Foo(42));
+    let mut rc: Rc<dyn Base> = Rc::new(Foo(42));
     assert_eq!(42, rc.downcast_rc::<Foo>().map_err(|_| "Shouldn't happen.").unwrap().0);
 
     // Since this trait is `Sync`, it also supports `Arc` downcasts.
-    let mut arc: Arc<Base> = Arc::new(Foo(42));
+    # #[cfg(feature = "sync")]
+    let mut arc: Arc<dyn Base> = Arc::new(Foo(42));
+    # #[cfg(feature = "sync")]
     assert_eq!(42, arc.downcast_arc::<Foo>().map_err(|_| "Shouldn't happen.").unwrap().0);
 }
 ```
@@ -120,14 +118,12 @@ fn main() {
 ## Example with a generic trait with associated types and constraints
 
 ```rust
-// Can call macro via namespace since rust 1.30.
-extern crate downcast_rs;
-use downcast_rs::Downcast;
+use downcast_rs::{Downcast, impl_downcast};
 
 // To create a trait with downcasting methods, extend `Downcast` or `DowncastSync`
 // and run `impl_downcast!()` on the trait.
 trait Base<T: Clone>: Downcast { type H: Copy; }
-downcast_rs::impl_downcast!(Base<T> assoc H where T: Clone, H: Copy);
+impl_downcast!(Base<T> assoc H where T: Clone, H: Copy);
 // or: impl_downcast!(concrete Base<u32> assoc H=f32)
 
 // Concrete types implementing Base.
@@ -138,7 +134,7 @@ impl Base<u32> for Bar { type H = f32; }
 
 fn main() {
     // Create a trait object.
-    let mut base: Box<Base<u32, H=f32>> = Box::new(Bar(42.0));
+    let mut base: Box<dyn Base<u32, H=f32>> = Box::new(Bar(42.0));
 
     // Try sequential downcasts.
     if let Some(foo) = base.downcast_ref::<Foo>() {
