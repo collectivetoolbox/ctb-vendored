@@ -1,9 +1,9 @@
 //! Implements the [`quickcheck::Arbitrary`] trait for [`CompactString`]
 
-use quickcheck::{
-    Arbitrary,
-    Gen,
-};
+use alloc::boxed::Box;
+use alloc::vec::Vec;
+
+use quickcheck::{Arbitrary, Gen};
 
 use crate::CompactString;
 
@@ -33,6 +33,8 @@ impl Arbitrary for CompactString {
 
 #[cfg(test)]
 mod test {
+    use alloc::string::String;
+
     use quickcheck_macros::quickcheck;
 
     use crate::CompactString;
@@ -47,7 +49,7 @@ mod test {
     #[quickcheck]
     #[cfg_attr(miri, ignore)]
     fn quickcheck_inlines_strings(compact: CompactString) {
-        if compact.len() <= std::mem::size_of::<String>() {
+        if compact.len() <= core::mem::size_of::<String>() {
             assert!(!compact.is_heap_allocated())
         } else {
             assert!(compact.is_heap_allocated())

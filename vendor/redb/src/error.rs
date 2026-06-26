@@ -1,4 +1,4 @@
-use crate::tree_store::{FILE_FORMAT_VERSION3, MAX_VALUE_LENGTH};
+use crate::tree_store::{FILE_FORMAT_VERSION2, MAX_VALUE_LENGTH};
 use crate::{ReadTransaction, TypeName};
 use std::fmt::{Display, Formatter};
 use std::sync::PoisonError;
@@ -14,7 +14,6 @@ pub enum StorageError {
     ValueTooLarge(usize),
     Io(io::Error),
     PreviousIo,
-    DatabaseClosed,
     LockPoisoned(&'static panic::Location<'static>),
 }
 
@@ -37,7 +36,6 @@ impl From<StorageError> for Error {
             StorageError::ValueTooLarge(x) => Error::ValueTooLarge(x),
             StorageError::Io(x) => Error::Io(x),
             StorageError::PreviousIo => Error::PreviousIo,
-            StorageError::DatabaseClosed => Error::DatabaseClosed,
             StorageError::LockPoisoned(location) => Error::LockPoisoned(location),
         }
     }
@@ -58,9 +56,6 @@ impl Display for StorageError {
             }
             StorageError::Io(err) => {
                 write!(f, "I/O error: {err}")
-            }
-            StorageError::DatabaseClosed => {
-                write!(f, "Database has been closed")
             }
             StorageError::PreviousIo => {
                 write!(
@@ -207,7 +202,7 @@ impl std::error::Error for TableError {}
 pub enum DatabaseError {
     /// The Database is already open. Cannot acquire lock.
     DatabaseAlreadyOpen,
-    /// [`crate::RepairSession::abort`] was called or repair was aborted for another reason (such as the database being read-only).
+    /// [`crate::RepairSession::abort`] was called.
     RepairAborted,
     /// The database file is in an old file format and must be manually upgraded
     UpgradeRequired(u8),
@@ -244,7 +239,7 @@ impl Display for DatabaseError {
             DatabaseError::UpgradeRequired(actual) => {
                 write!(
                     f,
-                    "Manual upgrade required. Expected file format version {FILE_FORMAT_VERSION3}, but file is version {actual}"
+                    "Manual upgrade required. Expected file format version {FILE_FORMAT_VERSION2}, but file is version {actual}"
                 )
             }
             DatabaseError::RepairAborted => {
@@ -300,6 +295,73 @@ impl Display for SavepointError {
 }
 
 impl std::error::Error for SavepointError {}
+
+/// Errors related to database upgrades
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum UpgradeError {
+    /// A persistent savepoint exists
+    PersistentSavepointExists,
+    /// A ephemeral savepoint exists
+    EphemeralSavepointExists,
+    /// A transaction is still in-progress
+    TransactionInProgress,
+    /// Error from underlying storage
+    Storage(StorageError),
+}
+
+impl From<UpgradeError> for Error {
+    fn from(err: UpgradeError) -> Error {
+        match err {
+            UpgradeError::PersistentSavepointExists => Error::PersistentSavepointExists,
+            UpgradeError::EphemeralSavepointExists => Error::EphemeralSavepointExists,
+            UpgradeError::TransactionInProgress => Error::TransactionInProgress,
+            UpgradeError::Storage(storage) => storage.into(),
+        }
+    }
+}
+
+impl From<StorageError> for UpgradeError {
+    fn from(err: StorageError) -> UpgradeError {
+        UpgradeError::Storage(err)
+    }
+}
+
+impl From<CommitError> for UpgradeError {
+    fn from(err: CommitError) -> UpgradeError {
+        match err {
+            CommitError::Storage(err) => UpgradeError::Storage(err),
+        }
+    }
+}
+
+impl Display for UpgradeError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UpgradeError::PersistentSavepointExists => {
+                write!(
+                    f,
+                    "Persistent savepoint exists. Operation cannot be performed."
+                )
+            }
+            UpgradeError::EphemeralSavepointExists => {
+                write!(
+                    f,
+                    "Ephemeral savepoint exists. Operation cannot be performed."
+                )
+            }
+            UpgradeError::TransactionInProgress => {
+                write!(
+                    f,
+                    "A transaction is still in progress. Operation cannot be performed."
+                )
+            }
+            UpgradeError::Storage(storage) => storage.fmt(f),
+        }
+    }
+}
+
+impl std::error::Error for UpgradeError {}
 
 /// Errors related to compaction
 #[derive(Debug)]
@@ -363,42 +425,11 @@ impl std::error::Error for CompactionError {}
 /// Errors related to transactions
 #[derive(Debug)]
 #[non_exhaustive]
-pub enum SetDurabilityError {
-    /// A persistent savepoint was modified
-    PersistentSavepointModified,
-}
-
-impl From<SetDurabilityError> for Error {
-    fn from(err: SetDurabilityError) -> Error {
-        match err {
-            SetDurabilityError::PersistentSavepointModified => Error::PersistentSavepointModified,
-        }
-    }
-}
-
-impl Display for SetDurabilityError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SetDurabilityError::PersistentSavepointModified => {
-                write!(
-                    f,
-                    "Persistent savepoint modified. Cannot reduce transaction durability"
-                )
-            }
-        }
-    }
-}
-
-impl std::error::Error for SetDurabilityError {}
-
-/// Errors related to transactions
-#[derive(Debug)]
-#[non_exhaustive]
 pub enum TransactionError {
     /// Error from underlying storage
     Storage(StorageError),
     /// The transaction is still referenced by a table or other object
-    ReadTransactionStillInUse(Box<ReadTransaction>),
+    ReadTransactionStillInUse(ReadTransaction),
 }
 
 impl TransactionError {
@@ -493,8 +524,6 @@ pub enum Error {
     InvalidSavepoint,
     /// [`crate::RepairSession::abort`] was called.
     RepairAborted,
-    /// A persistent savepoint was modified
-    PersistentSavepointModified,
     /// A persistent savepoint exists
     PersistentSavepointExists,
     /// An Ephemeral savepoint exists
@@ -530,12 +559,11 @@ pub enum Error {
     // mutable references to the same dirty pages, or multiple mutable references via insert_reserve()
     TableAlreadyOpen(String, &'static panic::Location<'static>),
     Io(io::Error),
-    DatabaseClosed,
     /// A previous IO error occurred. The database must be closed and re-opened
     PreviousIo,
     LockPoisoned(&'static panic::Location<'static>),
     /// The transaction is still referenced by a table or other object
-    ReadTransactionStillInUse(Box<ReadTransaction>),
+    ReadTransactionStillInUse(ReadTransaction),
 }
 
 impl<T> From<PoisonError<T>> for Error {
@@ -559,7 +587,7 @@ impl Display for Error {
             Error::UpgradeRequired(actual) => {
                 write!(
                     f,
-                    "Manual upgrade required. Expected file format version {FILE_FORMAT_VERSION3}, but file is version {actual}"
+                    "Manual upgrade required. Expected file format version {FILE_FORMAT_VERSION2}, but file is version {actual}"
                 )
             }
             Error::ValueTooLarge(len) => {
@@ -608,9 +636,6 @@ impl Display for Error {
             Error::Io(err) => {
                 write!(f, "I/O error: {err}")
             }
-            Error::DatabaseClosed => {
-                write!(f, "Database has been closed")
-            }
             Error::PreviousIo => {
                 write!(
                     f,
@@ -625,12 +650,6 @@ impl Display for Error {
             }
             Error::RepairAborted => {
                 write!(f, "Database repair aborted.")
-            }
-            Error::PersistentSavepointModified => {
-                write!(
-                    f,
-                    "Persistent savepoint modified. Cannot reduce transaction durability"
-                )
             }
             Error::PersistentSavepointExists => {
                 write!(

@@ -346,7 +346,6 @@ impl<K: Key, V: Value, F: for<'f> FnMut(K::SelfType<'f>, V::SelfType<'f>) -> boo
     for BtreeExtractIf<'_, K, V, F>
 {
     fn drop(&mut self) {
-        self.inner.close();
         let mut master_free_list = self.master_free_list.lock().unwrap();
         let mut allocated = self.allocated.lock().unwrap();
         for page in self.free_on_drop.drain(..) {
@@ -475,11 +474,6 @@ impl<K: Key + 'static, V: Value + 'static> BtreeRangeIter<K, V> {
             })
         }
     }
-
-    fn close(&mut self) {
-        self.left = None;
-        self.right = None;
-    }
 }
 
 impl<K: Key, V: Value> Iterator for BtreeRangeIter<K, V> {
@@ -498,11 +492,13 @@ impl<K: Key, V: Value> Iterator for BtreeRangeIter<K, V> {
                 ..
             }),
         ) = (&self.left, &self.right)
-            && left_page.get_page_number() == right_page.get_page_number()
-            && (left_entry > right_entry
-                || (left_entry == right_entry && (!self.include_left || !self.include_right)))
         {
-            return None;
+            if left_page.get_page_number() == right_page.get_page_number()
+                && (left_entry > right_entry
+                    || (left_entry == right_entry && (!self.include_left || !self.include_right)))
+            {
+                return None;
+            }
         }
 
         loop {
@@ -531,10 +527,13 @@ impl<K: Key, V: Value> Iterator for BtreeRangeIter<K, V> {
                     ..
                 }),
             ) = (&self.left, &self.right)
-                && left_page.get_page_number() == right_page.get_page_number()
-                && (left_entry > right_entry || (left_entry == right_entry && !self.include_right))
             {
-                return None;
+                if left_page.get_page_number() == right_page.get_page_number()
+                    && (left_entry > right_entry
+                        || (left_entry == right_entry && !self.include_right))
+                {
+                    return None;
+                }
             }
 
             self.include_left = false;
@@ -559,11 +558,13 @@ impl<K: Key, V: Value> DoubleEndedIterator for BtreeRangeIter<K, V> {
                 ..
             }),
         ) = (&self.left, &self.right)
-            && left_page.get_page_number() == right_page.get_page_number()
-            && (left_entry > right_entry
-                || (left_entry == right_entry && (!self.include_left || !self.include_right)))
         {
-            return None;
+            if left_page.get_page_number() == right_page.get_page_number()
+                && (left_entry > right_entry
+                    || (left_entry == right_entry && (!self.include_left || !self.include_right)))
+            {
+                return None;
+            }
         }
 
         loop {
@@ -592,10 +593,13 @@ impl<K: Key, V: Value> DoubleEndedIterator for BtreeRangeIter<K, V> {
                     ..
                 }),
             ) = (&self.left, &self.right)
-                && left_page.get_page_number() == right_page.get_page_number()
-                && (left_entry > right_entry || (left_entry == right_entry && !self.include_left))
             {
-                return None;
+                if left_page.get_page_number() == right_page.get_page_number()
+                    && (left_entry > right_entry
+                        || (left_entry == right_entry && !self.include_left))
+                {
+                    return None;
+                }
             }
 
             self.include_right = false;

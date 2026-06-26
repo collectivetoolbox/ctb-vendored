@@ -1,20 +1,29 @@
 #![deny(clippy::all, clippy::pedantic, clippy::disallowed_methods)]
 // TODO: revisit this list and see if we can enable some
+// TODO: we should enable result_large_err for perf reasons
 #![allow(
+    let_underscore_drop,
     clippy::default_trait_access,
     clippy::if_not_else,
+    clippy::inline_always,
     clippy::iter_not_returning_iterator,
+    clippy::manual_let_else,
     clippy::missing_errors_doc,
     clippy::missing_panics_doc,
     clippy::module_name_repetitions,
     clippy::must_use_candidate,
     clippy::needless_pass_by_value,
+    clippy::option_option,
     clippy::redundant_closure_for_method_calls,
+    clippy::result_large_err,
     clippy::similar_names,
     clippy::too_many_lines,
     clippy::unnecessary_wraps,
-    clippy::unreadable_literal
+    clippy::unreadable_literal,
+    clippy::wildcard_imports
 )]
+// TODO remove this once wasi no longer requires nightly
+#![cfg_attr(target_os = "wasi", feature(wasi_ext))]
 
 //! # redb
 //!
@@ -34,15 +43,13 @@
 //! # Example
 //!
 //! ```
-//! use redb::{Database, Error, ReadableDatabase, ReadableTable, TableDefinition};
+//! use redb::{Database, Error, ReadableTable, TableDefinition};
 //!
 //! const TABLE: TableDefinition<&str, u64> = TableDefinition::new("my_data");
 //!
+//! #[cfg(not(target_os = "wasi"))]
 //! fn main() -> Result<(), Error> {
-//!   # #[cfg(not(target_os = "wasi"))]
 //!     let file = tempfile::NamedTempFile::new().unwrap();
-//!   # #[cfg(target_os = "wasi")]
-//!   # let file = tempfile::NamedTempFile::new_in("/tmp").unwrap();
 //!     let db = Database::create(file.path())?;
 //!     let write_txn = db.begin_write()?;
 //!     {
@@ -63,15 +70,13 @@
 //! [design]: https://github.com/cberner/redb/blob/master/docs/design.md
 
 pub use db::{
-    Builder, CacheStats, Database, MultimapTableDefinition, MultimapTableHandle, ReadOnlyDatabase,
-    ReadableDatabase, RepairSession, StorageBackend, TableDefinition, TableHandle,
-    UntypedMultimapTableHandle, UntypedTableHandle,
+    Builder, CacheStats, Database, MultimapTableDefinition, MultimapTableHandle, RepairSession,
+    StorageBackend, TableDefinition, TableHandle, UntypedMultimapTableHandle, UntypedTableHandle,
 };
 pub use error::{
-    CommitError, CompactionError, DatabaseError, Error, SavepointError, SetDurabilityError,
-    StorageError, TableError, TransactionError,
+    CommitError, CompactionError, DatabaseError, Error, SavepointError, StorageError, TableError,
+    TransactionError, UpgradeError,
 };
-pub use legacy_tuple_types::Legacy;
 pub use multimap_table::{
     MultimapRange, MultimapTable, MultimapValue, ReadOnlyMultimapTable,
     ReadOnlyUntypedMultimapTable, ReadableMultimapTable,
@@ -81,17 +86,21 @@ pub use table::{
     Table, TableStats,
 };
 pub use transactions::{DatabaseStats, Durability, ReadTransaction, WriteTransaction};
-pub use tree_store::{AccessGuard, AccessGuardMut, AccessGuardMutInPlace, Savepoint};
+pub use tree_store::{AccessGuard, AccessGuardMut, Savepoint};
 pub use types::{Key, MutInPlaceValue, TypeName, Value};
 
 pub type Result<T = (), E = StorageError> = std::result::Result<T, E>;
+
+#[cfg(feature = "python")]
+pub use crate::python::redb;
 
 pub mod backends;
 mod complex_types;
 mod db;
 mod error;
-mod legacy_tuple_types;
 mod multimap_table;
+#[cfg(feature = "python")]
+mod python;
 mod sealed;
 mod table;
 mod transaction_tracker;

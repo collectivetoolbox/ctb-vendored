@@ -11,9 +11,9 @@
 
 [package]
 edition = "2024"
-rust-version = "1.89"
+rust-version = "1.85"
 name = "redb"
-version = "3.1.3"
+version = "2.6.3"
 authors = ["Christopher Berner <me@cberner.com>"]
 build = "build.rs"
 exclude = ["fuzz/"]
@@ -31,18 +31,22 @@ repository = "https://github.com/cberner/redb"
 [features]
 cache_metrics = []
 logging = ["dep:log"]
+python = [
+    "dep:pyo3",
+    "dep:pyo3-build-config",
+]
 
 [lib]
 name = "redb"
+crate-type = [
+    "cdylib",
+    "rlib",
+]
 path = "src/lib.rs"
 
 [[example]]
 name = "bincode_keys"
 path = "examples/bincode_keys.rs"
-
-[[example]]
-name = "derive_value_impl"
-path = "examples/derive_value_impl.rs"
 
 [[example]]
 name = "int_keys"
@@ -76,43 +80,129 @@ path = "tests/multimap_tests.rs"
 name = "multithreading_tests"
 path = "tests/multithreading_tests.rs"
 
-[dependencies.chrono_v0_4]
-version = "0.4.41"
-optional = true
-package = "chrono"
+[[bench]]
+name = "atomics_benchmark"
+path = "benches/atomics_benchmark.rs"
+harness = false
+
+[[bench]]
+name = "common"
+path = "benches/common.rs"
+
+[[bench]]
+name = "int_benchmark"
+path = "benches/int_benchmark.rs"
+harness = false
+
+[[bench]]
+name = "large_values_benchmark"
+path = "benches/large_values_benchmark.rs"
+harness = false
+
+[[bench]]
+name = "lmdb_benchmark"
+path = "benches/lmdb_benchmark.rs"
+harness = false
+
+[[bench]]
+name = "multithreaded_insert_benchmark"
+path = "benches/multithreaded_insert_benchmark.rs"
+harness = false
+
+[[bench]]
+name = "savepoint_benchmark"
+path = "benches/savepoint_benchmark.rs"
+harness = false
+
+[[bench]]
+name = "syscall_benchmark"
+path = "benches/syscall_benchmark.rs"
+harness = false
+
+[[bench]]
+name = "userspace_cache_benchmark"
+path = "benches/userspace_cache_benchmark.rs"
+harness = false
 
 [dependencies.log]
 version = "0.4.17"
 optional = true
 
-[dependencies.uuid]
-version = "1.17.0"
+[dependencies.pyo3]
+version = "0.24.1"
+features = [
+    "extension-module",
+    "abi3-py37",
+]
 optional = true
 
 [dev-dependencies.bincode]
 version = "2.0.1"
 
-[dev-dependencies.rand]
-version = "0.10.0"
+[dev-dependencies.byte-unit]
+version = "5.1.6"
 
-[dev-dependencies.redb2_6]
-version = "=2.6.0"
+[dev-dependencies.fastrand]
+version = "2.0.0"
+
+[dev-dependencies.libc]
+version = "0.2.99"
+
+[dev-dependencies.rand]
+version = "0.9"
+
+[dev-dependencies.redb1]
+version = "=1.0.0"
 package = "redb"
+
+[dev-dependencies.redb2]
+version = "=2.0.0"
+package = "redb"
+
+[dev-dependencies.sled]
+version = "0.34.7"
 
 [dev-dependencies.tempfile]
 version = "3.5.0"
 
-[dev-dependencies.uuid]
-version = "1.17.0"
-features = ["v4"]
+[dev-dependencies.walkdir]
+version = "2.5.0"
 
-[target.'cfg(target_os = "wasi")'.dependencies.libc]
-version = "0.2.174"
+[build-dependencies.pyo3-build-config]
+version = "0.24.1"
+optional = true
 
-[lints.clippy]
-big_endian_bytes = "deny"
-dbg_macro = "deny"
-host_endian_bytes = "deny"
+[target.'cfg(not(target_os = "wasi"))'.dev-dependencies.comfy-table]
+version = "7.0.1"
+
+[target.'cfg(not(target_os = "wasi"))'.dev-dependencies.ctrlc]
+version = "3.2.3"
+
+[target.'cfg(not(target_os = "wasi"))'.dev-dependencies.env_logger]
+version = "0.11"
+
+[target.'cfg(not(target_os = "wasi"))'.dev-dependencies.fjall]
+version = "=2.10"
+
+[target.'cfg(not(target_os = "wasi"))'.dev-dependencies.heed]
+version = "0.20"
+
+[target.'cfg(not(target_os = "wasi"))'.dev-dependencies.rocksdb]
+version = "0.22.0"
+features = ["lz4"]
+default-features = false
+
+[target.'cfg(not(target_os = "wasi"))'.dev-dependencies.sanakirja]
+version = "=1.4.1"
+
+[target.'cfg(not(target_os = "wasi"))'.dev-dependencies.sanakirja-core]
+version = "=1.4.1"
+
+[target.'cfg(target_os = "linux")'.dev-dependencies.io-uring]
+version = "0.7.4"
+
+[target."cfg(unix)".dependencies.libc]
+version = "0.2.104"
 
 [profile.bench]
 debug = 2

@@ -1,10 +1,9 @@
 use crate::transaction_tracker::TransactionId;
-use crate::transactions::{AllocatorStateKey, AllocatorStateTree, AllocatorStateTreeMut};
+use crate::transactions::{AllocatorStateKey, AllocatorStateTree};
 use crate::tree_store::btree_base::{BtreeHeader, Checksum};
 use crate::tree_store::page_store::base::{MAX_PAGE_INDEX, PageHint};
 use crate::tree_store::page_store::buddy_allocator::BuddyAllocator;
 use crate::tree_store::page_store::cached_file::PagedCachedFile;
-use crate::tree_store::page_store::fast_hash::PageNumberHashSet;
 use crate::tree_store::page_store::header::{DB_HEADER_SIZE, DatabaseHeader, MAGICNUMBER};
 use crate::tree_store::page_store::layout::DatabaseLayout;
 use crate::tree_store::page_store::region::{Allocators, RegionTracker};
@@ -12,10 +11,11 @@ use crate::tree_store::page_store::{PageImpl, PageMut, hash128_with_seed};
 use crate::tree_store::{Page, PageNumber, PageTrackerPolicy};
 use crate::{CacheStats, StorageBackend};
 use crate::{DatabaseError, Result, StorageError};
+#[cfg(feature = "logging")]
+use log::warn;
 use std::cmp::{max, min};
 #[cfg(debug_assertions)]
 use std::collections::HashMap;
-#[cfg(debug_assertions)]
 use std::collections::HashSet;
 use std::convert::TryInto;
 use std::io::ErrorKind;
@@ -24,10 +24,6 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
-
-// The region header is optional in the v3 file format
-// It's an artifact of the v2 file format, so we initialize new databases without headers to save space
-const NO_HEADER: u32 = 0;
 
 // Regions have a maximum size of 4GiB. A `4GiB - overhead` value is the largest that can be represented,
 // because the leaf node format uses 32bit offsets
@@ -52,16 +48,6 @@ pub(crate) const FILE_FORMAT_VERSION2: u8 = 2;
 // * New persistent savepoint format
 pub(crate) const FILE_FORMAT_VERSION3: u8 = 3;
 
-#[derive(Copy, Clone)]
-pub(crate) enum ShrinkPolicy {
-    // Try to shrink the file by the default amount
-    Default,
-    // Try to shrink the file by the maximum amount
-    Maximum,
-    // Do not try to shrink the file
-    Never,
-}
-
 fn ceil_log2(x: usize) -> u8 {
     if x.is_power_of_two() {
         x.trailing_zeros().try_into().unwrap()
@@ -76,14 +62,19 @@ pub(crate) fn xxh3_checksum(data: &[u8]) -> Checksum {
 
 struct InMemoryState {
     header: DatabaseHeader,
-    // TODO: we should make this an Option because it is only valid after the Database initializes it
     allocators: Allocators,
 }
 
 impl InMemoryState {
-    fn new(header: DatabaseHeader) -> Self {
-        let allocators = Allocators::new(header.layout());
-        Self { header, allocators }
+    fn from_bytes(header: DatabaseHeader, file: &PagedCachedFile, version: u8) -> Result<Self> {
+        // TODO: seems like there should be a nicer way to structure this, rather than having
+        // a format version check here
+        let allocators = if header.recovery_required || version >= FILE_FORMAT_VERSION3 {
+            Allocators::new(header.layout())
+        } else {
+            Allocators::from_bytes(&header, file)?
+        };
+        Ok(Self { header, allocators })
     }
 
     fn get_region(&self, region: u32) -> &BuddyAllocator {
@@ -102,8 +93,7 @@ impl InMemoryState {
 pub(crate) struct TransactionalMemory {
     // Pages allocated since the last commit
     // TODO: maybe this should be moved to WriteTransaction?
-    allocated_since_commit: Mutex<PageNumberHashSet>,
-    unpersisted: Mutex<PageNumberHashSet>,
+    allocated_since_commit: Mutex<HashSet<PageNumber>>,
     // True if the allocator state was corrupted when the file was opened
     // TODO: maybe we can remove this flag now that CheckedBackend exists?
     needs_recovery: AtomicBool,
@@ -115,9 +105,6 @@ pub(crate) struct TransactionalMemory {
     // Reference counts of PageImpls that are outstanding
     #[cfg(debug_assertions)]
     read_page_ref_counts: Arc<Mutex<HashMap<PageNumber, u64>>>,
-    // Set of all allocated pages for debugging assertions
-    #[cfg(debug_assertions)]
-    allocated_pages: Arc<Mutex<PageNumberHashSet>>,
     // Indicates that a non-durable commit has been made, so reads should be served from the secondary meta page
     read_from_secondary: AtomicBool,
     page_size: u32,
@@ -125,6 +112,7 @@ pub(crate) struct TransactionalMemory {
     // code path where there is no locking
     region_size: u64,
     region_header_with_padding_size: u64,
+    file_format: u8,
 }
 
 impl TransactionalMemory {
@@ -137,7 +125,7 @@ impl TransactionalMemory {
         requested_region_size: Option<u64>,
         read_cache_size_bytes: usize,
         write_cache_size_bytes: usize,
-        read_only: bool,
+        default_to_file_format_v3: bool,
     ) -> Result<Self, DatabaseError> {
         assert!(page_size.is_power_of_two() && page_size >= DB_HEADER_SIZE);
 
@@ -194,13 +182,11 @@ impl TransactionalMemory {
                 (page_size * region_tracker_required_bytes.div_ceil(page_size)) as u64;
             let starting_size = size + tracker_space;
 
-            let page_capacity = (region_size / u64::try_from(page_size).unwrap())
-                .try_into()
-                .unwrap();
             let layout = DatabaseLayout::calculate(
                 starting_size,
-                page_capacity,
-                NO_HEADER,
+                (region_size / u64::try_from(page_size).unwrap())
+                    .try_into()
+                    .unwrap(),
                 page_size.try_into().unwrap(),
             );
 
@@ -212,7 +198,26 @@ impl TransactionalMemory {
                 }
             }
 
-            let mut header = DatabaseHeader::new(layout, TransactionId::new(0));
+            let mut allocators = Allocators::new(layout);
+
+            // Allocate the region tracker in the zeroth region
+            let tracker_page = {
+                let tracker_required_pages =
+                    allocators.region_tracker.to_vec().len().div_ceil(page_size);
+                let required_order = ceil_log2(tracker_required_pages);
+                let page_number = allocators.region_allocators[0]
+                    .alloc(required_order)
+                    .unwrap();
+                PageNumber::new(0, page_number, required_order)
+            };
+
+            let file_format = if default_to_file_format_v3 {
+                FILE_FORMAT_VERSION3
+            } else {
+                FILE_FORMAT_VERSION2
+            };
+            let mut header =
+                DatabaseHeader::new(layout, TransactionId::new(0), file_format, tracker_page);
 
             header.recovery_required = false;
             header.two_phase_commit = true;
@@ -220,15 +225,16 @@ impl TransactionalMemory {
                 .write(0, DB_HEADER_SIZE, true)?
                 .mem_mut()
                 .copy_from_slice(&header.to_bytes(false));
+            allocators.flush_to(tracker_page, layout, &storage)?;
 
-            storage.flush()?;
+            storage.flush(false)?;
             // Write the magic number only after the data structure is initialized and written to disk
             // to ensure that it's crash safe
             storage
                 .write(0, DB_HEADER_SIZE, true)?
                 .mem_mut()
                 .copy_from_slice(&header.to_bytes(true));
-            storage.flush()?;
+            storage.flush(false)?;
         }
         let header_bytes = storage.read_direct(0, DB_HEADER_SIZE)?;
         let (mut header, repair_info) = DatabaseHeader::from_bytes(&header_bytes)?;
@@ -238,9 +244,6 @@ impl TransactionalMemory {
         let needs_recovery =
             header.recovery_required || header.layout().len() != storage.raw_file_len()?;
         if needs_recovery {
-            if read_only {
-                return Err(DatabaseError::RepairAborted);
-            }
             let layout = header.layout();
             let region_max_pages = layout.full_region_layout().num_pages();
             let region_header_pages = layout.full_region_layout().get_header_pages();
@@ -256,20 +259,20 @@ impl TransactionalMemory {
                 .write(0, DB_HEADER_SIZE, true)?
                 .mem_mut()
                 .copy_from_slice(&header.to_bytes(true));
-            storage.flush()?;
+            storage.flush(false)?;
         }
 
         let layout = header.layout();
         assert_eq!(layout.len(), storage.raw_file_len()?);
         let region_size = layout.full_region_layout().len();
         let region_header_size = layout.full_region_layout().data_section().start;
-        let state = InMemoryState::new(header);
+        let version = header.primary_slot().version;
+        let state = InMemoryState::from_bytes(header, &storage, version)?;
 
         assert!(page_size >= DB_HEADER_SIZE);
 
         Ok(Self {
-            allocated_since_commit: Mutex::new(Default::default()),
-            unpersisted: Mutex::new(Default::default()),
+            allocated_since_commit: Mutex::new(HashSet::new()),
             needs_recovery: AtomicBool::new(needs_recovery),
             storage,
             state: Mutex::new(state),
@@ -277,13 +280,39 @@ impl TransactionalMemory {
             open_dirty_pages: Arc::new(Mutex::new(HashSet::new())),
             #[cfg(debug_assertions)]
             read_page_ref_counts: Arc::new(Mutex::new(HashMap::new())),
-            #[cfg(debug_assertions)]
-            allocated_pages: Arc::new(Mutex::new(Default::default())),
             read_from_secondary: AtomicBool::new(false),
             page_size: page_size.try_into().unwrap(),
             region_size,
             region_header_with_padding_size: region_header_size,
+            file_format: version,
         })
+    }
+
+    pub(crate) fn upgrade_to_v3(&mut self) -> Result {
+        let data_root = self.get_data_root();
+        let system_root = self.get_system_root();
+        let transaction_id = self.get_last_committed_transaction_id()?;
+        assert!(self.get_freed_root().is_none());
+
+        let tracker_page = self.tracker_page();
+        self.file_format = FILE_FORMAT_VERSION3;
+        // Repeat twice just to be sure both slots have the new version number
+        for _ in 0..2 {
+            match self.commit(data_root, system_root, None, transaction_id, false, true) {
+                Ok(()) => {}
+                Err(err) => {
+                    self.storage.set_irrecoverable_io_error();
+                    return Err(err);
+                }
+            }
+        }
+        self.free(tracker_page, &mut PageTrackerPolicy::Ignore);
+
+        Ok(())
+    }
+
+    pub(crate) fn file_format_v3(&self) -> bool {
+        self.file_format == FILE_FORMAT_VERSION3
     }
 
     pub(crate) fn cache_stats(&self) -> CacheStats {
@@ -294,31 +323,13 @@ impl TransactionalMemory {
         self.storage.check_io_errors()
     }
 
-    #[cfg(debug_assertions)]
-    pub(crate) fn mark_debug_allocated_page(&self, page: PageNumber) {
-        assert!(self.allocated_pages.lock().unwrap().insert(page));
-    }
-
-    #[cfg(debug_assertions)]
+    #[cfg(any(test, fuzzing))]
     pub(crate) fn all_allocated_pages(&self) -> Vec<PageNumber> {
-        self.allocated_pages
-            .lock()
-            .unwrap()
-            .iter()
-            .copied()
-            .collect()
+        self.state.lock().unwrap().allocators.all_allocated()
     }
 
-    #[cfg(debug_assertions)]
-    pub(crate) fn debug_check_allocator_consistency(&self) {
-        let state = self.state.lock().unwrap();
-        let mut region_pages = vec![vec![]; state.allocators.region_allocators.len()];
-        for p in self.allocated_pages.lock().unwrap().iter() {
-            region_pages[p.region as usize].push(*p);
-        }
-        for (i, allocator) in state.allocators.region_allocators.iter().enumerate() {
-            allocator.check_allocated_pages(i.try_into().unwrap(), &region_pages[i]);
-        }
+    pub(crate) fn tracker_page(&self) -> PageNumber {
+        self.state.lock().unwrap().header.region_tracker()
     }
 
     pub(crate) fn clear_read_cache(&self) {
@@ -328,7 +339,7 @@ impl TransactionalMemory {
     pub(crate) fn clear_cache_and_reload(&mut self) -> Result<bool, DatabaseError> {
         assert!(self.allocated_since_commit.lock().unwrap().is_empty());
 
-        self.storage.flush()?;
+        self.storage.flush(false)?;
         self.storage.invalidate_cache_all();
 
         let header_bytes = self.storage.read_direct(0, DB_HEADER_SIZE)?;
@@ -347,7 +358,7 @@ impl TransactionalMemory {
                 .write(0, DB_HEADER_SIZE, true)?
                 .mem_mut()
                 .copy_from_slice(&header.to_bytes(true));
-            self.storage.flush()?;
+            self.storage.flush(false)?;
         }
 
         self.needs_recovery
@@ -362,7 +373,11 @@ impl TransactionalMemory {
         assert!(!state.header.recovery_required);
         state.header.recovery_required = true;
         self.write_header(&state.header)?;
-        self.storage.flush()
+        self.storage.flush(false)
+    }
+
+    pub(crate) fn needs_repair(&self) -> Result<bool> {
+        Ok(self.state.lock().unwrap().header.recovery_required)
     }
 
     pub(crate) fn used_two_phase_commit(&self) -> bool {
@@ -386,8 +401,6 @@ impl TransactionalMemory {
     pub(crate) fn begin_repair(&self) -> Result<()> {
         let mut state = self.state.lock().unwrap();
         state.allocators = Allocators::new(state.header.layout());
-        #[cfg(debug_assertions)]
-        self.allocated_pages.lock().unwrap().clear();
 
         Ok(())
     }
@@ -397,8 +410,6 @@ impl TransactionalMemory {
         let region_index = page_number.region;
         let allocator = state.get_region_mut(region_index);
         allocator.record_alloc(page_number.page_index, page_number.page_order);
-        #[cfg(debug_assertions)]
-        assert!(self.allocated_pages.lock().unwrap().insert(page_number));
     }
 
     fn write_header(&self, header: &DatabaseHeader) -> Result {
@@ -411,10 +422,21 @@ impl TransactionalMemory {
     }
 
     pub(crate) fn end_repair(&self) -> Result<()> {
+        if !self.file_format_v3() {
+            self.allocate_region_tracker_page()?;
+        }
+
         let mut state = self.state.lock().unwrap();
+        if !self.file_format_v3() {
+            let tracker_page = state.header.region_tracker();
+            state
+                .allocators
+                .flush_to(tracker_page, state.header.layout(), &self.storage)?;
+        }
+
         state.header.recovery_required = false;
         self.write_header(&state.header)?;
-        let result = self.storage.flush();
+        let result = self.storage.flush(false);
         self.needs_recovery.store(false, Ordering::Release);
 
         result
@@ -422,7 +444,7 @@ impl TransactionalMemory {
 
     pub(crate) fn reserve_allocator_state(
         &self,
-        tree: &mut AllocatorStateTreeMut,
+        tree: &mut AllocatorStateTree,
         transaction_id: TransactionId,
     ) -> Result<u32> {
         let state = self.state.lock().unwrap();
@@ -461,7 +483,7 @@ impl TransactionalMemory {
     // Returns true on success, or false if the number of regions has changed
     pub(crate) fn try_save_allocator_state(
         &self,
-        tree: &mut AllocatorStateTreeMut,
+        tree: &mut AllocatorStateTree,
         num_regions: u32,
     ) -> Result<bool> {
         // Has the number of regions changed since reserve_allocator_state() was called?
@@ -470,32 +492,46 @@ impl TransactionalMemory {
             return Ok(false);
         }
 
+        // Temporarily free the region tracker page, because we don't want to include it in our
+        // recorded allocations
+        let tracker_page = if !self.file_format_v3() {
+            let tracker_page = state.header.region_tracker();
+            drop(state);
+            self.free(tracker_page, &mut PageTrackerPolicy::Ignore);
+            Some(tracker_page)
+        } else {
+            drop(state);
+            None
+        };
+
+        let result = self.try_save_allocator_state_inner(tree, num_regions);
+
+        // Restore the region tracker page
+        if let Some(tracker_page) = tracker_page {
+            self.mark_page_allocated(tracker_page);
+        }
+
+        result
+    }
+
+    fn try_save_allocator_state_inner(
+        &self,
+        tree: &mut AllocatorStateTree,
+        num_regions: u32,
+    ) -> Result<bool> {
         for i in 0..num_regions {
-            let region_bytes = &state.allocators.region_allocators[i as usize].to_vec();
-            if tree
-                .get(&AllocatorStateKey::Region(i))?
-                .unwrap()
-                .value()
-                .len()
-                < region_bytes.len()
-            {
-                // The allocator state grew too much since we reserved space
-                return Ok(false);
-            }
+            let region_bytes =
+                &self.state.lock().unwrap().allocators.region_allocators[i as usize].to_vec();
             tree.insert_inplace(&AllocatorStateKey::Region(i), &region_bytes.as_ref())?;
         }
 
-        let region_tracker_bytes = state.allocators.region_tracker.to_vec();
-        if tree
-            .get(&AllocatorStateKey::RegionTracker)?
+        let region_tracker_bytes = self
+            .state
+            .lock()
             .unwrap()
-            .value()
-            .len()
-            < region_tracker_bytes.len()
-        {
-            // The allocator state grew too much since we reserved space
-            return Ok(false);
-        }
+            .allocators
+            .region_tracker
+            .to_vec();
         tree.insert_inplace(
             &AllocatorStateKey::RegionTracker,
             &region_tracker_bytes.as_ref(),
@@ -513,11 +549,13 @@ impl TransactionalMemory {
         // WriteTransaction. When that happens, any existing allocator state table will be left
         // in place but is no longer valid. (And even if there were no such calls today, it would
         // be an easy mistake to make! So it's good that we check.)
-        let Some(value) = tree.get(&AllocatorStateKey::TransactionId)? else {
-            return Ok(false);
-        };
-        let transaction_id =
-            TransactionId::new(u64::from_le_bytes(value.value().try_into().unwrap()));
+        let transaction_id = TransactionId::new(u64::from_le_bytes(
+            tree.get(&AllocatorStateKey::TransactionId)?
+                .unwrap()
+                .value()
+                .try_into()
+                .unwrap(),
+        ));
 
         Ok(transaction_id == self.get_last_committed_transaction_id()?)
     }
@@ -533,7 +571,7 @@ impl TransactionalMemory {
             region_allocators.push(BuddyAllocator::from_bytes(region?.value()));
         }
 
-        let region_tracker = RegionTracker::from_bytes(
+        let region_tracker = RegionTracker::from_page(
             tree.get(&AllocatorStateKey::RegionTracker)?
                 .unwrap()
                 .value(),
@@ -550,23 +588,118 @@ impl TransactionalMemory {
         state.allocators.resize_to(layout);
         drop(state);
 
+        // Allocate a page for the region tracker
+        if !self.file_format_v3() {
+            self.allocate_region_tracker_page()?;
+        }
+
         self.state.lock().unwrap().header.recovery_required = false;
         self.needs_recovery.store(false, Ordering::Release);
 
         Ok(())
     }
 
-    #[cfg_attr(not(debug_assertions), expect(unused_variables))]
     pub(crate) fn is_allocated(&self, page: PageNumber) -> bool {
-        #[cfg(debug_assertions)]
+        let state = self.state.lock().unwrap();
+        let allocator = state.get_region(page.region);
+
+        allocator.is_allocated(page.page_index, page.page_order)
+    }
+
+    // Allocate a page for the region tracker. If possible, this will pick the same page that
+    // was used last time; otherwise it'll pick a new page and update the database header to
+    // match
+    fn allocate_region_tracker_page(&self) -> Result {
+        let mut state = self.state.lock().unwrap();
+        let tracker_len = state.allocators.region_tracker.to_vec().len();
+        let tracker_page = state.header.region_tracker();
+
+        let allocator = state.get_region_mut(tracker_page.region);
+        // Pick a new tracker page, if the old one was overwritten or is too small
+        if allocator.is_allocated(tracker_page.page_index, tracker_page.page_order)
+            || tracker_page.page_size_bytes(self.page_size) < tracker_len as u64
         {
-            let allocated = self.allocated_pages.lock().unwrap();
-            allocated.contains(&page)
+            drop(state);
+
+            let new_tracker_page = self
+                .allocate_non_transactional(tracker_len, false)?
+                .get_page_number();
+
+            let mut state = self.state.lock().unwrap();
+            state.header.set_region_tracker(new_tracker_page);
+            self.write_header(&state.header)?;
+            self.storage.flush(false)?;
+        } else {
+            // The old page is available, so just mark it as allocated
+            allocator.record_alloc(tracker_page.page_index, tracker_page.page_order);
+            drop(state);
         }
-        #[cfg(not(debug_assertions))]
-        {
-            unreachable!()
+
+        Ok(())
+    }
+
+    // Relocates the region tracker to a lower page, if possible
+    // Returns true if the page was moved
+    pub(crate) fn relocate_region_tracker(&self) -> Result<bool> {
+        let state = self.state.lock().unwrap();
+        let region_tracker_size = state
+            .header
+            .region_tracker()
+            .page_size_bytes(self.page_size);
+        let old_tracker_page = state.header.region_tracker();
+        // allocate acquires this lock, so we need to drop it
+        drop(state);
+        let new_page =
+            self.allocate_non_transactional(region_tracker_size.try_into().unwrap(), true)?;
+        if new_page.get_page_number().is_before(old_tracker_page) {
+            let mut state = self.state.lock().unwrap();
+            state.header.set_region_tracker(new_page.get_page_number());
+            drop(state);
+            self.free(old_tracker_page, &mut PageTrackerPolicy::Ignore);
+            Ok(true)
+        } else {
+            let new_page_number = new_page.get_page_number();
+            drop(new_page);
+            self.free(new_page_number, &mut PageTrackerPolicy::Ignore);
+            Ok(false)
         }
+    }
+
+    // Diffs region_states, which must be derived from get_raw_allocator_states(), against
+    // the currently allocated set of pages
+    pub(crate) fn pages_allocated_since_raw_state(
+        &self,
+        old_states: &[BuddyAllocator],
+    ) -> Vec<PageNumber> {
+        let mut result = vec![];
+        let state = self.state.lock().unwrap();
+
+        for i in 0..state.header.layout().num_regions() {
+            let current_state = state.get_region(i);
+            if let Some(old_state) = old_states.get(i as usize) {
+                current_state.difference(i, old_state, &mut result);
+            } else {
+                // This region didn't exist, so everything is newly allocated
+                current_state.get_allocated_pages(i, &mut result);
+            }
+        }
+
+        // Don't include the region tracker, since we manage that internally to the TranscationalMemory
+        // Otherwise restoring a savepoint would free it.
+        result.retain(|x| *x != state.header.region_tracker());
+
+        result
+    }
+
+    pub(crate) fn get_raw_allocator_states(&self) -> Vec<Vec<u8>> {
+        let state = self.state.lock().unwrap();
+
+        let mut regional_allocators = vec![];
+        for i in 0..state.header.layout().num_regions() {
+            regional_allocators.push(state.get_region(i).make_state_for_savepoint());
+        }
+
+        regional_allocators
     }
 
     // Commit all outstanding changes and make them visible as the primary
@@ -575,16 +708,18 @@ impl TransactionalMemory {
         &self,
         data_root: Option<BtreeHeader>,
         system_root: Option<BtreeHeader>,
+        freed_root: Option<BtreeHeader>,
         transaction_id: TransactionId,
+        eventual: bool,
         two_phase: bool,
-        shrink_policy: ShrinkPolicy,
     ) -> Result {
         let result = self.commit_inner(
             data_root,
             system_root,
+            freed_root,
             transaction_id,
+            eventual,
             two_phase,
-            shrink_policy,
         );
         if result.is_err() {
             self.needs_recovery.store(true, Ordering::Release);
@@ -597,9 +732,10 @@ impl TransactionalMemory {
         &self,
         data_root: Option<BtreeHeader>,
         system_root: Option<BtreeHeader>,
+        freed_root: Option<BtreeHeader>,
         transaction_id: TransactionId,
+        eventual: bool,
         two_phase: bool,
-        shrink_policy: ShrinkPolicy,
     ) -> Result {
         // All mutable pages must be dropped, this ensures that when a transaction completes
         // no more writes can happen to the pages it allocated. Thus it is safe to make them visible
@@ -610,11 +746,7 @@ impl TransactionalMemory {
 
         let mut state = self.state.lock().unwrap();
         // Trim surplus file space, before finalizing the commit
-        let shrunk = if !matches!(shrink_policy, ShrinkPolicy::Never) {
-            Self::try_shrink(&mut state, matches!(shrink_policy, ShrinkPolicy::Maximum))?
-        } else {
-            false
-        };
+        let shrunk = Self::try_shrink(&mut state)?;
         // Copy the header so that we can release the state lock, while we flush the file
         let mut header = state.header.clone();
         drop(state);
@@ -624,12 +756,14 @@ impl TransactionalMemory {
         secondary.transaction_id = transaction_id;
         secondary.user_root = data_root;
         secondary.system_root = system_root;
+        secondary.freed_root = freed_root;
+        secondary.version = self.file_format;
 
         self.write_header(&header)?;
 
         // Use 2-phase commit, if checksums are disabled
         if two_phase {
-            self.storage.flush()?;
+            self.storage.flush(eventual)?;
         }
 
         // Make our new commit the primary, and record whether it was a 2-phase commit.
@@ -639,7 +773,7 @@ impl TransactionalMemory {
 
         // Write the new header to disk
         self.write_header(&header)?;
-        self.storage.flush()?;
+        self.storage.flush(eventual)?;
 
         if shrunk {
             let result = self.storage.resize(header.layout().len());
@@ -650,12 +784,7 @@ impl TransactionalMemory {
                 return result;
             }
         }
-        let mut allocated_since_commit = self.allocated_since_commit.lock().unwrap();
-        allocated_since_commit.clear();
-        allocated_since_commit.shrink_to_fit();
-        let mut unpersisted = self.unpersisted.lock().unwrap();
-        unpersisted.clear();
-        unpersisted.shrink_to_fit();
+        self.allocated_since_commit.lock().unwrap().clear();
 
         let mut state = self.state.lock().unwrap();
         assert_eq!(
@@ -676,6 +805,7 @@ impl TransactionalMemory {
         &self,
         data_root: Option<BtreeHeader>,
         system_root: Option<BtreeHeader>,
+        freed_root: Option<BtreeHeader>,
         transaction_id: TransactionId,
     ) -> Result {
         // All mutable pages must be dropped, this ensures that when a transaction completes
@@ -685,10 +815,7 @@ impl TransactionalMemory {
         debug_assert!(self.open_dirty_pages.lock().unwrap().is_empty());
         assert!(!self.needs_recovery.load(Ordering::Acquire));
 
-        let mut unpersisted = self.unpersisted.lock().unwrap();
-        let mut allocated_since_commit = self.allocated_since_commit.lock().unwrap();
-        unpersisted.extend(allocated_since_commit.drain());
-        allocated_since_commit.shrink_to_fit();
+        self.allocated_since_commit.lock().unwrap().clear();
         self.storage.write_barrier()?;
 
         let mut state = self.state.lock().unwrap();
@@ -696,6 +823,7 @@ impl TransactionalMemory {
         secondary.transaction_id = transaction_id;
         secondary.user_root = data_root;
         secondary.system_root = system_root;
+        secondary.freed_root = freed_root;
 
         // TODO: maybe we can remove this flag and just update the in-memory DatabaseHeader state?
         self.read_from_secondary.store(true, Ordering::Release);
@@ -731,8 +859,6 @@ impl TransactionalMemory {
             state
                 .get_region_mut(region_index)
                 .free(page_number.page_index, page_number.page_order);
-            #[cfg(debug_assertions)]
-            assert!(self.allocated_pages.lock().unwrap().remove(page_number));
 
             let address = page_number.address_range(
                 self.page_size.into(),
@@ -745,7 +871,6 @@ impl TransactionalMemory {
             self.storage.cancel_pending_write(address.start, len);
         }
         guard.clear();
-        guard.shrink_to_fit();
 
         Ok(())
     }
@@ -856,6 +981,15 @@ impl TransactionalMemory {
         }
     }
 
+    pub(crate) fn get_freed_root(&self) -> Option<BtreeHeader> {
+        let state = self.state.lock().unwrap();
+        if self.read_from_secondary.load(Ordering::Acquire) {
+            state.header.secondary_slot().freed_root
+        } else {
+            state.header.primary_slot().freed_root
+        }
+    }
+
     pub(crate) fn get_last_committed_transaction_id(&self) -> Result<TransactionId> {
         let state = self.state.lock()?;
         if self.read_from_secondary.load(Ordering::Acquire) {
@@ -865,29 +999,12 @@ impl TransactionalMemory {
         }
     }
 
-    pub(crate) fn get_last_durable_transaction_id(&self) -> Result<TransactionId> {
-        let state = self.state.lock()?;
-        Ok(state.header.primary_slot().transaction_id)
-    }
-
     pub(crate) fn free(&self, page: PageNumber, allocated: &mut PageTrackerPolicy) {
         self.allocated_since_commit.lock().unwrap().remove(&page);
         self.free_helper(page, allocated);
     }
 
     fn free_helper(&self, page: PageNumber, allocated: &mut PageTrackerPolicy) {
-        #[cfg(debug_assertions)]
-        {
-            assert!(
-                !self
-                    .read_page_ref_counts
-                    .lock()
-                    .unwrap()
-                    .contains_key(&page)
-            );
-            assert!(self.allocated_pages.lock().unwrap().remove(&page));
-            assert!(!self.open_dirty_pages.lock().unwrap().contains(&page));
-        }
         allocated.remove(page);
         let mut state = self.state.lock().unwrap();
         let region_index = page.region;
@@ -913,20 +1030,6 @@ impl TransactionalMemory {
         self.storage.cancel_pending_write(address_range.start, len);
     }
 
-    // Frees the page if no durable commit has occurred, since it was allocated. Returns true, if the page was freed
-    pub(crate) fn free_if_unpersisted(
-        &self,
-        page: PageNumber,
-        allocated: &mut PageTrackerPolicy,
-    ) -> bool {
-        if self.unpersisted.lock().unwrap().remove(&page) {
-            self.free_helper(page, allocated);
-            true
-        } else {
-            false
-        }
-    }
-
     // Frees the page if it was allocated since the last commit. Returns true, if the page was freed
     pub(crate) fn free_if_uncommitted(
         &self,
@@ -944,10 +1047,6 @@ impl TransactionalMemory {
     // Page has not been committed
     pub(crate) fn uncommitted(&self, page: PageNumber) -> bool {
         self.allocated_since_commit.lock().unwrap().contains(&page)
-    }
-
-    pub(crate) fn unpersisted(&self, page: PageNumber) -> bool {
-        self.unpersisted.lock().unwrap().contains(&page)
     }
 
     pub(crate) fn allocate_helper(
@@ -972,7 +1071,6 @@ impl TransactionalMemory {
 
         #[cfg(debug_assertions)]
         {
-            assert!(self.allocated_pages.lock().unwrap().insert(page_number));
             assert!(
                 !self
                     .read_page_ref_counts
@@ -1051,23 +1149,17 @@ impl TransactionalMemory {
         }
     }
 
-    fn try_shrink(state: &mut InMemoryState, force: bool) -> Result<bool> {
+    fn try_shrink(state: &mut InMemoryState) -> Result<bool> {
         let layout = state.header.layout();
         let last_region_index = layout.num_regions() - 1;
         let last_allocator = state.get_region(last_region_index);
         let trailing_free = last_allocator.trailing_free_pages();
         let last_allocator_len = last_allocator.len();
-        if trailing_free == 0 {
-            return Ok(false);
-        }
-        if trailing_free < last_allocator_len / 2 && !force {
+        if trailing_free < last_allocator_len / 2 {
             return Ok(false);
         }
         let reduce_by = if layout.num_regions() > 1 && trailing_free == last_allocator_len {
             trailing_free
-        } else if force {
-            // Do not shrink the database to zero size
-            min(last_allocator_len - 1, trailing_free)
         } else {
             trailing_free / 2
         };
@@ -1109,11 +1201,6 @@ impl TransactionalMemory {
         let new_layout = DatabaseLayout::calculate(
             next_desired_size,
             state.header.layout().full_region_layout().num_pages(),
-            state
-                .header
-                .layout()
-                .full_region_layout()
-                .get_header_pages(),
             self.page_size,
         );
         assert!(new_layout.len() >= layout.len());
@@ -1147,6 +1234,12 @@ impl TransactionalMemory {
         self.allocate_helper(allocation_size, true, true)
     }
 
+    // Allocate a page not associated with any transaction. The page is immediately considered committed,
+    // and won't be rolled back if an abort happens. This is only used for the region tracker
+    fn allocate_non_transactional(&self, allocation_size: usize, lowest: bool) -> Result<PageMut> {
+        self.allocate_helper(allocation_size, lowest, false)
+    }
+
     pub(crate) fn count_allocated_pages(&self) -> Result<u64> {
         let state = self.state.lock().unwrap();
         let mut count = 0u64;
@@ -1170,20 +1263,47 @@ impl TransactionalMemory {
     pub(crate) fn get_page_size(&self) -> usize {
         self.page_size.try_into().unwrap()
     }
+}
 
-    pub(crate) fn close(&self) -> Result {
-        if !self.needs_recovery.load(Ordering::Acquire) && !thread::panicking() {
-            let mut state = self.state.lock()?;
-            if self.storage.flush().is_ok() {
-                state.header.recovery_required = false;
-                self.write_header(&state.header)?;
-                self.storage.flush()?;
+impl Drop for TransactionalMemory {
+    fn drop(&mut self) {
+        if thread::panicking() || self.needs_recovery.load(Ordering::Acquire) {
+            return;
+        }
+
+        // Reallocate the region tracker page, which will grow it if necessary
+        if !self.file_format_v3() {
+            let tracker_page = self.state.lock().unwrap().header.region_tracker();
+            self.free(tracker_page, &mut PageTrackerPolicy::Ignore);
+            if self.allocate_region_tracker_page().is_err() {
+                #[cfg(feature = "logging")]
+                warn!("Failure while flushing allocator state. Repair required at restart.");
+                return;
             }
         }
 
-        self.storage.close()?;
+        let mut state = self.state.lock().unwrap();
+        // File format v3 now relies on the quick repair code path
+        if !self.file_format_v3()
+            && state
+                .allocators
+                .flush_to(
+                    state.header.region_tracker(),
+                    state.header.layout(),
+                    &self.storage,
+                )
+                .is_err()
+        {
+            #[cfg(feature = "logging")]
+            warn!("Failure while flushing allocator state. Repair required at restart.");
+            return;
+        }
 
-        Ok(())
+        if self.storage.flush(false).is_ok() && !self.needs_recovery.load(Ordering::Acquire) {
+            state.header.recovery_required = false;
+            let _ = self.write_header(&state.header);
+            let _ = self.storage.flush(false);
+        }
     }
 }
 

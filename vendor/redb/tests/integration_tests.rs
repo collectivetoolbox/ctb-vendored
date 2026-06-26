@@ -1,11 +1,10 @@
-use rand::RngExt;
+use rand::Rng;
 use rand::prelude::SliceRandom;
 use redb::backends::FileBackend;
 use redb::{
     AccessGuard, Builder, CompactionError, Database, Durability, Key, MultimapRange,
-    MultimapTableDefinition, MultimapValue, Range, ReadableDatabase, ReadableTable,
-    ReadableTableMetadata, SetDurabilityError, StorageBackend, TableDefinition, TableStats,
-    TransactionError, Value,
+    MultimapTableDefinition, MultimapValue, Range, ReadableTable, ReadableTableMetadata,
+    StorageBackend, TableDefinition, TableStats, TransactionError, Value,
 };
 use redb::{DatabaseError, ReadableMultimapTable, SavepointError, StorageError, TableError};
 use std::borrow::Borrow;
@@ -66,19 +65,19 @@ fn previous_io_error() {
             self.inner.len()
         }
 
-        fn read(&self, offset: u64, out: &mut [u8]) -> Result<(), std::io::Error> {
-            self.inner.read(offset, out)
+        fn read(&self, offset: u64, len: usize) -> Result<Vec<u8>, std::io::Error> {
+            self.inner.read(offset, len)
         }
 
         fn set_len(&self, len: u64) -> Result<(), std::io::Error> {
             self.inner.set_len(len)
         }
 
-        fn sync_data(&self) -> Result<(), std::io::Error> {
+        fn sync_data(&self, eventual: bool) -> Result<(), std::io::Error> {
             if self.fail_flag.load(Ordering::SeqCst) {
                 Err(std::io::Error::from(ErrorKind::Other))
             } else {
-                self.inner.sync_data()
+                self.inner.sync_data(eventual)
             }
         }
 
@@ -115,7 +114,7 @@ fn mixed_durable_commit() {
 
     let db = Database::create(tmpfile.path()).unwrap();
     let mut txn = db.begin_write().unwrap();
-    txn.set_durability(Durability::None).unwrap();
+    txn.set_durability(Durability::None);
     {
         let mut table = txn.open_table(U64_TABLE).unwrap();
         table.insert(&0, &0).unwrap();
@@ -132,7 +131,7 @@ fn non_durable_commit_persistence() {
 
     let db = Database::create(tmpfile.path()).unwrap();
     let mut txn = db.begin_write().unwrap();
-    txn.set_durability(Durability::None).unwrap();
+    txn.set_durability(Durability::None);
     let pairs = random_data(100, 16, 20);
     {
         let mut table = txn.open_table(SLICE_TABLE).unwrap();
@@ -165,7 +164,7 @@ fn test_persistence(durability: Durability) {
 
     let db = Database::create(tmpfile.path()).unwrap();
     let mut txn = db.begin_write().unwrap();
-    txn.set_durability(durability).unwrap();
+    txn.set_durability(durability);
     let pairs = random_data(100, 16, 20);
     {
         let mut table = txn.open_table(SLICE_TABLE).unwrap();
@@ -193,45 +192,37 @@ fn test_persistence(durability: Durability) {
 }
 
 #[test]
+fn eventual_persistence() {
+    test_persistence(Durability::Eventual);
+}
+
+#[test]
 fn immediate_persistence() {
     test_persistence(Durability::Immediate);
 }
 
 #[test]
-fn immediate_free() {
-    test_free(Durability::Immediate);
-}
-
-#[test]
-fn nondurable_free() {
-    test_free(Durability::None);
-}
-
-fn test_free(durability: Durability) {
+fn free() {
     let tmpfile = create_tempfile();
 
     let db = Database::create(tmpfile.path()).unwrap();
-    let mut txn = db.begin_write().unwrap();
-    txn.set_durability(durability).unwrap();
+    let txn = db.begin_write().unwrap();
     {
         let _table = txn.open_table(SLICE_TABLE).unwrap();
         let mut table = txn.open_table(SLICE_TABLE2).unwrap();
         table.insert([].as_slice(), [].as_slice()).unwrap();
     }
     txn.commit().unwrap();
-    let mut txn = db.begin_write().unwrap();
-    txn.set_durability(durability).unwrap();
+    let txn = db.begin_write().unwrap();
     {
         let mut table = txn.open_table(SLICE_TABLE2).unwrap();
         table.remove([].as_slice()).unwrap();
     }
     txn.commit().unwrap();
-    let mut txn = db.begin_write().unwrap();
-    txn.set_durability(durability).unwrap();
+    let txn = db.begin_write().unwrap();
     txn.commit().unwrap();
 
-    let mut txn = db.begin_write().unwrap();
-    txn.set_durability(durability).unwrap();
+    let txn = db.begin_write().unwrap();
     let allocated_pages = txn.stats().unwrap().allocated_pages();
 
     let key = vec![0; 100];
@@ -256,8 +247,7 @@ fn test_free(durability: Durability) {
         let key_range: Vec<usize> = (0..num_writes).collect();
         // Delete in chunks to be sure that we don't run out of pages due to temp allocations
         for chunk in key_range.chunks(10) {
-            let mut txn = db.begin_write().unwrap();
-            txn.set_durability(durability).unwrap();
+            let txn = db.begin_write().unwrap();
             {
                 let mut table = txn.open_table(SLICE_TABLE).unwrap();
                 for i in chunk {
@@ -271,81 +261,11 @@ fn test_free(durability: Durability) {
     }
 
     // Extra commit to finalize the cleanup of the freed pages
-    let mut txn = db.begin_write().unwrap();
-    txn.set_durability(durability).unwrap();
+    let txn = db.begin_write().unwrap();
     txn.commit().unwrap();
-    let mut txn = db.begin_write().unwrap();
-    txn.set_durability(durability).unwrap();
+    let txn = db.begin_write().unwrap();
     assert_eq!(allocated_pages, txn.stats().unwrap().allocated_pages());
     txn.abort().unwrap();
-}
-
-#[test]
-fn nondurable_live_and_free() {
-    let tmpfile = create_tempfile();
-    let db = Database::create(tmpfile.path()).unwrap();
-    let txn = db.begin_write().unwrap();
-    {
-        let mut table = txn.open_table(U64_TABLE).unwrap();
-        table.insert(0, 0).unwrap();
-    }
-    txn.commit().unwrap();
-    let txn = db.begin_write().unwrap();
-    {
-        let mut table = txn.open_table(U64_TABLE).unwrap();
-        table.remove(0).unwrap();
-    }
-    txn.commit().unwrap();
-    // Process frees
-    let txn = db.begin_write().unwrap();
-    txn.commit().unwrap();
-    let txn = db.begin_write().unwrap();
-    txn.commit().unwrap();
-    let txn = db.begin_write().unwrap();
-    let allocated_pages = txn.stats().unwrap().allocated_pages();
-    txn.abort().unwrap();
-
-    let mut txn = db.begin_write().unwrap();
-    txn.set_durability(Durability::None).unwrap();
-    {
-        let mut table = txn.open_table(U64_TABLE).unwrap();
-        table.insert(0, 1).unwrap();
-    }
-    txn.commit().unwrap();
-    let read_txn = db.begin_read().unwrap();
-
-    for i in 0..5 {
-        let mut txn = db.begin_write().unwrap();
-        txn.set_durability(Durability::None).unwrap();
-        {
-            let mut table = txn.open_table(U64_TABLE).unwrap();
-            table.insert(0, i).unwrap();
-        }
-        txn.commit().unwrap();
-    }
-
-    {
-        let table = read_txn.open_table(U64_TABLE).unwrap();
-        assert_eq!(table.get(0).unwrap().unwrap().value(), 1);
-    }
-    drop(read_txn);
-
-    let mut txn = db.begin_write().unwrap();
-    txn.set_durability(Durability::None).unwrap();
-    {
-        let mut table = txn.open_table(U64_TABLE).unwrap();
-        table.remove(0).unwrap();
-    }
-    txn.commit().unwrap();
-
-    let mut txn = db.begin_write().unwrap();
-    txn.set_durability(Durability::None).unwrap();
-    txn.commit().unwrap();
-
-    let txn = db.begin_write().unwrap();
-    // allocated * 2, because we can't free the original persisted pages
-    // + 2, because now we need freed trees to store those original pages to be freed
-    assert!(txn.stats().unwrap().allocated_pages() <= allocated_pages * 2 + 2);
 }
 
 #[test]
@@ -414,29 +334,6 @@ fn value_too_large() {
     let txn = db.begin_read().unwrap();
     let table = txn.open_table(SLICE_TABLE).unwrap();
     assert!(table.is_empty().unwrap());
-}
-
-#[test]
-fn small_db_is_small_file() {
-    let tmpfile = create_tempfile();
-    const TABLE: TableDefinition<u32, u32> = TableDefinition::new("TABLE");
-
-    let mut db = Database::create(tmpfile.path()).unwrap();
-    let wtx = db.begin_write().unwrap();
-    let mut table = wtx.open_table(TABLE).unwrap();
-    table.insert(0, 0).unwrap();
-    drop(table);
-    wtx.commit().unwrap();
-
-    db.compact().unwrap();
-
-    drop(db);
-    let metadata = tmpfile.as_file().metadata().unwrap();
-    assert!(
-        metadata.len() < 40 * 1024,
-        "File size: {:?}",
-        metadata.len()
-    );
 }
 
 #[test]
@@ -707,7 +604,7 @@ fn regression7() {
     tx.commit().unwrap();
 
     let mut tx = db.begin_write().unwrap();
-    tx.set_durability(Durability::None).unwrap();
+    tx.set_durability(Durability::None);
     {
         let mut t = tx.open_table(table_def).unwrap();
         let v = vec![0u8; 47];
@@ -740,7 +637,7 @@ fn regression8() {
     let table_def: TableDefinition<u64, &[u8]> = TableDefinition::new("x");
 
     let mut tx = db.begin_write().unwrap();
-    tx.set_durability(Durability::None).unwrap();
+    tx.set_durability(Durability::None);
     {
         let mut t = tx.open_table(table_def).unwrap();
         let v = vec![0u8; 1186];
@@ -897,7 +794,7 @@ fn regression13() {
     let table_def: MultimapTableDefinition<u64, &[u8]> = MultimapTableDefinition::new("x");
 
     let mut tx = db.begin_write().unwrap();
-    tx.set_durability(Durability::None).unwrap();
+    tx.set_durability(Durability::None);
     {
         let mut t = tx.open_multimap_table(table_def).unwrap();
         let value = vec![0; 1026];
@@ -917,7 +814,7 @@ fn regression14() {
     let table_def: MultimapTableDefinition<u64, &[u8]> = MultimapTableDefinition::new("x");
 
     let mut tx = db.begin_write().unwrap();
-    tx.set_durability(Durability::None).unwrap();
+    tx.set_durability(Durability::None);
     {
         let mut t = tx.open_multimap_table(table_def).unwrap();
         let value = vec![0; 1424];
@@ -926,7 +823,7 @@ fn regression14() {
     tx.commit().unwrap();
 
     let mut tx = db.begin_write().unwrap();
-    tx.set_durability(Durability::None).unwrap();
+    tx.set_durability(Durability::None);
     {
         let mut t = tx.open_multimap_table(table_def).unwrap();
         let value = vec![0; 2230];
@@ -956,7 +853,7 @@ fn regression17() {
     let table_def: TableDefinition<u64, &[u8]> = TableDefinition::new("x");
 
     let mut tx = db.begin_write().unwrap();
-    tx.set_durability(Durability::None).unwrap();
+    tx.set_durability(Durability::None);
     {
         let mut t = tx.open_table(table_def).unwrap();
         let value = vec![0; 4578];
@@ -1296,52 +1193,6 @@ fn regression24() {
 }
 
 #[test]
-fn regression25() {
-    let tmpfile = create_tempfile();
-    let table_def: TableDefinition<u16, (u64, u64, u64, u64)> = TableDefinition::new("issue_1108");
-
-    let db = Database::create(tmpfile.path()).unwrap();
-    for i in 0..2730u16 {
-        let txn = db.begin_write().unwrap();
-        {
-            let mut table = txn.open_table(table_def).unwrap();
-            for j in 0..24u16 {
-                let key: u16 = i * 24 + j;
-                let value = key as u64;
-                table.insert(key, (value, value, value, value)).unwrap();
-            }
-        }
-        txn.commit().unwrap();
-    }
-}
-
-#[test]
-fn regression26() {
-    let tmpfile = create_tempfile();
-    let table_def: TableDefinition<u64, (&str, &[u8])> = TableDefinition::new("issue_1117");
-
-    let db = Database::create(tmpfile.path()).unwrap();
-
-    let txn = db.begin_write().unwrap();
-    {
-        let mut table = txn.open_table(table_def).unwrap();
-        table.insert(0, ("name", &[0u8][..])).unwrap();
-    }
-    txn.commit().unwrap();
-
-    {
-        let txn = db.begin_write().unwrap();
-        let mut table = txn.open_table(table_def).unwrap();
-        let mut access = table.get_mut(&0).unwrap().unwrap();
-        let name = access.value().0.to_string();
-        let large_value = vec![1u8; 8192];
-        access.insert((&name[..], large_value.as_slice())).unwrap();
-        drop(table);
-        txn.commit().unwrap();
-    }
-}
-
-#[test]
 fn check_integrity_clean() {
     let tmpfile = create_tempfile();
 
@@ -1380,7 +1231,7 @@ fn multimap_stats() {
     let mut last_size = 0;
     for i in 0..1000 {
         let mut txn = db.begin_write().unwrap();
-        txn.set_durability(Durability::None).unwrap();
+        txn.set_durability(Durability::None);
         let mut table = txn.open_multimap_table(table_def).unwrap();
         table.insert(0, i).unwrap();
         drop(table);
@@ -1391,21 +1242,6 @@ fn multimap_stats() {
         assert!(bytes > last_size, "{i}");
         last_size = bytes;
     }
-}
-
-#[test]
-fn no_downgrade_durability_with_savepoint() {
-    let tmpfile = create_tempfile();
-
-    let db = Database::create(tmpfile.path()).unwrap();
-
-    let mut tx = db.begin_write().unwrap();
-    tx.persistent_savepoint().unwrap();
-    assert!(matches!(
-        tx.set_durability(Durability::None),
-        Err(SetDurabilityError::PersistentSavepointModified)
-    ));
-    assert!(matches!(tx.set_durability(Durability::Immediate), Ok(())));
 }
 
 #[test]
@@ -1439,7 +1275,7 @@ fn non_durable_read_isolation() {
     let tmpfile = create_tempfile();
     let db = Database::create(tmpfile.path()).unwrap();
     let mut write_txn = db.begin_write().unwrap();
-    write_txn.set_durability(Durability::None).unwrap();
+    write_txn.set_durability(Durability::None);
     {
         let mut table = write_txn.open_table(STR_TABLE).unwrap();
         table.insert("hello", "world").unwrap();
@@ -1451,7 +1287,7 @@ fn non_durable_read_isolation() {
     assert_eq!("world", read_table.get("hello").unwrap().unwrap().value());
 
     let mut write_txn = db.begin_write().unwrap();
-    write_txn.set_durability(Durability::None).unwrap();
+    write_txn.set_durability(Durability::None);
     {
         let mut table = write_txn.open_table(STR_TABLE).unwrap();
         table.remove("hello").unwrap();
@@ -1971,25 +1807,22 @@ struct DelegatingTable<K: Key + 'static, V: Value + 'static, T: ReadableTable<K,
 impl<K: Key + 'static, V: Value + 'static, T: ReadableTable<K, V>> ReadableTable<K, V>
     for DelegatingTable<K, V, T>
 {
-    fn get<'a>(
-        &self,
-        key: impl Borrow<K::SelfType<'a>>,
-    ) -> redb::Result<Option<AccessGuard<'_, V>>> {
+    fn get<'a>(&self, key: impl Borrow<K::SelfType<'a>>) -> redb::Result<Option<AccessGuard<V>>> {
         self.inner.get(key)
     }
 
-    fn range<'a, KR>(&self, range: impl RangeBounds<KR> + 'a) -> redb::Result<Range<'_, K, V>>
+    fn range<'a, KR>(&self, range: impl RangeBounds<KR> + 'a) -> redb::Result<Range<K, V>>
     where
         KR: Borrow<K::SelfType<'a>> + 'a,
     {
         self.inner.range(range)
     }
 
-    fn first(&self) -> redb::Result<Option<(AccessGuard<'_, K>, AccessGuard<'_, V>)>> {
+    fn first(&self) -> redb::Result<Option<(AccessGuard<K>, AccessGuard<V>)>> {
         self.inner.first()
     }
 
-    fn last(&self) -> redb::Result<Option<(AccessGuard<'_, K>, AccessGuard<'_, V>)>> {
+    fn last(&self) -> redb::Result<Option<(AccessGuard<K>, AccessGuard<V>)>> {
         self.inner.last()
     }
 }
@@ -2015,14 +1848,11 @@ struct DelegatingMultimapTable<K: Key + 'static, V: Key + 'static, T: ReadableMu
 impl<K: Key + 'static, V: Key + 'static, T: ReadableMultimapTable<K, V>> ReadableMultimapTable<K, V>
     for DelegatingMultimapTable<K, V, T>
 {
-    fn get<'a>(&self, key: impl Borrow<K::SelfType<'a>>) -> redb::Result<MultimapValue<'_, V>> {
+    fn get<'a>(&self, key: impl Borrow<K::SelfType<'a>>) -> redb::Result<MultimapValue<V>> {
         self.inner.get(key)
     }
 
-    fn range<'a, KR>(
-        &self,
-        range: impl RangeBounds<KR> + 'a,
-    ) -> redb::Result<MultimapRange<'_, K, V>>
+    fn range<'a, KR>(&self, range: impl RangeBounds<KR> + 'a) -> redb::Result<MultimapRange<K, V>>
     where
         KR: Borrow<K::SelfType<'a>> + 'a,
     {

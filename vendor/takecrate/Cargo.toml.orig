@@ -1,0 +1,71 @@
+[workspace]
+members = ["xtask"]
+
+[package]
+name = "takecrate"
+version = "1.1.1"
+edition = "2021"
+license = "MPL-2.0"
+authors = ["Christopher Foo", "Takecrate contributors"]
+description = "Adds installer functionality to standalone binaries for distribution of CLI applications"
+categories = ["command-line-interface"]
+keywords = ["installer", "cli"]
+repository = "https://github.com/chfoo/takecrate"
+rust-version = "1.80"
+exclude = [
+    ".cargo/config.toml",
+    ".github/ISSUE_TEMPLATE",
+    ".github/pull_request_template.md",
+    ".github/workflows",
+]
+
+[features]
+default = ["ui", "i18n", "i18n-static"]
+
+## Enables the terminal user interface
+ui = ["dep:cursive"]
+## Enables internationalization and localization (globalization) support
+i18n = ["dep:fluent-bundle", "dep:fluent-templates", "dep:sys-locale"]
+## Enables builtin language translation files.
+i18n-static = ["i18n"]
+## Enables support for custom language translations.
+i18n-custom = ["i18n"]
+## Enables Cursive themes API which exposes "unstable" dependency types.
+ui-theme = []
+
+[dependencies]
+crc32c = "0.6.8"
+cursive = { version = "0.21.1", optional = true }
+fluent-bundle = { version = "0.15.3", optional = true }
+fluent-templates = { version = "0.13.0", optional = true }
+ron = "0.10.1"
+self-replace = "1.5.0"
+serde = { version = "1.0.210", features = ["derive"] }
+sys-locale = { version = "0.3.1", optional = true }
+tempfile = "3.13.0"
+thiserror = "2.0.0"
+tracing = "0.1.40"
+uuid = { version = "1.10.0", features = ["serde", "v5"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-registry = "0.5.3"
+windows-result = "0.3.4"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.159"
+
+[dev-dependencies]
+anyhow = "1.0.89"
+clap = { version = "4.5.18", features = ["derive"] }
+regex-lite = "0.1.6"
+test-log = { version = "0.2.16", features = ["trace"] }
+tracing-subscriber = "0.3.18"
+whoami = "1.5.2"
+
+[lints.rust]
+missing-docs = "warn"
+
+# https://users.rust-lang.org/t/how-to-document-optional-features-in-api-docs/64577/3
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

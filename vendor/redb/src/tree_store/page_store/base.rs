@@ -5,7 +5,6 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::{Debug, Formatter};
-use std::hash::{Hash, Hasher};
 use std::mem;
 use std::ops::Range;
 use std::sync::Arc;
@@ -15,7 +14,6 @@ use std::sync::Mutex;
 pub(crate) const MAX_VALUE_LENGTH: usize = 3 * 1024 * 1024 * 1024;
 pub(crate) const MAX_PAIR_LENGTH: usize = 3 * 1024 * 1024 * 1024 + 768 * 1024 * 1024;
 pub(crate) const MAX_PAGE_INDEX: u32 = 0x000F_FFFF;
-pub(crate) const MAX_REGIONS: u32 = 0x0010_0000;
 
 // On-disk format is:
 // TODO: consider implementing an optimization in which we store the number of order-0 pages that
@@ -28,22 +26,11 @@ pub(crate) const MAX_REGIONS: u32 = 0x0010_0000;
 // highest 5bits: page order exponent
 //
 // Assuming a reasonable page size, like 4kiB, this allows for 4kiB * 2^20 * 2^20 = 4PiB of usable space
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub(crate) struct PageNumber {
     pub(crate) region: u32,
     pub(crate) page_index: u32,
     pub(crate) page_order: u8,
-}
-
-impl Hash for PageNumber {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        // TODO: maybe we should store these fields as a single u64 in PageNumber. The field access
-        // will be a little more expensive, but I think it's less frequent than these hashes
-        let mut temp = 0x000F_FFFF & u64::from(self.page_index);
-        temp |= (0x000F_FFFF & u64::from(self.region)) << 20;
-        temp |= (0b0001_1111 & u64::from(self.page_order)) << 59;
-        state.write_u64(temp);
-    }
 }
 
 // PageNumbers are ordered as determined by their starting address in the database file
@@ -72,6 +59,7 @@ impl PartialOrd for PageNumber {
 }
 
 impl PageNumber {
+    #[inline(always)]
     pub(crate) const fn serialized_size() -> usize {
         8
     }
@@ -105,6 +93,20 @@ impl PageNumber {
             page_index: index,
             page_order: order,
         }
+    }
+
+    // Returns true if this PageNumber is before the other PageNumber in the file layout
+    pub(crate) fn is_before(&self, other: PageNumber) -> bool {
+        if self.region < other.region {
+            return true;
+        }
+        if self.region > other.region {
+            return false;
+        }
+        let self_order0 = self.page_index * 2u32.pow(self.page_order.into());
+        let other_order0 = other.page_index * 2u32.pow(other.page_order.into());
+        assert_ne!(self_order0, other_order0, "{self:?} overlaps {other:?}");
+        self_order0 < other_order0
     }
 
     #[cfg(test)]

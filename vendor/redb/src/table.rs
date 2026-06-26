@@ -1,12 +1,11 @@
 use crate::db::TransactionGuard;
 use crate::sealed::Sealed;
 use crate::tree_store::{
-    AccessGuardMutInPlace, Btree, BtreeExtractIf, BtreeHeader, BtreeMut, BtreeRangeIter,
-    MAX_PAIR_LENGTH, MAX_VALUE_LENGTH, PageHint, PageNumber, PageTrackerPolicy, RawBtree,
-    TransactionalMemory,
+    AccessGuardMut, Btree, BtreeExtractIf, BtreeHeader, BtreeMut, BtreeRangeIter, MAX_PAIR_LENGTH,
+    MAX_VALUE_LENGTH, PageHint, PageNumber, PageTrackerPolicy, RawBtree, TransactionalMemory,
 };
 use crate::types::{Key, MutInPlaceValue, Value};
-use crate::{AccessGuard, AccessGuardMut, StorageError, WriteTransaction};
+use crate::{AccessGuard, StorageError, WriteTransaction};
 use crate::{Result, TableHandle};
 use std::borrow::Borrow;
 use std::fmt::{Debug, Formatter};
@@ -98,16 +97,8 @@ impl<'txn, K: Key + 'static, V: Value + 'static> Table<'txn, K, V> {
         self.tree.print_debug(include_values)
     }
 
-    /// Returns an accessor, which allows mutation, to the value corresponding to the given key
-    pub fn get_mut<'k>(
-        &mut self,
-        key: impl Borrow<K::SelfType<'k>>,
-    ) -> Result<Option<AccessGuardMut<'_, V>>> {
-        self.tree.get_mut(key.borrow())
-    }
-
     /// Removes and returns the first key-value pair in the table
-    pub fn pop_first(&mut self) -> Result<Option<(AccessGuard<'_, K>, AccessGuard<'_, V>)>> {
+    pub fn pop_first(&mut self) -> Result<Option<(AccessGuard<K>, AccessGuard<V>)>> {
         // TODO: optimize this
         let first = self
             .iter()?
@@ -125,7 +116,7 @@ impl<'txn, K: Key + 'static, V: Value + 'static> Table<'txn, K, V> {
     }
 
     /// Removes and returns the last key-value pair in the table
-    pub fn pop_last(&mut self) -> Result<Option<(AccessGuard<'_, K>, AccessGuard<'_, V>)>> {
+    pub fn pop_last(&mut self) -> Result<Option<(AccessGuard<K>, AccessGuard<V>)>> {
         // TODO: optimize this
         let last = self
             .iter()?
@@ -149,7 +140,7 @@ impl<'txn, K: Key + 'static, V: Value + 'static> Table<'txn, K, V> {
     pub fn extract_if<F: for<'f> FnMut(K::SelfType<'f>, V::SelfType<'f>) -> bool>(
         &mut self,
         predicate: F,
-    ) -> Result<ExtractIf<'_, K, V, F>> {
+    ) -> Result<ExtractIf<K, V, F>> {
         self.extract_from_if::<K::SelfType<'_>, F>(.., predicate)
     }
 
@@ -161,7 +152,7 @@ impl<'txn, K: Key + 'static, V: Value + 'static> Table<'txn, K, V> {
         &mut self,
         range: impl RangeBounds<KR> + 'a,
         predicate: F,
-    ) -> Result<ExtractIf<'_, K, V, F>>
+    ) -> Result<ExtractIf<K, V, F>>
     where
         KR: Borrow<K::SelfType<'a>> + 'a,
     {
@@ -203,7 +194,7 @@ impl<'txn, K: Key + 'static, V: Value + 'static> Table<'txn, K, V> {
         &mut self,
         key: impl Borrow<K::SelfType<'k>>,
         value: impl Borrow<V::SelfType<'v>>,
-    ) -> Result<Option<AccessGuard<'_, V>>> {
+    ) -> Result<Option<AccessGuard<V>>> {
         let value_len = V::as_bytes(value.borrow()).as_ref().len();
         if value_len > MAX_VALUE_LENGTH {
             return Err(StorageError::ValueTooLarge(value_len));
@@ -224,7 +215,7 @@ impl<'txn, K: Key + 'static, V: Value + 'static> Table<'txn, K, V> {
     pub fn remove<'a>(
         &mut self,
         key: impl Borrow<K::SelfType<'a>>,
-    ) -> Result<Option<AccessGuard<'_, V>>> {
+    ) -> Result<Option<AccessGuard<V>>> {
         self.tree.remove(key.borrow())
     }
 }
@@ -235,24 +226,20 @@ impl<K: Key + 'static, V: MutInPlaceValue + 'static> Table<'_, K, V> {
     /// If key is already present it is replaced
     ///
     /// The returned reference will have length equal to `value_length`
-    #[deprecated(
-        since = "3.1.3",
-        note = "The returned guard must be dropped before the transaction commits, otherwise data loss may occur. This is fixed in the 4.0 release."
-    )]
     pub fn insert_reserve<'a>(
         &mut self,
         key: impl Borrow<K::SelfType<'a>>,
-        value_length: usize,
-    ) -> Result<AccessGuardMutInPlace<'_, V>> {
-        if value_length > MAX_VALUE_LENGTH {
-            return Err(StorageError::ValueTooLarge(value_length));
+        value_length: u32,
+    ) -> Result<AccessGuardMut<V>> {
+        if value_length as usize > MAX_VALUE_LENGTH {
+            return Err(StorageError::ValueTooLarge(value_length as usize));
         }
         let key_len = K::as_bytes(key.borrow()).as_ref().len();
         if key_len > MAX_VALUE_LENGTH {
             return Err(StorageError::ValueTooLarge(key_len));
         }
-        if value_length + key_len > MAX_PAIR_LENGTH {
-            return Err(StorageError::ValueTooLarge(value_length + key_len));
+        if value_length as usize + key_len > MAX_PAIR_LENGTH {
+            return Err(StorageError::ValueTooLarge(value_length as usize + key_len));
         }
         self.tree.insert_reserve(key.borrow(), value_length)
     }
@@ -278,11 +265,11 @@ impl<K: Key + 'static, V: Value + 'static> ReadableTableMetadata for Table<'_, K
 }
 
 impl<K: Key + 'static, V: Value + 'static> ReadableTable<K, V> for Table<'_, K, V> {
-    fn get<'a>(&self, key: impl Borrow<K::SelfType<'a>>) -> Result<Option<AccessGuard<'_, V>>> {
+    fn get<'a>(&self, key: impl Borrow<K::SelfType<'a>>) -> Result<Option<AccessGuard<V>>> {
         self.tree.get(key.borrow())
     }
 
-    fn range<'a, KR>(&self, range: impl RangeBounds<KR> + 'a) -> Result<Range<'_, K, V>>
+    fn range<'a, KR>(&self, range: impl RangeBounds<KR> + 'a) -> Result<Range<K, V>>
     where
         KR: Borrow<K::SelfType<'a>> + 'a,
     {
@@ -291,11 +278,11 @@ impl<K: Key + 'static, V: Value + 'static> ReadableTable<K, V> for Table<'_, K, 
             .map(|x| Range::new(x, self.transaction.transaction_guard()))
     }
 
-    fn first(&self) -> Result<Option<(AccessGuard<'_, K>, AccessGuard<'_, V>)>> {
+    fn first(&self) -> Result<Option<(AccessGuard<K>, AccessGuard<V>)>> {
         self.tree.first()
     }
 
-    fn last(&self) -> Result<Option<(AccessGuard<'_, K>, AccessGuard<'_, V>)>> {
+    fn last(&self) -> Result<Option<(AccessGuard<K>, AccessGuard<V>)>> {
         self.tree.last()
     }
 }
@@ -376,7 +363,7 @@ pub trait ReadableTableMetadata {
 
 pub trait ReadableTable<K: Key + 'static, V: Value + 'static>: ReadableTableMetadata {
     /// Returns the value corresponding to the given key
-    fn get<'a>(&self, key: impl Borrow<K::SelfType<'a>>) -> Result<Option<AccessGuard<'_, V>>>;
+    fn get<'a>(&self, key: impl Borrow<K::SelfType<'a>>) -> Result<Option<AccessGuard<V>>>;
 
     /// Returns a double-ended iterator over a range of elements in the table
     ///
@@ -389,10 +376,7 @@ pub trait ReadableTable<K: Key + 'static, V: Value + 'static>: ReadableTableMeta
     /// const TABLE: TableDefinition<&str, u64> = TableDefinition::new("my_data");
     ///
     /// # fn main() -> Result<(), Error> {
-    /// # #[cfg(not(target_os = "wasi"))]
-    /// # let tmpfile = NamedTempFile::new().unwrap();
-    /// # #[cfg(target_os = "wasi")]
-    /// # let tmpfile = NamedTempFile::new_in("/tmp").unwrap();
+    /// # let tmpfile: NamedTempFile = NamedTempFile::new().unwrap();
     /// # let filename = tmpfile.path();
     /// let db = Database::create(filename)?;
     /// let write_txn = db.begin_write()?;
@@ -413,18 +397,18 @@ pub trait ReadableTable<K: Key + 'static, V: Value + 'static>: ReadableTableMeta
     /// # Ok(())
     /// # }
     /// ```
-    fn range<'a, KR>(&self, range: impl RangeBounds<KR> + 'a) -> Result<Range<'_, K, V>>
+    fn range<'a, KR>(&self, range: impl RangeBounds<KR> + 'a) -> Result<Range<K, V>>
     where
         KR: Borrow<K::SelfType<'a>> + 'a;
 
     /// Returns the first key-value pair in the table, if it exists
-    fn first(&self) -> Result<Option<(AccessGuard<'_, K>, AccessGuard<'_, V>)>>;
+    fn first(&self) -> Result<Option<(AccessGuard<K>, AccessGuard<V>)>>;
 
     /// Returns the last key-value pair in the table, if it exists
-    fn last(&self) -> Result<Option<(AccessGuard<'_, K>, AccessGuard<'_, V>)>>;
+    fn last(&self) -> Result<Option<(AccessGuard<K>, AccessGuard<V>)>>;
 
     /// Returns a double-ended iterator over all elements in the table
-    fn iter(&self) -> Result<Range<'_, K, V>> {
+    fn iter(&self) -> Result<Range<K, V>> {
         self.range::<K::SelfType<'_>>(..)
     }
 }
@@ -497,8 +481,6 @@ impl<K: Key + 'static, V: Value + 'static> ReadOnlyTable<K, V> {
         })
     }
 
-    /// This method is like [`ReadableTable::get()`], but the [`AccessGuard`] is reference counted
-    /// and keeps the transaction alive until it is dropped.
     pub fn get<'a>(
         &self,
         key: impl Borrow<K::SelfType<'a>>,
@@ -538,11 +520,11 @@ impl<K: Key + 'static, V: Value + 'static> ReadableTableMetadata for ReadOnlyTab
 }
 
 impl<K: Key + 'static, V: Value + 'static> ReadableTable<K, V> for ReadOnlyTable<K, V> {
-    fn get<'a>(&self, key: impl Borrow<K::SelfType<'a>>) -> Result<Option<AccessGuard<'_, V>>> {
+    fn get<'a>(&self, key: impl Borrow<K::SelfType<'a>>) -> Result<Option<AccessGuard<V>>> {
         self.tree.get(key.borrow())
     }
 
-    fn range<'a, KR>(&self, range: impl RangeBounds<KR> + 'a) -> Result<Range<'_, K, V>>
+    fn range<'a, KR>(&self, range: impl RangeBounds<KR> + 'a) -> Result<Range<K, V>>
     where
         KR: Borrow<K::SelfType<'a>> + 'a,
     {
@@ -551,11 +533,11 @@ impl<K: Key + 'static, V: Value + 'static> ReadableTable<K, V> for ReadOnlyTable
             .map(|x| Range::new(x, self.transaction_guard.clone()))
     }
 
-    fn first(&self) -> Result<Option<(AccessGuard<'_, K>, AccessGuard<'_, V>)>> {
+    fn first(&self) -> Result<Option<(AccessGuard<K>, AccessGuard<V>)>> {
         self.tree.first()
     }
 
-    fn last(&self) -> Result<Option<(AccessGuard<'_, K>, AccessGuard<'_, V>)>> {
+    fn last(&self) -> Result<Option<(AccessGuard<K>, AccessGuard<V>)>> {
         self.tree.last()
     }
 }

@@ -9,7 +9,7 @@ use crate::tree_store::{
     Btree, BtreeMut, BtreeRangeIter, InternalTableDefinition, PageHint, PageNumber, PagePath,
     PageTrackerPolicy, RawBtree, TableType, TransactionalMemory,
 };
-use crate::types::{Key, Value};
+use crate::types::{Key, MutInPlaceValue, TypeName, Value};
 use crate::{DatabaseStats, Result};
 use std::cmp::max;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -17,6 +17,95 @@ use std::mem::size_of;
 use std::ops::RangeFull;
 use std::sync::{Arc, Mutex};
 use std::{mem, thread};
+
+// TODO: remove this struct in 3.0 release
+#[derive(Debug)]
+pub(crate) struct FreedTableKey {
+    pub(crate) transaction_id: u64,
+    pub(crate) pagination_id: u64,
+}
+
+impl Value for FreedTableKey {
+    type SelfType<'a>
+        = FreedTableKey
+    where
+        Self: 'a;
+    type AsBytes<'a>
+        = [u8; 2 * size_of::<u64>()]
+    where
+        Self: 'a;
+
+    fn fixed_width() -> Option<usize> {
+        Some(2 * size_of::<u64>())
+    }
+
+    fn from_bytes<'a>(data: &'a [u8]) -> Self
+    where
+        Self: 'a,
+    {
+        let transaction_id = u64::from_le_bytes(data[..size_of::<u64>()].try_into().unwrap());
+        let pagination_id = u64::from_le_bytes(data[size_of::<u64>()..].try_into().unwrap());
+        Self {
+            transaction_id,
+            pagination_id,
+        }
+    }
+
+    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> [u8; 2 * size_of::<u64>()]
+    where
+        Self: 'b,
+    {
+        let mut result = [0u8; 2 * size_of::<u64>()];
+        result[..size_of::<u64>()].copy_from_slice(&value.transaction_id.to_le_bytes());
+        result[size_of::<u64>()..].copy_from_slice(&value.pagination_id.to_le_bytes());
+        result
+    }
+
+    fn type_name() -> TypeName {
+        TypeName::internal("redb::FreedTableKey")
+    }
+}
+
+impl Key for FreedTableKey {
+    fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
+        let value1 = Self::from_bytes(data1);
+        let value2 = Self::from_bytes(data2);
+
+        match value1.transaction_id.cmp(&value2.transaction_id) {
+            std::cmp::Ordering::Greater => std::cmp::Ordering::Greater,
+            std::cmp::Ordering::Equal => value1.pagination_id.cmp(&value2.pagination_id),
+            std::cmp::Ordering::Less => std::cmp::Ordering::Less,
+        }
+    }
+}
+
+// Format:
+// 2 bytes: length
+// length * size_of(PageNumber): array of page numbers
+// TODO: remove this struct in 3.0 release
+#[derive(Debug)]
+pub(crate) struct FreedPageList<'a> {
+    data: &'a [u8],
+}
+
+impl FreedPageList<'_> {
+    pub(crate) fn required_bytes(len: usize) -> usize {
+        2 + PageNumber::serialized_size() * len
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        u16::from_le_bytes(self.data[..size_of::<u16>()].try_into().unwrap()).into()
+    }
+
+    pub(crate) fn get(&self, index: usize) -> PageNumber {
+        let start = size_of::<u16>() + PageNumber::serialized_size() * index;
+        PageNumber::from_le_bytes(
+            self.data[start..(start + PageNumber::serialized_size())]
+                .try_into()
+                .unwrap(),
+        )
+    }
+}
 
 #[derive(Debug)]
 #[repr(transparent)]
@@ -36,6 +125,53 @@ impl PageListMut {
 
     pub(crate) fn clear(&mut self) {
         self.data[..size_of::<u16>()].fill(0);
+    }
+}
+
+impl Value for FreedPageList<'_> {
+    type SelfType<'a>
+        = FreedPageList<'a>
+    where
+        Self: 'a;
+    type AsBytes<'a>
+        = &'a [u8]
+    where
+        Self: 'a;
+
+    fn fixed_width() -> Option<usize> {
+        None
+    }
+
+    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+    where
+        Self: 'a,
+    {
+        FreedPageList { data }
+    }
+
+    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> &'b [u8]
+    where
+        Self: 'b,
+    {
+        value.data
+    }
+
+    fn type_name() -> TypeName {
+        TypeName::internal("redb::FreedPageList")
+    }
+}
+
+impl MutInPlaceValue for FreedPageList<'_> {
+    type BaseRefType = PageListMut;
+
+    fn initialize(data: &mut [u8]) {
+        assert!(data.len() >= 8);
+        // Set the length to zero
+        data[..8].fill(0);
+    }
+
+    fn from_bytes_mut(data: &mut [u8]) -> &mut Self::BaseRefType {
+        unsafe { &mut *(std::ptr::from_mut::<[u8]>(data) as *mut PageListMut) }
     }
 }
 
@@ -84,54 +220,6 @@ impl TableTree {
 
     pub(crate) fn transaction_guard(&self) -> &Arc<TransactionGuard> {
         self.tree.transaction_guard()
-    }
-
-    pub(crate) fn verify_checksums(&self) -> Result<bool> {
-        if !self.tree.verify_checksum()? {
-            return Ok(false);
-        }
-
-        for entry in self.tree.range::<RangeFull, &str>(&(..))? {
-            let entry = entry?;
-            let definition = entry.value();
-            match definition {
-                InternalTableDefinition::Normal {
-                    table_root,
-                    fixed_key_size,
-                    fixed_value_size,
-                    ..
-                } => {
-                    if let Some(header) = table_root
-                        && !RawBtree::new(
-                            Some(header),
-                            fixed_key_size,
-                            fixed_value_size,
-                            self.mem.clone(),
-                        )
-                        .verify_checksum()?
-                    {
-                        return Ok(false);
-                    }
-                }
-                InternalTableDefinition::Multimap {
-                    table_root,
-                    fixed_key_size,
-                    fixed_value_size,
-                    ..
-                } => {
-                    if !verify_tree_and_subtree_checksums(
-                        table_root,
-                        fixed_key_size,
-                        fixed_value_size,
-                        self.mem.clone(),
-                    )? {
-                        return Ok(false);
-                    }
-                }
-            }
-        }
-
-        Ok(true)
     }
 
     // root_page: the root of the master table
@@ -245,7 +333,6 @@ impl TableTreeMut<'_> {
         self.tree.set_root(root);
     }
 
-    #[cfg_attr(not(debug_assertions), expect(dead_code))]
     pub(crate) fn visit_all_pages<F>(&self, mut visitor: F) -> Result
     where
         F: FnMut(&PagePath) -> Result,
@@ -282,6 +369,56 @@ impl TableTreeMut<'_> {
     ) {
         self.pending_table_updates
             .insert(name.to_string(), (table_root, length));
+    }
+
+    pub(crate) fn verify_checksums(&self) -> Result<bool> {
+        assert!(self.pending_table_updates.is_empty());
+        if !self.tree.verify_checksum()? {
+            return Ok(false);
+        }
+
+        for entry in self.tree.range::<RangeFull, &str>(&(..))? {
+            let entry = entry?;
+            let definition = entry.value();
+            match definition {
+                InternalTableDefinition::Normal {
+                    table_root,
+                    fixed_key_size,
+                    fixed_value_size,
+                    ..
+                } => {
+                    if let Some(header) = table_root {
+                        if !RawBtree::new(
+                            Some(header),
+                            fixed_key_size,
+                            fixed_value_size,
+                            self.mem.clone(),
+                        )
+                        .verify_checksum()?
+                        {
+                            return Ok(false);
+                        }
+                    }
+                }
+                InternalTableDefinition::Multimap {
+                    table_root,
+                    fixed_key_size,
+                    fixed_value_size,
+                    ..
+                } => {
+                    if !verify_tree_and_subtree_checksums(
+                        table_root,
+                        fixed_key_size,
+                        fixed_value_size,
+                        self.mem.clone(),
+                    )? {
+                        return Ok(false);
+                    }
+                }
+            }
+        }
+
+        Ok(true)
     }
 
     pub(crate) fn clear_root_updates_and_close(&mut self) {
@@ -487,10 +624,10 @@ impl TableTreeMut<'_> {
         )?;
         let mut result = tree.get_table_untyped(name, table_type);
 
-        if let Ok(Some(definition)) = result.as_mut()
-            && let Some((updated_root, updated_length)) = self.pending_table_updates.get(name)
-        {
-            definition.set_header(*updated_root, *updated_length);
+        if let Ok(Some(definition)) = result.as_mut() {
+            if let Some((updated_root, updated_length)) = self.pending_table_updates.get(name) {
+                definition.set_header(*updated_root, *updated_length);
+            }
         }
 
         result
@@ -510,10 +647,10 @@ impl TableTreeMut<'_> {
         )?;
         let mut result = tree.get_table::<K, V>(name, table_type);
 
-        if let Ok(Some(definition)) = result.as_mut()
-            && let Some((updated_root, updated_length)) = self.pending_table_updates.get(name)
-        {
-            definition.set_header(*updated_root, *updated_length);
+        if let Ok(Some(definition)) = result.as_mut() {
+            if let Some((updated_root, updated_length)) = self.pending_table_updates.get(name) {
+                definition.set_header(*updated_root, *updated_length);
+            }
         }
 
         result
@@ -645,10 +782,8 @@ impl TableTreeMut<'_> {
                 self.freed_pages.clone(),
                 relocation_map,
             )? {
-                self.pending_table_updates.insert(
-                    entry.key().to_string(),
-                    (Some(new_root), definition.get_length()),
-                );
+                self.pending_table_updates
+                    .insert(entry.key().to_string(), (new_root, definition.get_length()));
             }
         }
 

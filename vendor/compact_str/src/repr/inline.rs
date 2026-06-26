@@ -1,15 +1,18 @@
 use core::ptr;
 
-use super::{
-    Repr,
-    LENGTH_MASK,
-    MAX_SIZE,
-};
+use super::{Repr, LENGTH_MASK, MAX_SIZE};
 
 /// A buffer stored on the stack whose size is equal to the stack size of `String`
-#[repr(transparent)]
-pub struct InlineBuffer(pub [u8; MAX_SIZE]);
+#[cfg(target_pointer_width = "64")]
+#[repr(C, align(8))]
+pub(crate) struct InlineBuffer(pub(crate) [u8; MAX_SIZE]);
+
+#[cfg(target_pointer_width = "32")]
+#[repr(C, align(4))]
+pub(crate) struct InlineBuffer(pub(crate) [u8; MAX_SIZE]);
+
 static_assertions::assert_eq_size!(InlineBuffer, Repr);
+static_assertions::assert_eq_align!(InlineBuffer, Repr);
 
 impl InlineBuffer {
     /// Construct a new [`InlineString`]. A string that lives in a small buffer on the stack
@@ -17,14 +20,14 @@ impl InlineBuffer {
     /// SAFETY:
     /// * The caller must guarantee that the length of `text` is less than [`MAX_SIZE`]
     #[inline]
-    pub unsafe fn new(text: &str) -> Self {
+    pub(crate) unsafe fn new(text: &str) -> Self {
         debug_assert!(text.len() <= MAX_SIZE);
 
         let len = text.len();
-        let mut buffer = [0u8; MAX_SIZE];
+        let mut buffer = InlineBuffer([0u8; MAX_SIZE]);
 
         // set the length in the last byte
-        buffer[MAX_SIZE - 1] = len as u8 | LENGTH_MASK;
+        buffer.0[MAX_SIZE - 1] = len as u8 | LENGTH_MASK;
 
         // copy the string into our buffer
         //
@@ -37,13 +40,13 @@ impl InlineBuffer {
         // * dst (`buffer`) is valid for `len` bytes because we assert src is less than MAX_SIZE
         // * src and dst don't overlap because we created dst
         //
-        ptr::copy_nonoverlapping(text.as_ptr(), buffer.as_mut_ptr(), len);
+        ptr::copy_nonoverlapping(text.as_ptr(), buffer.0.as_mut_ptr(), len);
 
-        InlineBuffer(buffer)
+        buffer
     }
 
     #[inline]
-    pub const fn new_const(text: &str) -> Self {
+    pub(crate) const fn new_const(text: &str) -> Self {
         if text.len() > MAX_SIZE {
             panic!("Provided string has a length greater than our MAX_SIZE");
         }
@@ -69,7 +72,7 @@ impl InlineBuffer {
 
     /// Returns an empty [`InlineBuffer`]
     #[inline(always)]
-    pub const fn empty() -> Self {
+    pub(crate) const fn empty() -> Self {
         Self::new_const("")
     }
 
@@ -77,7 +80,7 @@ impl InlineBuffer {
     /// string that it contains
     #[inline]
     #[cfg(feature = "smallvec")]
-    pub fn into_array(self) -> ([u8; MAX_SIZE], usize) {
+    pub(crate) fn into_array(self) -> ([u8; MAX_SIZE], usize) {
         let mut buffer = self.0;
 
         let length = core::cmp::min(
@@ -103,7 +106,7 @@ impl InlineBuffer {
     /// # SAFETY:
     /// * The caller must guarantee that `len` bytes in the buffer are valid UTF-8
     #[inline]
-    pub unsafe fn set_len(&mut self, len: usize) {
+    pub(crate) unsafe fn set_len(&mut self, len: usize) {
         debug_assert!(len <= MAX_SIZE);
 
         // If `length` == MAX_SIZE, then we infer the length to be the capacity of the buffer. We
@@ -113,20 +116,16 @@ impl InlineBuffer {
             self.0[MAX_SIZE - 1] = len as u8 | LENGTH_MASK;
         }
     }
-
-    #[inline(always)]
-    pub fn copy(&self) -> Self {
-        InlineBuffer(self.0)
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use rayon::prelude::*;
-
+    #[rustversion::since(1.63)]
     #[test]
     #[ignore] // we run this in CI, but unless you're compiling in release, this takes a while
     fn test_unused_utf8_bytes() {
+        use rayon::prelude::*;
+
         // test to validate for all char the first and last bytes are never within a specified range
         // note: according to the UTF-8 spec it shouldn't be, but we double check that here
         (0..u32::MAX).into_par_iter().for_each(|i| {
@@ -142,9 +141,8 @@ mod tests {
                 }
 
                 // check ranges for last byte
-                match buf[c.len_utf8() - 1] {
-                    x @ 192..=255 => panic!("last byte within 192..=255, {}", x),
-                    _ => (),
+                if let x @ 192..=255 = buf[c.len_utf8() - 1] {
+                    panic!("last byte within 192..=255, {}", x)
                 }
             }
         })
@@ -152,12 +150,11 @@ mod tests {
 
     #[cfg(feature = "smallvec")]
     mod smallvec {
+        use alloc::string::String;
+
         use quickcheck_macros::quickcheck;
 
-        use crate::repr::{
-            InlineBuffer,
-            MAX_SIZE,
-        };
+        use crate::repr::{InlineBuffer, MAX_SIZE};
 
         #[test]
         fn test_into_array() {
@@ -172,7 +169,7 @@ mod tests {
             assert!(array[length..].iter().all(|b| *b == 0));
 
             // taking a string slice should give back the same string as the original
-            let ex_s = unsafe { std::str::from_utf8_unchecked(&array[..length]) };
+            let ex_s = unsafe { core::str::from_utf8_unchecked(&array[..length]) };
             assert_eq!(s, ex_s);
         }
 
@@ -196,7 +193,7 @@ mod tests {
             assert!(array[length..].iter().all(|b| *b == 0));
 
             // taking a string slice should give back the same string as the original
-            let ex_s = unsafe { std::str::from_utf8_unchecked(&array[..length]) };
+            let ex_s = unsafe { core::str::from_utf8_unchecked(&array[..length]) };
             assert_eq!(s, ex_s);
         }
     }
