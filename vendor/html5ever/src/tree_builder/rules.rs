@@ -16,10 +16,10 @@ use crate::tokenizer::TagKind::{EndTag, StartTag};
 use crate::tree_builder::tag_sets::*;
 use crate::tree_builder::types::*;
 use crate::tree_builder::{
-    create_element, html_elem, ElemName, NodeOrText::AppendNode, StrTendril, Tag, TreeBuilder,
-    TreeSink,
+    html_elem, ElemName, NodeOrText::AppendNode, StrTendril, Tag, TreeBuilder, TreeSink,
 };
 use crate::QualName;
+use markup5ever::interface::tree_builder::create_element_with_flags;
 use markup5ever::{expanded_name, local_name, ns};
 use std::borrow::Cow::Borrowed;
 
@@ -232,10 +232,11 @@ where
                     },
 
                     Token::Tag(tag @ tag!(<script>)) => {
-                        let elem = create_element(
+                        let elem = create_element_with_flags(
                             &self.sink,
                             QualName::new(None, ns!(html), local_name!("script")),
                             tag.attrs,
+                            tag.had_duplicate_attributes,
                         );
                         if self.is_fragment() {
                             self.sink.mark_script_already_started(&elem);
@@ -967,9 +968,15 @@ where
                     ProcessResult::Done
                 },
 
-                Token::Tag(tag @ tag!(<math>)) => self.enter_foreign(tag, ns!(mathml)),
+                Token::Tag(tag @ tag!(<math>)) => {
+                    self.reconstruct_active_formatting_elements();
+                    self.enter_foreign(tag, ns!(mathml))
+                },
 
-                Token::Tag(tag @ tag!(<svg>)) => self.enter_foreign(tag, ns!(svg)),
+                Token::Tag(tag @ tag!(<svg>)) => {
+                    self.reconstruct_active_formatting_elements();
+                    self.enter_foreign(tag, ns!(svg))
+                },
 
                 Token::Tag(
                     tag!(<caption> | <col> | <colgroup> | <frame> | <head> |

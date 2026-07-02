@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.71.0"
 name = "html5ever"
-version = "0.38.0"
+version = "0.39.0"
 authors = ["The html5ever Project Developers"]
 build = false
 autolib = false
@@ -36,6 +36,10 @@ categories = [
 ]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/servo/html5ever"
+
+[features]
+serde = ["markup5ever/serde"]
+trace_tokenizer = []
 
 [lib]
 name = "html5ever"
@@ -74,14 +78,10 @@ harness = false
 version = "0.4"
 
 [dependencies.markup5ever]
-version = "0.38"
+version = "0.39"
 
 [dev-dependencies.criterion]
 version = "0.8"
 
 [dev-dependencies.typed-arena]
 version = "2.0.2"
-
-[features]
-serde = ["markup5ever/serde"]
-trace_tokenizer = []

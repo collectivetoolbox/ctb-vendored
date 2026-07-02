@@ -47,7 +47,7 @@ use std::io;
 use std::mem;
 use std::rc::{Rc, Weak};
 
-use tendril::StrTendril;
+use html5ever::tendril::StrTendril;
 
 use html5ever::interface::tree_builder;
 use html5ever::interface::tree_builder::{ElementFlags, NodeOrText, QuirksMode, TreeSink};
@@ -59,7 +59,7 @@ use html5ever::ExpandedName;
 use html5ever::QualName;
 
 /// The different kinds of nodes in the DOM.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum NodeData {
     /// The `Document` itself - the root node of a HTML document.
     Document,

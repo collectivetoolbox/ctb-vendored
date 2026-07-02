@@ -38,7 +38,7 @@ mod style;
 use html5ever::interface::Attribute;
 use html5ever::serialize::{serialize, SerializeOpts};
 use html5ever::tree_builder::{NodeOrText, TreeSink};
-use html5ever::{driver as html, local_name, ns, QualName};
+use html5ever::{driver as html, local_name, ns, Namespace, QualName};
 use maplit::{hashmap, hashset};
 use std::sync::LazyLock;
 use rcdom::{Handle, NodeData, RcDom, SerializableHandle};
@@ -52,9 +52,9 @@ use std::iter::IntoIterator as IntoIter;
 use std::mem;
 use std::rc::Rc;
 use std::str::FromStr;
-use tendril::stream::TendrilSink;
-use tendril::StrTendril;
-use tendril::{format_tendril, ByteTendril};
+use html5ever::tendril::stream::TendrilSink;
+use html5ever::tendril::StrTendril;
+use html5ever::tendril::{format_tendril, ByteTendril};
 pub use url::Url;
 
 use html5ever::buffer_queue::BufferQueue;
@@ -497,6 +497,11 @@ impl<'a> Default for Builder<'a> {
 
 impl<'a> Builder<'a> {
     /// Sets the tags that are allowed.
+    ///
+    /// Note that the document-level tags `<html>`, `<head>`, and `<body>` cannot
+    /// be allowed here. Ammonia parses its input as a fragment (as if it were
+    /// the contents of a `<div>`), so these tags are stripped by the parser
+    /// before they reach the sanitizer.
     ///
     /// # Examples
     ///
@@ -1838,16 +1843,24 @@ impl<'a> Builder<'a> {
         // of course, contains nodes that need to be dropped (we can't just drop them,
         // because they could have a very deep child tree).
         while let Some(mut node) = stack.pop() {
+            if matches!(node.data, NodeData::Element { ref name, .. } if &*name.local == "selectedcontent" && name.ns == ns!(html)) &&
+                self.is_within(node.clone(), ns!(html), "select")
+            {
+                for sub in node.children.borrow_mut().iter_mut() {
+                    sub.parent.replace(None);
+                }
+                *node.children.borrow_mut() = Vec::new();
+            }
             let parent = node.parent
                 .replace(None).expect("a node in the DOM will have a parent, except the root, which is not processed")
                 .upgrade().expect("a node's parent will be pointed to by its parent (or the root pointer), and will not be dropped");
+            let pass = self.clean_child(&mut node);
+            self.adjust_node_attributes(&mut node, &link_rel, self.id_prefix);
             if self.clean_node_content(&node) || !self.check_expected_namespace(&parent, &node) {
                 removed.push(node);
                 continue;
             }
-            let pass = self.clean_child(&mut node);
             if pass {
-                self.adjust_node_attributes(&mut node, &link_rel, self.id_prefix);
                 dom.append(&parent.clone(), NodeOrText::AppendNode(node.clone()));
             } else {
                 for sub in node.children.borrow_mut().iter_mut() {
@@ -1870,6 +1883,23 @@ impl<'a> Builder<'a> {
             removed.extend_from_slice(&mem::take(&mut *node.children.borrow_mut())[..]);
         }
         Document(dom)
+    }
+
+    fn is_within(&self, mut child: Handle, ns: Namespace, tag: &str) -> bool {
+        while let Some(parent) = child.parent.take() {
+            child.parent.set(Some(parent.clone()));
+            match child.data {
+                NodeData::Element { ref name, .. } if name.ns == ns && &*name.local == tag => return true,
+                _ => {
+                    if let Some(parent) = parent.upgrade() {
+                        child = parent;
+                    } else {
+                        return false;
+                    }
+                }
+            }
+        }
+        false
     }
 
     /// Returns `true` if a node and all its content should be removed.
@@ -2036,8 +2066,8 @@ impl<'a> Builder<'a> {
     //
     // [1]: https://github.com/Plume-org/Plume/blob/main/plume-models/src/safe_string.rs#L21
     fn check_expected_namespace(&self, parent: &Handle, child: &Handle) -> bool {
-        let (parent, child) = match (&parent.data, &child.data) {
-            (NodeData::Element { name: pn, .. }, NodeData::Element { name: cn, .. }) => (pn, cn),
+        let (parent, parent_attr, child) = match (&parent.data, &child.data) {
+            (NodeData::Element { name: pn, attrs, .. }, NodeData::Element { name: cn, .. }) => (pn, attrs, cn),
             _ => return true,
         };
         // The only way to switch from html to svg is with the <svg> tag
@@ -2049,10 +2079,35 @@ impl<'a> Builder<'a> {
         // The only way to switch from mathml to svg/html is with a text integration point
         } else if parent.ns == ns!(mathml) && child.ns != ns!(mathml) {
             // https://html.spec.whatwg.org/#mathml
-            matches!(
-                &*parent.local,
-                "mi" | "mo" | "mn" | "ms" | "mtext" | "annotation-xml"
-            ) && if child.ns == ns!(html) { is_html_tag(&child.local) } else { true }
+            if &*parent.local == "annotation-xml" {
+                let parent_attr = parent_attr.borrow();
+                // https://html.spec.whatwg.org/#tree-construction
+                if child.ns == ns!(html)
+                    && parent_attr
+                        .iter()
+                        .filter(|attr| attr.name.local == local_name!("encoding"))
+                        .all(|attr| {
+                            &*attr.value == "text/html" || &*attr.value == "application/xhtml+xml"
+                        })
+                {
+                    is_html_tag(&child.local)
+                    && parent_attr
+                        .iter()
+                        .filter(|attr| attr.name.local == local_name!("encoding"))
+                        .count()
+                        == 1
+                } else {
+                    child.local == local_name!("svg") && child.ns == ns!(svg)
+                }
+            } else {
+                matches!(&*parent.local, "mi" | "mo" | "mn" | "ms" | "mtext")
+                    && if child.ns == ns!(html) {
+                        is_html_tag(&child.local)
+                    } else {
+                        true
+                    }
+            }
+
         // The only way to switch from svg to mathml/html is with an html integration point
         } else if parent.ns == ns!(svg) && child.ns != ns!(svg) {
             // https://html.spec.whatwg.org/#svg-0
@@ -2673,7 +2728,7 @@ pub enum UrlRelative<'a> {
 }
 
 impl<'a> UrlRelative<'a> {
-    fn evaluate(&self, url: &str) -> Option<tendril::StrTendril> {
+    fn evaluate(&self, url: &str) -> Option<html5ever::tendril::StrTendril> {
         match self {
             UrlRelative::RewriteWithBase(ref url_base) => url_base
                 .join(url)
@@ -2861,6 +2916,7 @@ impl Document {
     /// # Examples
     ///
     ///     use ammonia::Builder;
+    ///     use ammonia::rcdom::SerializableHandle;
     ///     use maplit::hashset;
     ///     use html5ever::serialize::{serialize, SerializeOpts};
     ///
@@ -2873,11 +2929,12 @@ impl Document {
     ///         .link_rel(None)
     ///         .clean(input);
     ///
-    ///     let mut node = document.to_dom_node();
+    ///     let node = document.to_dom_node();
     ///     node.children.borrow_mut().reverse();
     ///
     ///     let mut buf = Vec::new();
-    ///     serialize(&mut buf, &node, SerializeOpts::default())?;
+    ///     let handle: SerializableHandle = node.into();
+    ///     serialize(&mut buf, &handle, SerializeOpts::default())?;
     ///     let output = String::from_utf8(buf)?;
     ///
     ///     assert_eq!(output, expected);
@@ -2950,16 +3007,31 @@ impl From<Document> for String {
 mod test {
     use super::*;
     #[test]
-    fn deeply_nested_whitelisted() {
+    fn deeply_nested_whitelisted_does_not_cause_stack_overflow() {
         clean(&"<b>".repeat(60_000));
     }
     #[test]
-    fn deeply_nested_blacklisted() {
+    fn deeply_nested_blacklisted_does_not_cause_stack_overflow() {
         clean(&"<b-b>".repeat(60_000));
     }
     #[test]
-    fn deeply_nested_alternating() {
+    fn deeply_nested_alternating_does_not_cause_stack_overflow() {
         clean(&"<b-b>".repeat(35_000));
+    }
+    #[test]
+    fn document_level_tags_cannot_be_whitelisted() {
+        // Adding `html`, `head`, or `body` to the allowed tags has no effect
+        // because the parser runs in fragment mode and strips them before
+        // the sanitizer sees the tree. This test pins that documented
+        // behavior; if it ever changes, the docs on `Builder::tags` need to
+        // change too.
+        let fragment =
+            "<html><head>head content</head><body><div>test</div></body></html>";
+        let result = Builder::default()
+            .add_tags(["html", "head", "body"])
+            .clean(fragment)
+            .to_string();
+        assert_eq!(result, "head content<div>test</div>");
     }
     #[test]
     fn included_angles() {
@@ -3710,6 +3782,56 @@ mod test {
         );
     }
 
+    #[test]
+    fn ns_mathml_3() {
+        // try without the attr
+        let fragment = "<math><annotation-xml encoding='text/html'><xmp><!--</xmp><img title='--&gt;&lt;img src=1 onerror=alert(1)&gt;'>";
+        let result =  Builder::default()
+            .strip_comments(false)
+            .add_tags(&["math","annotation-xml","table","mglyph","xmp"])
+            .clean(fragment);
+        assert_eq!(
+            result.to_string(),
+            "<math><annotation-xml></annotation-xml></math>"
+        );
+        // now with the attr
+        let fragment = "<math><annotation-xml encoding='text/html'><xmp><!--</xmp><img title='--&gt;&lt;img src=1 onerror=alert(1)&gt;'>";
+        let result =  Builder::default()
+            .strip_comments(false)
+            .add_tags(&["math","annotation-xml","table","mglyph","xmp"])
+            .add_tag_attribute_values("annotation-xml", "encoding", ["text/html"])
+            .clean(fragment);
+        assert_eq!(
+            result.to_string(),
+            // yes, I tried it in Firefox, and the script didn't run
+            r#"<math><annotation-xml encoding="text/html"><xmp><!--</xmp><img title="--&gt;&lt;img src=1 onerror=alert(1)&gt;"></annotation-xml></math>"#
+        );
+        // now with a tweaked attr
+        let fragment = "<math><annotation-xml encoding='image/svg+xml'><xmp><!--</xmp><img title='--&gt;&lt;img src=1 onerror=alert(1)&gt;'>";
+        let result =  Builder::default()
+            .strip_comments(false)
+            .add_tags(&["math","annotation-xml","table","mglyph","xmp"])
+            .add_tag_attribute_values("annotation-xml", "encoding", ["image/svg+xml"])
+            .clean(fragment);
+        assert_eq!(
+            result.to_string(),
+            // yes, I tried it in Firefox, and the script didn't run
+            r#"<math><annotation-xml encoding="image/svg+xml"></annotation-xml></math>"#
+        );
+        // now with actual SVG
+        let fragment = "<math><annotation-xml encoding='image/svg+xml'><svg>";
+        let result =  Builder::default()
+            .strip_comments(false)
+            .add_tags(&["math","annotation-xml","svg"])
+            .add_tag_attribute_values("annotation-xml", "encoding", ["image/svg+xml"])
+            .clean(fragment);
+        assert_eq!(
+            result.to_string(),
+            // yes, I tried it in Firefox, and the script didn't run
+            r#"<math><annotation-xml encoding="image/svg+xml"><svg></svg></annotation-xml></math>"#
+        );
+    }
+
 
     #[test]
     fn xml_processing_instruction() {
@@ -3748,6 +3870,44 @@ mod test {
         assert_eq!(b.generic_attribute_prefixes.as_ref().unwrap().len(), 1);
         b.rm_generic_attribute_prefixes(&prefix_data);
         assert!(b.generic_attribute_prefixes.is_none());
+    }
+
+    #[test]
+    fn selectedcontent() {
+        // https://github.com/servo/html5ever/issues/712
+        let fragment1 = r#"<select><selectedcontent></selectedcontent><option>X"#;
+        let fragment2 = r#"<select><selectedcontent></selectedcontent><option>X</option></select>"#;
+        let expected = r#"<select><selectedcontent></selectedcontent><option>X</option></select>"#;
+        assert_eq!(String::from(Builder::new().add_tags(&["select", "selectedcontent", "option"]).clean(fragment1)), expected);
+        assert_eq!(String::from(Builder::new().add_tags(&["select", "selectedcontent", "option"]).clean(fragment2)), expected);
+    }
+    
+    #[test]
+    fn new_select_parse() {
+        // https://github.com/whatwg/html/issues/10310#issuecomment-2304377029
+        let fragment = r#"
+<select><style></select><img src onerror=xss()></style></select>
+        "#;
+        let expected = r#"
+<select></select>
+        "#;
+        assert_eq!(String::from(Builder::new().add_tags(&["select", "new-select"]).clean_content_tags(hashset!["style"]).clean(fragment)), expected);
+    }
+
+    #[test]
+    fn selectedcontent_not_in_select() {
+        // https://github.com/whatwg/html/issues/10310#issuecomment-2304377029
+        let fragment = r#"
+<selectedcontent>first</selectedcontent>
+<div><selectedcontent>second</selectedcontent></div>
+<select><selectedcontent>third</selectedcontent></select>
+        "#;
+        let expected = r#"
+<selectedcontent>first</selectedcontent>
+<div><selectedcontent>second</selectedcontent></div>
+<select><selectedcontent></selectedcontent></select>
+        "#;
+        assert_eq!(String::from(Builder::new().add_tags(&["select", "selectedcontent"]).clean(fragment)), expected);
     }
 
     #[test]
