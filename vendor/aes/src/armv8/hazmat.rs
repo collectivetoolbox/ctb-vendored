@@ -3,12 +3,10 @@
 //! Note: this isn't actually used in the `Aes128`/`Aes192`/`Aes256`
 //! implementations in this crate, but instead provides raw AES-NI accelerated
 //! access to the AES round function gated under the `hazmat` crate feature.
+#![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::{Block, Block8};
+use crate::hazmat::{Block, Block8};
 use core::arch::aarch64::*;
-
-// Stable "polyfills" for unstable core::arch::aarch64 intrinsics
-use super::intrinsics::{vaesdq_u8, vaeseq_u8, vaesimcq_u8, vaesmcq_u8};
 
 /// AES cipher (encrypt) round function.
 #[allow(clippy::cast_ptr_alignment)]

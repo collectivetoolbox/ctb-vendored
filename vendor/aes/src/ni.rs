@@ -15,13 +15,8 @@
 //! - [Intel AES-NI whitepaper](https://software.intel.com/sites/default/files/article/165683/aes-wp-2012-09-22-v01.pdf)
 //! - [Use of the AES Instruction Set](https://www.cosic.esat.kuleuven.be/ecrypt/AESday/slides/Use_of_the_AES_Instruction_Set.pdf)
 
-#[macro_use]
-mod utils;
-
-mod aes128;
-mod aes192;
-mod aes256;
-
+mod encdec;
+mod expand;
 #[cfg(test)]
 mod test_expand;
 
@@ -33,14 +28,54 @@ use core::arch::x86 as arch;
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64 as arch;
 
-use crate::{Block, Block8};
 use cipher::{
-    consts::{U16, U24, U32, U8},
-    inout::InOut,
-    AlgorithmName, BlockBackend, BlockCipher, BlockClosure, BlockDecrypt, BlockEncrypt,
-    BlockSizeUser, Key, KeyInit, KeySizeUser, ParBlocksSizeUser,
+    AlgorithmName, BlockCipherDecClosure, BlockCipherDecrypt, BlockCipherEncClosure,
+    BlockCipherEncrypt, BlockSizeUser, Key, KeyInit, KeySizeUser,
+    consts::{self, U16, U24, U32},
 };
 use core::fmt;
+
+impl_backends!(
+    enc_name = Aes128BackEnc,
+    dec_name = Aes128BackDec,
+    key_size = consts::U16,
+    keys_ty = expand::Aes128RoundKeys,
+    par_size = consts::U9,
+    expand_keys = expand::aes128_expand_key,
+    inv_keys = expand::inv_keys,
+    encrypt = encdec::encrypt,
+    encrypt_par = encdec::encrypt_par,
+    decrypt = encdec::decrypt,
+    decrypt_par = encdec::decrypt_par,
+);
+
+impl_backends!(
+    enc_name = Aes192BackEnc,
+    dec_name = Aes192BackDec,
+    key_size = consts::U24,
+    keys_ty = expand::Aes192RoundKeys,
+    par_size = consts::U9,
+    expand_keys = expand::aes192_expand_key,
+    inv_keys = expand::inv_keys,
+    encrypt = encdec::encrypt,
+    encrypt_par = encdec::encrypt_par,
+    decrypt = encdec::decrypt,
+    decrypt_par = encdec::decrypt_par,
+);
+
+impl_backends!(
+    enc_name = Aes256BackEnc,
+    dec_name = Aes256BackDec,
+    key_size = consts::U32,
+    keys_ty = expand::Aes256RoundKeys,
+    par_size = consts::U9,
+    expand_keys = expand::aes256_expand_key,
+    inv_keys = expand::inv_keys,
+    encrypt = encdec::encrypt,
+    encrypt_par = encdec::encrypt_par,
+    decrypt = encdec::decrypt,
+    decrypt_par = encdec::decrypt_par,
+);
 
 macro_rules! define_aes_impl {
     (
@@ -49,7 +84,6 @@ macro_rules! define_aes_impl {
         $name_dec:ident,
         $name_back_enc:ident,
         $name_back_dec:ident,
-        $module:tt,
         $key_size:ty,
         $doc:expr $(,)?
     ) => {
@@ -63,17 +97,15 @@ macro_rules! define_aes_impl {
 
         impl $name {
             #[inline(always)]
-            pub(crate) fn get_enc_backend(&self) -> $name_back_enc<'_> {
+            pub(crate) fn get_enc_backend(&self) -> &$name_back_enc {
                 self.encrypt.get_enc_backend()
             }
 
             #[inline(always)]
-            pub(crate) fn get_dec_backend(&self) -> $name_back_dec<'_> {
+            pub(crate) fn get_dec_backend(&self) -> &$name_back_dec {
                 self.decrypt.get_dec_backend()
             }
         }
-
-        impl BlockCipher for $name {}
 
         impl KeySizeUser for $name {
             type KeySize = $key_size;
@@ -109,14 +141,14 @@ macro_rules! define_aes_impl {
             type BlockSize = U16;
         }
 
-        impl BlockEncrypt for $name {
-            fn encrypt_with_backend(&self, f: impl BlockClosure<BlockSize = U16>) {
+        impl BlockCipherEncrypt for $name {
+            fn encrypt_with_backend(&self, f: impl BlockCipherEncClosure<BlockSize = U16>) {
                 self.encrypt.encrypt_with_backend(f)
             }
         }
 
-        impl BlockDecrypt for $name {
-            fn decrypt_with_backend(&self, f: impl BlockClosure<BlockSize = U16>) {
+        impl BlockCipherDecrypt for $name {
+            fn decrypt_with_backend(&self, f: impl BlockCipherDecClosure<BlockSize = U16>) {
                 self.decrypt.decrypt_with_backend(f)
             }
         }
@@ -140,28 +172,25 @@ macro_rules! define_aes_impl {
         #[doc = "block cipher (encrypt-only)"]
         #[derive(Clone)]
         pub struct $name_enc {
-            round_keys: $module::RoundKeys,
+            backend: $name_back_enc,
         }
 
         impl $name_enc {
             #[inline(always)]
-            pub(crate) fn get_enc_backend(&self) -> $name_back_enc<'_> {
-                $name_back_enc(self)
+            pub(crate) fn get_enc_backend(&self) -> &$name_back_enc {
+                &self.backend
             }
         }
-
-        impl BlockCipher for $name_enc {}
 
         impl KeySizeUser for $name_enc {
             type KeySize = $key_size;
         }
 
         impl KeyInit for $name_enc {
+            #[inline]
             fn new(key: &Key<Self>) -> Self {
-                // SAFETY: we enforce that this code is called only when
-                // target features required by `expand` were properly checked.
                 Self {
-                    round_keys: unsafe { $module::expand_key(key.as_ref()) },
+                    backend: $name_back_enc::new(key),
                 }
             }
         }
@@ -170,9 +199,9 @@ macro_rules! define_aes_impl {
             type BlockSize = U16;
         }
 
-        impl BlockEncrypt for $name_enc {
-            fn encrypt_with_backend(&self, f: impl BlockClosure<BlockSize = U16>) {
-                f.call(&mut self.get_enc_backend())
+        impl BlockCipherEncrypt for $name_enc {
+            fn encrypt_with_backend(&self, f: impl BlockCipherEncClosure<BlockSize = U16>) {
+                f.call(&self.backend)
             }
         }
 
@@ -192,7 +221,9 @@ macro_rules! define_aes_impl {
             #[inline]
             fn drop(&mut self) {
                 #[cfg(feature = "zeroize")]
-                zeroize::Zeroize::zeroize(&mut self.round_keys);
+                unsafe {
+                    zeroize::zeroize_flat_type(&mut self.backend)
+                }
             }
         }
 
@@ -203,23 +234,22 @@ macro_rules! define_aes_impl {
         #[doc = "block cipher (decrypt-only)"]
         #[derive(Clone)]
         pub struct $name_dec {
-            round_keys: $module::RoundKeys,
+            backend: $name_back_dec,
         }
 
         impl $name_dec {
             #[inline(always)]
-            pub(crate) fn get_dec_backend(&self) -> $name_back_dec<'_> {
-                $name_back_dec(self)
+            pub(crate) fn get_dec_backend(&self) -> &$name_back_dec {
+                &self.backend
             }
         }
-
-        impl BlockCipher for $name_dec {}
 
         impl KeySizeUser for $name_dec {
             type KeySize = $key_size;
         }
 
         impl KeyInit for $name_dec {
+            #[inline]
             fn new(key: &Key<Self>) -> Self {
                 $name_enc::new(key).into()
             }
@@ -235,8 +265,9 @@ macro_rules! define_aes_impl {
         impl From<&$name_enc> for $name_dec {
             #[inline]
             fn from(enc: &$name_enc) -> $name_dec {
-                let round_keys = unsafe { $module::inv_expanded_keys(&enc.round_keys) };
-                Self { round_keys }
+                Self {
+                    backend: enc.backend.clone().into(),
+                }
             }
         }
 
@@ -244,9 +275,9 @@ macro_rules! define_aes_impl {
             type BlockSize = U16;
         }
 
-        impl BlockDecrypt for $name_dec {
-            fn decrypt_with_backend(&self, f: impl BlockClosure<BlockSize = U16>) {
-                f.call(&mut self.get_dec_backend());
+        impl BlockCipherDecrypt for $name_dec {
+            fn decrypt_with_backend(&self, f: impl BlockCipherDecClosure<BlockSize = U16>) {
+                f.call(self.get_dec_backend());
             }
         }
 
@@ -266,64 +297,14 @@ macro_rules! define_aes_impl {
             #[inline]
             fn drop(&mut self) {
                 #[cfg(feature = "zeroize")]
-                zeroize::Zeroize::zeroize(&mut self.round_keys);
+                unsafe {
+                    zeroize::zeroize_flat_type(&mut self.backend)
+                }
             }
         }
 
         #[cfg(feature = "zeroize")]
         impl zeroize::ZeroizeOnDrop for $name_dec {}
-
-        pub(crate) struct $name_back_enc<'a>(&'a $name_enc);
-
-        impl<'a> BlockSizeUser for $name_back_enc<'a> {
-            type BlockSize = U16;
-        }
-
-        impl<'a> ParBlocksSizeUser for $name_back_enc<'a> {
-            type ParBlocksSize = U8;
-        }
-
-        impl<'a> BlockBackend for $name_back_enc<'a> {
-            #[inline(always)]
-            fn proc_block(&mut self, block: InOut<'_, '_, Block>) {
-                unsafe {
-                    $module::encrypt1(&self.0.round_keys, block);
-                }
-            }
-
-            #[inline(always)]
-            fn proc_par_blocks(&mut self, blocks: InOut<'_, '_, Block8>) {
-                unsafe {
-                    $module::encrypt8(&self.0.round_keys, blocks);
-                }
-            }
-        }
-
-        pub(crate) struct $name_back_dec<'a>(&'a $name_dec);
-
-        impl<'a> BlockSizeUser for $name_back_dec<'a> {
-            type BlockSize = U16;
-        }
-
-        impl<'a> ParBlocksSizeUser for $name_back_dec<'a> {
-            type ParBlocksSize = U8;
-        }
-
-        impl<'a> BlockBackend for $name_back_dec<'a> {
-            #[inline(always)]
-            fn proc_block(&mut self, block: InOut<'_, '_, Block>) {
-                unsafe {
-                    $module::decrypt1(&self.0.round_keys, block);
-                }
-            }
-
-            #[inline(always)]
-            fn proc_par_blocks(&mut self, blocks: InOut<'_, '_, Block8>) {
-                unsafe {
-                    $module::decrypt8(&self.0.round_keys, blocks);
-                }
-            }
-        }
     };
 }
 
@@ -333,7 +314,6 @@ define_aes_impl!(
     Aes128Dec,
     Aes128BackEnc,
     Aes128BackDec,
-    aes128,
     U16,
     "AES-128",
 );
@@ -344,7 +324,6 @@ define_aes_impl!(
     Aes192Dec,
     Aes192BackEnc,
     Aes192BackDec,
-    aes192,
     U24,
     "AES-192",
 );
@@ -355,7 +334,6 @@ define_aes_impl!(
     Aes256Dec,
     Aes256BackEnc,
     Aes256BackDec,
-    aes256,
     U32,
     "AES-256",
 );
