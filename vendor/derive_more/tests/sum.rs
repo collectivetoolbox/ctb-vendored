@@ -1,12 +1,10 @@
-#![cfg_attr(not(feature = "std"), no_std)]
-#![allow(dead_code)] // some code is tested for type checking only
-
-use derive_more::Sum;
+#[macro_use]
+extern crate derive_more;
 
 #[derive(Sum)]
 struct MyInts(i32, i64);
 
-// `Add` implementation is required for `Sum`.
+// Add implementation is needed for Sum
 impl ::core::ops::Add for MyInts {
     type Output = MyInts;
     #[inline]
@@ -21,7 +19,6 @@ struct Point2D {
     y: i32,
 }
 
-// `Add` implementation is required for `Sum`.
 impl ::core::ops::Add for Point2D {
     type Output = Point2D;
     #[inline]

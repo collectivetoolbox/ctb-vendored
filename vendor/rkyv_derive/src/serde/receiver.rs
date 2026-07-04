@@ -1,18 +1,15 @@
-// Code in this file is taken whole or in part from serde:
-// https://github.com/serde-rs/serde
+// Code in this file is taken whole or in part from serde: https://github.com/serde-rs/serde
 // The original license for this code is included in LICENSE
 
-use std::mem;
-
+use super::respan::respan;
 use proc_macro2::Span;
 use quote::ToTokens;
+use std::mem;
+use syn::punctuated::Punctuated;
 use syn::{
-    parse_quote, Data, DeriveInput, Expr, ExprPath, GenericArgument,
-    GenericParam, Generics, Macro, Path, PathArguments, QSelf, ReturnType,
-    Token, Type, TypeParamBound, TypePath, WherePredicate,
+    parse_quote, Data, DeriveInput, Expr, ExprPath, GenericArgument, GenericParam, Generics, Macro,
+    Path, PathArguments, QSelf, ReturnType, Token, Type, TypeParamBound, TypePath, WherePredicate,
 };
-
-use super::respan::respan;
 
 pub fn replace_receiver(input: &mut DeriveInput) {
     let self_ty = {
@@ -53,10 +50,9 @@ impl ReplaceReceiver<'_> {
             gt_token: Token![>](span),
         });
 
-        path.leading_colon =
-            Some(**path.segments.pairs().next().unwrap().punct().unwrap());
+        path.leading_colon = Some(**path.segments.pairs().next().unwrap().punct().unwrap());
 
-        let segments = mem::take(&mut path.segments);
+        let segments = mem::replace(&mut path.segments, Punctuated::new());
         path.segments = segments.into_pairs().skip(1).collect();
     }
 
@@ -64,12 +60,8 @@ impl ReplaceReceiver<'_> {
         let self_ty = self.self_ty(path.segments[0].ident.span());
         let variant = mem::replace(path, self_ty.path);
         for segment in &mut path.segments {
-            if let PathArguments::AngleBracketed(bracketed) =
-                &mut segment.arguments
-            {
-                if bracketed.colon2_token.is_none()
-                    && !bracketed.args.is_empty()
-                {
+            if let PathArguments::AngleBracketed(bracketed) = &mut segment.arguments {
+                if bracketed.colon2_token.is_none() && !bracketed.args.is_empty() {
                     bracketed.colon2_token = Some(<Token![::]>::default());
                 }
             }
@@ -189,10 +181,10 @@ impl ReplaceReceiver<'_> {
                 for arg in &mut arguments.args {
                     match arg {
                         GenericArgument::Type(arg) => self.visit_type_mut(arg),
-                        GenericArgument::AssocType(arg) => {
-                            self.visit_type_mut(&mut arg.ty)
-                        }
-                        _ => {}
+                        GenericArgument::Binding(arg) => self.visit_type_mut(&mut arg.ty),
+                        GenericArgument::Lifetime(_)
+                        | GenericArgument::Constraint(_)
+                        | GenericArgument::Const(_) => {}
                     }
                 }
             }
@@ -213,8 +205,9 @@ impl ReplaceReceiver<'_> {
     }
 
     fn visit_type_param_bound_mut(&mut self, bound: &mut TypeParamBound) {
-        if let TypeParamBound::Trait(bound) = bound {
-            self.visit_path_mut(&mut bound.path)
+        match bound {
+            TypeParamBound::Trait(bound) => self.visit_path_mut(&mut bound.path),
+            TypeParamBound::Lifetime(_) => {}
         }
     }
 
@@ -231,11 +224,14 @@ impl ReplaceReceiver<'_> {
         }
         if let Some(where_clause) = &mut generics.where_clause {
             for predicate in &mut where_clause.predicates {
-                if let WherePredicate::Type(predicate) = predicate {
-                    self.visit_type_mut(&mut predicate.bounded_ty);
-                    for bound in &mut predicate.bounds {
-                        self.visit_type_param_bound_mut(bound);
+                match predicate {
+                    WherePredicate::Type(predicate) => {
+                        self.visit_type_mut(&mut predicate.bounded_ty);
+                        for bound in &mut predicate.bounds {
+                            self.visit_type_param_bound_mut(bound);
+                        }
                     }
+                    WherePredicate::Lifetime(_) | WherePredicate::Eq(_) => {}
                 }
             }
         }

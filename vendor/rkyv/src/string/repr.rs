@@ -1,46 +1,31 @@
 //! An archived string representation that supports inlining short strings.
 
-use core::{
-    marker::PhantomPinned,
-    mem,
-    ptr::{self, copy_nonoverlapping, write_bytes},
-    slice, str,
-};
+use crate::{Archived, FixedIsize, FixedUsize};
+use core::{marker::PhantomPinned, mem, ptr, slice, str};
 
-use munge::munge;
-use rancor::{Panic, ResultExt as _, Source};
+const OFFSET_BYTES: usize = mem::size_of::<FixedIsize>();
 
-use crate::{
-    primitive::{ArchivedIsize, ArchivedUsize, FixedIsize, FixedUsize},
-    seal::Seal,
-    Place, Portable,
-};
-
-#[derive(Clone, Copy, Portable)]
-#[rkyv(crate)]
+#[derive(Clone, Copy)]
 #[repr(C)]
 struct OutOfLineRepr {
-    len: ArchivedUsize,
-    offset: ArchivedIsize,
+    len: Archived<usize>,
+    // Offset is always stored in little-endian format to put the sign bit at the end.
+    // This representation is optimized for little-endian architectures.
+    offset: [u8; OFFSET_BYTES],
     _phantom: PhantomPinned,
 }
 
 /// The maximum number of bytes that can be inlined.
-pub const INLINE_CAPACITY: usize = mem::size_of::<OutOfLineRepr>();
-/// The maximum number of bytes that can be out-of-line.
-pub const OUT_OF_LINE_CAPACITY: FixedUsize = (1 << (FixedUsize::BITS - 2)) - 1;
+pub const INLINE_CAPACITY: usize = mem::size_of::<OutOfLineRepr>() - 1;
 
-#[derive(Clone, Copy, Portable)]
-#[rkyv(crate)]
+#[derive(Clone, Copy)]
 #[repr(C)]
 struct InlineRepr {
     bytes: [u8; INLINE_CAPACITY],
+    len: u8,
 }
 
 /// An archived string representation that can inline short strings.
-#[derive(Portable)]
-#[rkyv(crate)]
-#[repr(C)]
 pub union ArchivedStringRepr {
     out_of_line: OutOfLineRepr,
     inline: InlineRepr,
@@ -50,7 +35,7 @@ impl ArchivedStringRepr {
     /// Returns whether the representation is inline.
     #[inline]
     pub fn is_inline(&self) -> bool {
-        unsafe { self.inline.bytes[0] & 0xc0 != 0x80 }
+        unsafe { self.inline.len & 0x80 == 0 }
     }
 
     /// Returns the offset of the representation.
@@ -60,18 +45,16 @@ impl ArchivedStringRepr {
     /// The internal representation must be out-of-line.
     #[inline]
     pub unsafe fn out_of_line_offset(&self) -> isize {
-        // SAFETY: The caller has guaranteed that the internal representation is
-        // out-of-line
-        unsafe { self.out_of_line.offset.to_native() as isize }
+        FixedIsize::from_le_bytes(self.out_of_line.offset) as isize
     }
 
     /// Returns a pointer to the bytes of the string.
     #[inline]
     pub fn as_ptr(&self) -> *const u8 {
-        if self.is_inline() {
-            unsafe { self.inline.bytes.as_ptr() }
-        } else {
-            unsafe {
+        unsafe {
+            if self.is_inline() {
+                self.inline.bytes.as_ptr()
+            } else {
                 (self as *const Self)
                     .cast::<u8>()
                     .offset(self.out_of_line_offset())
@@ -81,15 +64,14 @@ impl ArchivedStringRepr {
 
     /// Returns a mutable pointer to the bytes of the string.
     #[inline]
-    pub fn as_mut_ptr(this: Seal<'_, Self>) -> *mut u8 {
-        let this = unsafe { this.unseal_unchecked() };
-        if this.is_inline() {
-            unsafe { this.inline.bytes.as_mut_ptr() }
-        } else {
-            unsafe {
-                (this as *mut Self)
+    pub fn as_mut_ptr(&mut self) -> *mut u8 {
+        unsafe {
+            if self.is_inline() {
+                self.inline.bytes.as_mut_ptr()
+            } else {
+                (self as *mut Self)
                     .cast::<u8>()
-                    .offset(this.out_of_line_offset())
+                    .offset(self.out_of_line_offset())
             }
         }
     }
@@ -97,23 +79,12 @@ impl ArchivedStringRepr {
     /// Returns the length of the string.
     #[inline]
     pub fn len(&self) -> usize {
-        if self.is_inline() {
-            unsafe {
-                self.inline
-                    .bytes
-                    .iter()
-                    .position(|b| *b == 0xff)
-                    .unwrap_or(INLINE_CAPACITY)
+        unsafe {
+            if self.is_inline() {
+                self.inline.len as usize
+            } else {
+                from_archived!(self.out_of_line.len) as usize
             }
-        } else {
-            let len = unsafe { self.out_of_line.len.to_native() };
-            // Little-endian: remove the 7th and 8th bits
-            #[cfg(not(feature = "big_endian"))]
-            let len = (len & 0b0011_1111) | ((len & !0xff) >> 2);
-            // Big-endian: remove the top two bits
-            #[cfg(feature = "big_endian")]
-            let len = len & (FixedUsize::MAX >> 2);
-            len as usize
         }
     }
 
@@ -124,6 +95,7 @@ impl ArchivedStringRepr {
     }
 
     /// Returns a pointer to the string as a `str`.
+    #[cfg(feature = "validation")]
     #[inline]
     pub fn as_str_ptr(&self) -> *const str {
         ptr_meta::from_raw_parts(self.as_ptr().cast(), self.len())
@@ -131,138 +103,71 @@ impl ArchivedStringRepr {
 
     /// Returns a slice of the bytes of the string.
     #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
+    pub fn bytes(&self) -> &[u8] {
         unsafe { slice::from_raw_parts(self.as_ptr(), self.len()) }
     }
 
     /// Returns a mutable slice of the bytes of the string.
     #[inline]
-    pub fn as_bytes_seal(this: Seal<'_, Self>) -> Seal<'_, [u8]> {
-        let len = this.len();
-        let slice =
-            unsafe { slice::from_raw_parts_mut(Self::as_mut_ptr(this), len) };
-        Seal::new(slice)
+    pub fn bytes_mut(&mut self) -> &mut [u8] {
+        unsafe { slice::from_raw_parts_mut(self.as_mut_ptr(), self.len()) }
     }
 
     /// Returns a reference to the string as a `str`.
     #[inline]
     pub fn as_str(&self) -> &str {
-        unsafe { str::from_utf8_unchecked(self.as_bytes()) }
+        unsafe { str::from_utf8_unchecked(self.bytes()) }
     }
 
     /// Returns a mutable reference to the string as a `str`.
     #[inline]
-    pub fn as_str_seal(this: Seal<'_, Self>) -> Seal<'_, str> {
-        let bytes =
-            unsafe { Seal::unseal_unchecked(Self::as_bytes_seal(this)) };
-        Seal::new(unsafe { str::from_utf8_unchecked_mut(bytes) })
+    pub fn as_mut_str(&mut self) -> &mut str {
+        unsafe { str::from_utf8_unchecked_mut(self.bytes_mut()) }
     }
 
     /// Emplaces a new inline representation for the given `str`.
     ///
-    /// This function is guaranteed not to write any uninitialized bytes to
-    /// `out`.
-    ///
     /// # Safety
     ///
-    /// - The length of `value` must be less than or equal to
-    ///   [`INLINE_CAPACITY`].
-    /// - `out` must point to a valid location to write the inline
-    ///   representation.
+    /// - The length of `str` must be less than or equal to [`INLINE_CAPACITY`].
+    /// - `out` must point to a valid location to write the inline representation.
     #[inline]
     pub unsafe fn emplace_inline(value: &str, out: *mut Self) {
-        debug_assert!(value.len() <= INLINE_CAPACITY);
+        let out_bytes = ptr::addr_of_mut!((*out).inline.bytes);
+        ptr::copy_nonoverlapping(value.as_bytes().as_ptr(), out_bytes.cast(), value.len());
 
-        // SAFETY: The caller has guaranteed that `out` points to a
-        // dereferenceable location.
-        let out_bytes = unsafe { ptr::addr_of_mut!((*out).inline.bytes) };
-
-        // SAFETY: The caller has guaranteed that the length of `value` is less
-        // than or equal to `INLINE_CAPACITY`. We know that `out_bytes` is a
-        // valid pointer to bytes because it is a subfield of `out` which the
-        // caller has guaranteed points to a valid location.
-        unsafe {
-            write_bytes(out_bytes, 0xff, 1);
-            copy_nonoverlapping(
-                value.as_bytes().as_ptr(),
-                out_bytes.cast(),
-                value.len(),
-            );
-        }
+        let out_len = ptr::addr_of_mut!((*out).inline.len);
+        *out_len = value.len() as u8;
     }
 
     /// Emplaces a new out-of-line representation for the given `str`.
     ///
     /// # Safety
     ///
-    /// The length of `str` must be greater than [`INLINE_CAPACITY`] and less
-    /// than or equal to [`OUT_OF_LINE_CAPACITY`].
-    pub unsafe fn try_emplace_out_of_line<E: Source>(
-        value: &str,
-        target: usize,
-        out: Place<Self>,
-    ) -> Result<(), E> {
-        let (len, offset) = unsafe {
-            munge! {
-                let ArchivedStringRepr {
-                    out_of_line: OutOfLineRepr { len, offset, _phantom: _ }
-                } = out;
-            }
-            (len, offset)
-        };
-
-        let l = value.len() as FixedUsize;
-        // Little-endian: insert 10 as the 7th and 8th bits
-        #[cfg(not(feature = "big_endian"))]
-        let l = (l & 0b0011_1111) | 0b1000_0000 | ((l & !0b0011_1111) << 2);
-        // Big-endian: set the top two bits to 10
-        #[cfg(feature = "big_endian")]
-        let l = l & (FixedUsize::MAX >> 2) | (1 << FixedUsize::BITS - 1);
-        len.write(ArchivedUsize::from_native(l));
-
-        let off = crate::rel_ptr::signed_offset(out.pos(), target)?;
-        offset.write(ArchivedIsize::from_native(off as FixedIsize));
-
-        Ok(())
-    }
-
-    /// Emplaces a new out-of-line representation for the given `str`.
-    ///
-    /// # Panics
-    ///
-    /// - The offset calculated for the repr does not fit in an `isize`
-    /// - The offset calculated for the repr exceeds the offset storage
-    ///
-    /// # Safety
-    ///
-    /// The length of `str` must be greater than [`INLINE_CAPACITY`] and less
-    /// than or equal to [`OUT_OF_LINE_CAPACITY`].
+    /// - The length of `str` must be greater than [`INLINE_CAPACITY`].
+    /// - `pos` must be the location of the representation within the archive.
+    /// - `target` must be the location of the serialized bytes of the string.
+    /// - `out` must point to a valid location to write the out-of-line representation.
     #[inline]
-    pub unsafe fn emplace_out_of_line(
-        value: &str,
-        target: usize,
-        out: Place<Self>,
-    ) {
-        // SAFETY: The safety conditions for `emplace_out_of_line()` are the
-        // same as the safety conditions for `try_emplace_out_of_line()`.
-        unsafe {
-            Self::try_emplace_out_of_line::<Panic>(value, target, out)
-                .always_ok()
-        }
+    pub unsafe fn emplace_out_of_line(value: &str, pos: usize, target: usize, out: *mut Self) {
+        let out_len = ptr::addr_of_mut!((*out).out_of_line.len);
+        out_len.write(to_archived!(value.len() as FixedUsize));
+
+        let out_offset = ptr::addr_of_mut!((*out).out_of_line.offset);
+        let offset = crate::rel_ptr::signed_offset(pos, target).unwrap();
+        *out_offset = (offset as FixedIsize).to_le_bytes();
     }
 }
 
-#[cfg(feature = "bytecheck")]
+#[cfg(feature = "validation")]
 const _: () = {
-    use core::{error::Error, fmt};
-
-    use bytecheck::{rancor::Fallible, CheckBytes};
-    use rancor::fail;
+    use crate::Fallible;
+    use bytecheck::CheckBytes;
+    use core::fmt;
 
     /// An error resulting from an invalid string representation.
     ///
-    /// Strings that are inline must have a length of at most
-    /// [`INLINE_CAPACITY`].
+    /// Strings that are inline must have a length of at most [`INLINE_CAPACITY`].
     #[derive(Debug)]
     pub struct CheckStringReprError;
 
@@ -270,31 +175,26 @@ const _: () = {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(
                 f,
-                "String representation was out-of-line but the length was too \
-                 short",
+                "String representation was inline but the length was too large"
             )
         }
     }
 
-    impl Error for CheckStringReprError {}
+    #[cfg(feature = "std")]
+    impl std::error::Error for CheckStringReprError {}
 
-    unsafe impl<C> CheckBytes<C> for ArchivedStringRepr
-    where
-        C: Fallible + ?Sized,
-        C::Error: Source,
-    {
-        unsafe fn check_bytes(
-            value: *const Self,
-            _: &mut C,
-        ) -> Result<(), C::Error> {
-            // SAFETY: The fields of `ArchivedStringRepr` are always valid for
-            // every bit pattern.
-            let repr = unsafe { &*value };
+    impl<C: Fallible + ?Sized> CheckBytes<C> for ArchivedStringRepr {
+        type Error = CheckStringReprError;
 
-            if !repr.is_inline() && repr.len() <= INLINE_CAPACITY {
-                fail!(CheckStringReprError);
+        #[inline]
+        unsafe fn check_bytes<'a>(value: *const Self, _: &mut C) -> Result<&'a Self, Self::Error> {
+            // The fields of `ArchivedStringRepr` are always valid
+            let repr = &*value;
+
+            if repr.is_inline() && repr.len() > INLINE_CAPACITY {
+                Err(CheckStringReprError)
             } else {
-                Ok(())
+                Ok(repr)
             }
         }
     }

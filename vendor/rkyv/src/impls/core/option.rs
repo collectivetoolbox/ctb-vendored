@@ -1,12 +1,5 @@
-use core::hint::unreachable_unchecked;
-
-use munge::munge;
-use rancor::Fallible;
-
-use crate::{
-    option::ArchivedOption, traits::NoUndef, Archive, Deserialize, Place,
-    Serialize,
-};
+use crate::{option::ArchivedOption, Archive, Deserialize, Fallible, Serialize};
+use core::{hint::unreachable_unchecked, ptr};
 
 #[allow(dead_code)]
 #[repr(u8)]
@@ -14,10 +7,6 @@ enum ArchivedOptionTag {
     None,
     Some,
 }
-
-// SAFETY: `ArchivedOptionTag` is `repr(u8)` and so always consists of a single
-// well-defined byte.
-unsafe impl NoUndef for ArchivedOptionTag {}
 
 #[repr(C)]
 struct ArchivedOptionVariantNone(ArchivedOptionTag);
@@ -29,71 +18,48 @@ impl<T: Archive> Archive for Option<T> {
     type Archived = ArchivedOption<T::Archived>;
     type Resolver = Option<T::Resolver>;
 
-    fn resolve(&self, resolver: Self::Resolver, out: Place<Self::Archived>) {
+    #[inline]
+    unsafe fn resolve(&self, pos: usize, resolver: Self::Resolver, out: *mut Self::Archived) {
         match resolver {
             None => {
-                let out = unsafe {
-                    out.cast_unchecked::<ArchivedOptionVariantNone>()
-                };
-                munge!(let ArchivedOptionVariantNone(tag) = out);
-                tag.write(ArchivedOptionTag::None);
+                let out = out.cast::<ArchivedOptionVariantNone>();
+                ptr::addr_of_mut!((*out).0).write(ArchivedOptionTag::None);
             }
             Some(resolver) => {
-                let out = unsafe {
-                    out
-                    .cast_unchecked::<ArchivedOptionVariantSome<T::Archived>>()
-                };
-                munge!(let ArchivedOptionVariantSome(tag, out_value) = out);
-                tag.write(ArchivedOptionTag::Some);
+                let out = out.cast::<ArchivedOptionVariantSome<T::Archived>>();
+                ptr::addr_of_mut!((*out).0).write(ArchivedOptionTag::Some);
 
                 let value = if let Some(value) = self.as_ref() {
                     value
                 } else {
-                    unsafe {
-                        unreachable_unchecked();
-                    }
+                    unreachable_unchecked();
                 };
 
-                value.resolve(resolver, out_value);
+                let (fp, fo) = out_field!(out.1);
+                value.resolve(pos + fp, resolver, fo);
             }
         }
     }
 }
 
 impl<T: Serialize<S>, S: Fallible + ?Sized> Serialize<S> for Option<T> {
-    fn serialize(
-        &self,
-        serializer: &mut S,
-    ) -> Result<Self::Resolver, S::Error> {
+    #[inline]
+    fn serialize(&self, serializer: &mut S) -> Result<Self::Resolver, S::Error> {
         self.as_ref()
             .map(|value| value.serialize(serializer))
             .transpose()
     }
 }
 
-impl<T, D> Deserialize<Option<T>, D> for ArchivedOption<T::Archived>
+impl<T: Archive, D: Fallible + ?Sized> Deserialize<Option<T>, D> for ArchivedOption<T::Archived>
 where
-    T: Archive,
     T::Archived: Deserialize<T, D>,
-    D: Fallible + ?Sized,
 {
+    #[inline]
     fn deserialize(&self, deserializer: &mut D) -> Result<Option<T>, D::Error> {
-        Ok(match self {
-            ArchivedOption::Some(value) => {
-                Some(value.deserialize(deserializer)?)
-            }
-            ArchivedOption::None => None,
-        })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::api::test::roundtrip;
-
-    #[test]
-    fn roundtrip_option() {
-        roundtrip(&Option::<()>::None);
-        roundtrip(&Some(42));
+        match self {
+            ArchivedOption::Some(value) => Ok(Some(value.deserialize(deserializer)?)),
+            ArchivedOption::None => Ok(None),
+        }
     }
 }

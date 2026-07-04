@@ -1,12 +1,8 @@
+#![deny(missing_docs)]
 //! Some docs
 
-#![deny(missing_docs)]
-#![allow(dead_code)] // for illustration purposes
-
-use derive_more::{
-    Add, AddAssign, Constructor, Deref, DerefMut, Display, From, FromStr, Index,
-    IndexMut, Into, IsVariant, Mul, MulAssign, Not, TryInto,
-};
+#[macro_use]
+extern crate derive_more;
 
 fn main() {}
 
@@ -34,6 +30,7 @@ pub struct MyBoxedInt(Box<i32>);
 pub struct MyVec(Vec<i32>);
 
 /// Some docs
+#[allow(dead_code)]
 #[derive(Clone, Copy, TryInto)]
 #[derive(IsVariant)]
 enum MixedInts {

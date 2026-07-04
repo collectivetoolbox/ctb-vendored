@@ -10,10 +10,9 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
-edition = "2021"
-rust-version = "1.81.0"
+edition = "2018"
 name = "derive_more"
-version = "2.1.1"
+version = "0.99.20"
 authors = ["Jelte Fennema <github-tech@jeltef.nl>"]
 build = false
 include = [
@@ -31,7 +30,7 @@ autoexamples = false
 autotests = false
 autobenches = false
 description = "Adds #[derive(x)] macros for more traits"
-documentation = "https://docs.rs/derive_more"
+documentation = "https://jeltef.github.io/derive_more/derive_more/"
 readme = "README.md"
 keywords = [
     "derive",
@@ -44,52 +43,29 @@ categories = [
     "development-tools",
     "development-tools::procedural-macro-helpers",
     "no-std",
-    "rust-patterns",
 ]
 license = "MIT"
 repository = "https://github.com/JelteF/derive_more"
-
-[package.metadata.docs.rs]
-features = ["full"]
-rustdoc-args = [
-    "--cfg",
-    "docsrs",
-]
-
-[package.metadata.playground]
-features = [
-    "full",
-    "std",
-]
 
 [badges.github]
 repository = "JelteF/derive_more"
 workflow = "CI"
 
 [features]
-add = ["derive_more-impl/add"]
-add_assign = ["derive_more-impl/add_assign"]
-as_ref = ["derive_more-impl/as_ref"]
-constructor = ["derive_more-impl/constructor"]
-debug = ["derive_more-impl/debug"]
-default = ["std"]
-deref = ["derive_more-impl/deref"]
-deref_mut = ["derive_more-impl/deref_mut"]
-display = ["derive_more-impl/display"]
-eq = ["derive_more-impl/eq"]
-error = ["derive_more-impl/error"]
-from = ["derive_more-impl/from"]
-from_str = ["derive_more-impl/from_str"]
-full = [
-    "add",
+add = []
+add_assign = []
+as_mut = []
+as_ref = []
+constructor = []
+default = [
     "add_assign",
+    "add",
+    "as_mut",
     "as_ref",
     "constructor",
-    "debug",
     "deref",
     "deref_mut",
     "display",
-    "eq",
     "error",
     "from",
     "from_str",
@@ -97,43 +73,69 @@ full = [
     "index_mut",
     "into",
     "into_iterator",
-    "is_variant",
-    "mul",
+    "iterator",
     "mul_assign",
+    "mul",
     "not",
     "sum",
-    "try_from",
     "try_into",
-    "try_unwrap",
+    "is_variant",
     "unwrap",
 ]
-index = ["derive_more-impl/index"]
-index_mut = ["derive_more-impl/index_mut"]
-into = ["derive_more-impl/into"]
-into_iterator = ["derive_more-impl/into_iterator"]
-is_variant = ["derive_more-impl/is_variant"]
-mul = ["derive_more-impl/mul"]
-mul_assign = ["derive_more-impl/mul_assign"]
-not = ["derive_more-impl/not"]
-std = []
-sum = ["derive_more-impl/sum"]
-testing-helpers = [
-    "derive_more-impl/testing-helpers",
-    "dep:rustc_version",
+deref = []
+deref_mut = []
+display = ["syn/extra-traits"]
+error = ["syn/extra-traits"]
+from = ["syn/extra-traits"]
+from_str = []
+generate-parsing-rs = ["peg"]
+index = []
+index_mut = []
+into = ["syn/extra-traits"]
+into_iterator = []
+is_variant = ["convert_case"]
+iterator = []
+mul = ["syn/extra-traits"]
+mul_assign = ["syn/extra-traits"]
+nightly = []
+not = ["syn/extra-traits"]
+sum = []
+testing-helpers = ["rustc_version"]
+track-caller = []
+try_into = ["syn/extra-traits"]
+unwrap = [
+    "convert_case",
+    "rustc_version",
 ]
-try_from = ["derive_more-impl/try_from"]
-try_into = ["derive_more-impl/try_into"]
-try_unwrap = ["derive_more-impl/try_unwrap"]
-unwrap = ["derive_more-impl/unwrap"]
 
 [lib]
 name = "derive_more"
 path = "src/lib.rs"
+proc-macro = true
 
 [[example]]
 name = "deny_missing_docs"
 path = "examples/deny_missing_docs.rs"
-required-features = ["full"]
+required-features = [
+    "add_assign",
+    "add",
+    "as_mut",
+    "as_ref",
+    "constructor",
+    "deref",
+    "deref_mut",
+    "display",
+    "from",
+    "from_str",
+    "index",
+    "index_mut",
+    "into",
+    "mul_assign",
+    "mul",
+    "not",
+    "try_into",
+    "is_variant",
+]
 
 [[test]]
 name = "add"
@@ -148,7 +150,7 @@ required-features = ["add_assign"]
 [[test]]
 name = "as_mut"
 path = "tests/as_mut.rs"
-required-features = ["as_ref"]
+required-features = ["as_mut"]
 
 [[test]]
 name = "as_ref"
@@ -161,28 +163,9 @@ path = "tests/boats_display_derive.rs"
 required-features = ["display"]
 
 [[test]]
-name = "compile_fail"
-path = "tests/compile_fail/mod.rs"
-required-features = [
-    "as_ref",
-    "debug",
-    "display",
-    "from",
-    "into",
-    "is_variant",
-    "try_from",
-    "try_into",
-]
-
-[[test]]
 name = "constructor"
 path = "tests/constructor.rs"
 required-features = ["constructor"]
-
-[[test]]
-name = "debug"
-path = "tests/debug.rs"
-required-features = ["debug"]
 
 [[test]]
 name = "deref"
@@ -198,11 +181,6 @@ required-features = ["deref_mut"]
 name = "display"
 path = "tests/display.rs"
 required-features = ["display"]
-
-[[test]]
-name = "eq"
-path = "tests/eq.rs"
-required-features = ["eq"]
 
 [[test]]
 name = "error"
@@ -222,7 +200,26 @@ required-features = ["from_str"]
 [[test]]
 name = "generics"
 path = "tests/generics.rs"
-required-features = ["full"]
+required-features = [
+    "add_assign",
+    "add",
+    "as_mut",
+    "as_ref",
+    "constructor",
+    "deref",
+    "deref_mut",
+    "display",
+    "from",
+    "from_str",
+    "index",
+    "index_mut",
+    "into",
+    "mul_assign",
+    "mul",
+    "not",
+    "try_into",
+    "is_variant",
+]
 
 [[test]]
 name = "index"
@@ -252,7 +249,26 @@ required-features = ["is_variant"]
 [[test]]
 name = "lib"
 path = "tests/lib.rs"
-required-features = ["full"]
+required-features = [
+    "add_assign",
+    "add",
+    "as_mut",
+    "as_ref",
+    "constructor",
+    "deref",
+    "deref_mut",
+    "display",
+    "from",
+    "from_str",
+    "index",
+    "index_mut",
+    "into",
+    "mul_assign",
+    "mul",
+    "not",
+    "try_into",
+    "is_variant",
+]
 
 [[test]]
 name = "mul"
@@ -267,7 +283,27 @@ required-features = ["mul_assign"]
 [[test]]
 name = "no_std"
 path = "tests/no_std.rs"
-required-features = ["full"]
+required-features = [
+    "add_assign",
+    "add",
+    "as_mut",
+    "as_ref",
+    "constructor",
+    "deref",
+    "deref_mut",
+    "display",
+    "from",
+    "from_str",
+    "index",
+    "index_mut",
+    "into",
+    "mul_assign",
+    "mul",
+    "not",
+    "sum",
+    "try_into",
+    "is_variant",
+]
 
 [[test]]
 name = "not"
@@ -275,19 +311,9 @@ path = "tests/not.rs"
 required-features = ["not"]
 
 [[test]]
-name = "partial_eq"
-path = "tests/partial_eq.rs"
-required-features = ["eq"]
-
-[[test]]
 name = "sum"
 path = "tests/sum.rs"
 required-features = ["sum"]
-
-[[test]]
-name = "try_from"
-path = "tests/try_from.rs"
-required-features = ["try_from"]
 
 [[test]]
 name = "try_into"
@@ -295,35 +321,27 @@ path = "tests/try_into.rs"
 required-features = ["try_into"]
 
 [[test]]
-name = "try_unwrap"
-path = "tests/try_unwrap.rs"
-required-features = ["try_unwrap"]
-
-[[test]]
 name = "unwrap"
 path = "tests/unwrap.rs"
 required-features = ["unwrap"]
 
-[dependencies.derive_more-impl]
-version = "=2.1.1"
+[dependencies.convert_case]
+version = "0.4"
+optional = true
 
-[dev-dependencies.rustversion]
+[dependencies.proc-macro2]
 version = "1.0"
 
-[dev-dependencies.static_assertions]
-version = "1.1"
+[dependencies.quote]
+version = "1.0"
 
-[dev-dependencies.trybuild]
-version = "1.0.56"
+[dependencies.syn]
+version = "2"
+
+[build-dependencies.peg]
+version = "0.5"
+optional = true
 
 [build-dependencies.rustc_version]
 version = "0.4"
 optional = true
-
-[lints.rust.unexpected_cfgs]
-level = "warn"
-priority = 0
-check-cfg = [
-    "cfg(ci)",
-    "cfg(nightly)",
-]

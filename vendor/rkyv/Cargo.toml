@@ -11,19 +11,17 @@
 
 [package]
 edition = "2021"
-rust-version = "1.81"
 name = "rkyv"
-version = "0.8.16"
+version = "0.7.46"
 authors = ["David Koloski <djkoloski@gmail.com>"]
-build = false
+build = "build.rs"
 autolib = false
 autobins = false
 autoexamples = false
 autotests = false
 autobenches = false
 description = "Zero-copy deserialization framework for Rust"
-documentation = "https://docs.rs/rkyv"
-readme = "README.md"
+readme = "crates-io.md"
 keywords = [
     "archive",
     "rkyv",
@@ -34,236 +32,120 @@ keywords = [
 categories = [
     "encoding",
     "no-std",
-    "no-std::no-alloc",
 ]
 license = "MIT"
 repository = "https://github.com/rkyv/rkyv"
 
 [package.metadata.docs.rs]
-features = ["bytecheck"]
+features = ["validation"]
 
 [features]
-aligned = []
 alloc = [
-    "dep:hashbrown",
-    "tinyvec-1?/alloc",
-    "rancor/alloc",
+    "hashbrown",
+    "bitvec?/alloc",
+    "tinyvec?/alloc",
 ]
-big_endian = []
-bytecheck = [
-    "dep:bytecheck",
-    "rend/bytecheck",
-    "rkyv_derive/bytecheck",
+arbitrary_enum_discriminant = ["rkyv_derive/arbitrary_enum_discriminant"]
+archive_be = [
+    "rend",
+    "rkyv_derive/archive_be",
 ]
+archive_le = [
+    "rend",
+    "rkyv_derive/archive_le",
+]
+copy = ["rkyv_derive/copy"]
+copy_unsafe = []
 default = [
+    "size_32",
     "std",
-    "bytecheck",
 ]
-hashbrown-0_17 = ["dep:hashbrown"]
-indexmap-2 = [
-    "dep:indexmap-2",
-    "alloc",
-]
-little_endian = []
-pointer_width_16 = []
-pointer_width_32 = []
-pointer_width_64 = []
+size_16 = []
+size_32 = []
+size_64 = []
 std = [
     "alloc",
-    "bytes-1?/std",
-    "indexmap-2?/std",
+    "bytecheck?/std",
     "ptr_meta/std",
-    "uuid-1?/std",
+    "rend?/std",
+    "uuid?/std",
+    "bytes?/std",
 ]
-triomphe-0_1 = [
-    "dep:triomphe-0_1",
+strict = ["rkyv_derive/strict"]
+uuid = [
+    "dep:uuid",
+    "bytecheck?/uuid",
+]
+validation = [
     "alloc",
-]
-unaligned = []
-uuid-1 = [
-    "dep:uuid-1",
-    "bytecheck?/uuid-1",
+    "bytecheck",
+    "rend/validation",
 ]
 
 [lib]
 name = "rkyv"
 path = "src/lib.rs"
 
-[[example]]
-name = "backwards_compat"
-path = "examples/backwards_compat.rs"
-
-[[example]]
-name = "complex_wrapper_types"
-path = "examples/complex_wrapper_types.rs"
-
-[[example]]
-name = "derive_partial_ord"
-path = "examples/derive_partial_ord.rs"
-
-[[example]]
-name = "explicit_enum_discriminants"
-path = "examples/explicit_enum_discriminants.rs"
-
-[[example]]
-name = "json_like_schema"
-path = "examples/json_like_schema.rs"
-
-[[example]]
-name = "niching"
-path = "examples/niching.rs"
-
-[[example]]
-name = "readme"
-path = "examples/readme.rs"
-
-[[example]]
-name = "remote_types"
-path = "examples/remote_types.rs"
-
-[[test]]
-name = "derive"
-path = "tests/derive.rs"
-
-[[test]]
-name = "ui"
-path = "tests/ui.rs"
-
-[[bench]]
-name = "log"
-path = "benches/log.rs"
-harness = false
-
-[[bench]]
-name = "mesh"
-path = "benches/mesh.rs"
-harness = false
-
-[[bench]]
-name = "minecraft_savedata"
-path = "benches/minecraft_savedata.rs"
-harness = false
-
-[dependencies.arrayvec-0_7]
+[dependencies.arrayvec]
 version = "0.7"
 optional = true
 default-features = false
-package = "arrayvec"
+
+[dependencies.bitvec]
+version = "1.0"
+optional = true
+default-features = false
 
 [dependencies.bytecheck]
-version = "0.8"
-features = ["simdutf8"]
+version = "0.6.11"
 optional = true
 default-features = false
 
-[dependencies.bytes-1]
-version = "1"
+[dependencies.bytes]
+version = "1.4.0"
 optional = true
 default-features = false
-package = "bytes"
 
 [dependencies.hashbrown]
-version = "0.17"
+version = "0.12"
 optional = true
-default-features = false
 
-[dependencies.hashbrown-0_14]
-version = "0.14"
+[dependencies.indexmap]
+version = "1.7"
 optional = true
-default-features = false
-package = "hashbrown"
-
-[dependencies.hashbrown-0_15]
-version = "0.15"
-optional = true
-default-features = false
-package = "hashbrown"
-
-[dependencies.hashbrown-0_16]
-version = "0.16"
-optional = true
-default-features = false
-package = "hashbrown"
-
-[dependencies.indexmap-2]
-version = "2"
-optional = true
-default-features = false
-package = "indexmap"
-
-[dependencies.munge]
-version = "0.4"
 default-features = false
 
 [dependencies.ptr_meta]
-version = "0.3"
-default-features = false
-
-[dependencies.rancor]
-version = "0.1"
+version = "~0.1.3"
 default-features = false
 
 [dependencies.rend]
-version = "0.5"
+version = "0.4"
+optional = true
 default-features = false
 
 [dependencies.rkyv_derive]
-version = "=0.8.16"
-default-features = false
+version = "=0.7.46"
 
-[dependencies.smallvec-1]
-version = "1"
+[dependencies.seahash]
+version = "4.0"
+
+[dependencies.smallvec]
+version = "1.7"
 optional = true
 default-features = false
-package = "smallvec"
 
-[dependencies.smol_str-0_2]
+[dependencies.smol_str]
 version = "0.2"
 optional = true
 default-features = false
-package = "smol_str"
 
-[dependencies.smol_str-0_3]
-version = "0.3"
+[dependencies.tinyvec]
+version = "1.5"
 optional = true
 default-features = false
-package = "smol_str"
 
-[dependencies.thin-vec-0_2]
-version = "0.2.12"
+[dependencies.uuid]
+version = "1.3"
 optional = true
-default-features = false
-package = "thin-vec"
-
-[dependencies.tinyvec-1]
-version = "1"
-optional = true
-default-features = false
-package = "tinyvec"
-
-[dependencies.triomphe-0_1]
-version = "0.1"
-optional = true
-default-features = false
-package = "triomphe"
-
-[dependencies.uuid-1]
-version = "1"
-optional = true
-default-features = false
-package = "uuid"
-
-[dev-dependencies.ahash]
-version = "0.8"
-
-[dev-dependencies.divan]
-version = "0.1"
-default-features = false
-
-[dev-dependencies.rustversion]
-version = "1"
-default-features = false
-
-[dev-dependencies.trybuild]
-version = "1"
 default-features = false

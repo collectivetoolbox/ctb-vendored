@@ -1,50 +1,33 @@
 //! Archived versions of FFI types.
 
+use crate::{ser::Serializer, ArchiveUnsized, MetadataResolver, RelPtr, SerializeUnsized};
 use core::{
     borrow::Borrow,
-    cmp,
-    ffi::CStr,
-    fmt, hash,
+    cmp, fmt, hash,
     ops::{Deref, Index, RangeFull},
+    pin::Pin,
 };
+use std::ffi::CStr;
 
-use munge::munge;
-use rancor::Fallible;
-
-use crate::{
-    primitive::FixedUsize, ser::Writer, ArchiveUnsized, Place, Portable,
-    RelPtr, SerializeUnsized,
-};
-
-/// An archived [`CString`](crate::alloc::ffi::CString).
+/// An archived [`CString`](std::ffi::CString).
 ///
 /// Uses a [`RelPtr`] to a `CStr` under the hood.
-#[derive(Portable)]
-#[rkyv(crate)]
-#[cfg_attr(
-    feature = "bytecheck",
-    derive(bytecheck::CheckBytes),
-    bytecheck(verify)
-)]
 #[repr(transparent)]
-pub struct ArchivedCString {
-    ptr: RelPtr<CStr>,
-}
+pub struct ArchivedCString(RelPtr<CStr>);
 
 impl ArchivedCString {
     /// Returns the contents of this CString as a slice of bytes.
     ///
-    /// The returned slice does **not** contain the trailing nul terminator, and
-    /// it is guaranteed to not have any interior nul bytes. If you need the
-    /// nul terminator, use
+    /// The returned slice does **not** contain the trailing nul terminator, and it is guaranteed to
+    /// not have any interior nul bytes. If you need the nul terminator, use
     /// [`as_bytes_with_nul`][ArchivedCString::as_bytes_with_nul()] instead.
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         self.as_c_str().to_bytes()
     }
 
-    /// Equivalent to [`as_bytes`][ArchivedCString::as_bytes()] except that the
-    /// returned slice includes the trailing nul terminator.
+    /// Equivalent to [`as_bytes`][ArchivedCString::as_bytes()] except that the returned slice
+    /// includes the trailing nul terminator.
     #[inline]
     pub fn as_bytes_with_nul(&self) -> &[u8] {
         self.as_c_str().to_bytes_with_nul()
@@ -53,31 +36,43 @@ impl ArchivedCString {
     /// Extracts a `CStr` slice containing the entire string.
     #[inline]
     pub fn as_c_str(&self) -> &CStr {
-        unsafe { &*self.ptr.as_ptr() }
+        unsafe { &*self.0.as_ptr() }
+    }
+
+    /// Extracts a pinned mutable `CStr` slice containing the entire string.
+    #[inline]
+    pub fn pin_mut_c_str(self: Pin<&mut Self>) -> Pin<&mut CStr> {
+        unsafe { self.map_unchecked_mut(|s| &mut *s.0.as_mut_ptr()) }
     }
 
     /// Resolves an archived C string from the given C string and parameters.
+    ///
+    /// # Safety
+    ///
+    /// - `pos` must be the position of `out` within the archive
+    /// - `resolver` must be the result of serializing a C string
     #[inline]
-    pub fn resolve_from_c_str(
+    pub unsafe fn resolve_from_c_str(
         c_str: &CStr,
+        pos: usize,
         resolver: CStringResolver,
-        out: Place<Self>,
+        out: *mut Self,
     ) {
-        munge!(let ArchivedCString { ptr } = out);
-        RelPtr::emplace_unsized(
-            resolver.pos as usize,
-            c_str.archived_metadata(),
-            ptr,
-        );
+        let (fp, fo) = out_field!(out.0);
+        // metadata_resolver is guaranteed to be (), but it's better to be explicit about it
+        #[allow(clippy::unit_arg)]
+        c_str.resolve_unsized(pos + fp, resolver.pos, resolver.metadata_resolver, fo);
     }
 
     /// Serializes a C string.
-    pub fn serialize_from_c_str<S: Fallible + Writer + ?Sized>(
+    #[inline]
+    pub fn serialize_from_c_str<S: Serializer + ?Sized>(
         c_str: &CStr,
         serializer: &mut S,
     ) -> Result<CStringResolver, S::Error> {
         Ok(CStringResolver {
-            pos: c_str.serialize_unsized(serializer)? as FixedUsize,
+            pos: c_str.serialize_unsized(serializer)?,
+            metadata_resolver: c_str.serialize_metadata(serializer)?,
         })
     }
 }
@@ -114,6 +109,7 @@ impl Deref for ArchivedCString {
 impl Eq for ArchivedCString {}
 
 impl hash::Hash for ArchivedCString {
+    #[inline]
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         self.as_bytes_with_nul().hash(state);
     }
@@ -165,33 +161,44 @@ impl PartialOrd for ArchivedCString {
 
 /// The resolver for `CString`.
 pub struct CStringResolver {
-    pos: FixedUsize,
+    pos: usize,
+    metadata_resolver: MetadataResolver<CStr>,
 }
 
-#[cfg(feature = "bytecheck")]
-mod verify {
-    use core::ffi::CStr;
-
-    use bytecheck::{
-        rancor::{Fallible, Source},
-        CheckBytes, Verify,
+#[cfg(feature = "validation")]
+const _: () = {
+    use crate::validation::{
+        owned::{CheckOwnedPointerError, OwnedPointerError},
+        ArchiveContext,
     };
+    use bytecheck::{CheckBytes, Error};
 
-    use crate::{
-        ffi::ArchivedCString,
-        validation::{ArchiveContext, ArchiveContextExt},
-    };
-
-    unsafe impl<C> Verify<C> for ArchivedCString
+    impl<C: ArchiveContext + ?Sized> CheckBytes<C> for ArchivedCString
     where
-        C: Fallible + ArchiveContext + ?Sized,
-        C::Error: Source,
+        C::Error: Error,
     {
-        fn verify(&self, context: &mut C) -> Result<(), C::Error> {
-            let ptr = self.ptr.as_ptr_wrapping();
-            context.in_subtree(ptr, |context| unsafe {
-                CStr::check_bytes(ptr, context)
-            })
+        type Error = CheckOwnedPointerError<CStr, C>;
+
+        #[inline]
+        unsafe fn check_bytes<'a>(
+            value: *const Self,
+            context: &mut C,
+        ) -> Result<&'a Self, Self::Error> {
+            let rel_ptr = RelPtr::<CStr>::manual_check_bytes(value.cast(), context)
+                .map_err(OwnedPointerError::PointerCheckBytesError)?;
+            let ptr = context
+                .check_subtree_rel_ptr(rel_ptr)
+                .map_err(OwnedPointerError::ContextError)?;
+
+            let range = context
+                .push_prefix_subtree(ptr)
+                .map_err(OwnedPointerError::ContextError)?;
+            CStr::check_bytes(ptr, context).map_err(OwnedPointerError::ValueCheckBytesError)?;
+            context
+                .pop_prefix_range(range)
+                .map_err(OwnedPointerError::ContextError)?;
+
+            Ok(&*value)
         }
     }
-}
+};

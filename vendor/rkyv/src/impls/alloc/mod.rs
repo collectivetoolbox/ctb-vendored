@@ -1,7 +1,6 @@
 mod boxed;
 mod collections;
-mod ffi;
+mod niche;
 mod rc;
 mod string;
 mod vec;
-mod with;

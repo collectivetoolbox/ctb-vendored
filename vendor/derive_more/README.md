@@ -1,11 +1,10 @@
 # `derive_more`
 
-[![Build Status](https://github.com/JelteF/derive_more/actions/workflows/ci.yml/badge.svg)](https://github.com/JelteF/derive_more/actions)
+[![Build Status](https://github.com/JelteF/derive_more/workflows/CI/badge.svg)](https://github.com/JelteF/derive_more/actions)
 [![Latest Version](https://img.shields.io/crates/v/derive_more.svg)](https://crates.io/crates/derive_more)
-[![Rust Documentation](https://docs.rs/derive_more/badge.svg)](https://docs.rs/derive_more)
+[![Rust Documentation](https://img.shields.io/badge/api-rustdoc-blue.svg)](https://jeltef.github.io/derive_more/derive_more/)
 [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/JelteF/derive_more/master/LICENSE)
-[![Rust 1.81+](https://img.shields.io/badge/rustc-1.81+-lightgray.svg)](https://blog.rust-lang.org/2024/09/05/Rust-1.81.0)
-[![Unsafe Forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance)
+[![Rust 1.65+](https://img.shields.io/badge/rustc-1.65+-lightgray.svg)](https://blog.rust-lang.org/2022/11/03/Rust-1.65.0.html)
 
 Rust has lots of builtin traits that are implemented for its basic types, such
 as `Add`, `Not`, `From` or `Display`.
@@ -17,14 +16,12 @@ when using the commonly advised newtype pattern (e.g. `MyInt(i32)`).
 This library tries to remove these annoyances and the corresponding boilerplate code.
 It does this by allowing you to derive lots of commonly used traits for both structs and enums.
 
-
-
-
 ## Example code
 
 By using this library the following code just works:
 
 ```rust
+extern crate derive_more;
 use derive_more::{Add, Display, From, Into};
 
 #[derive(PartialEq, From, Add)]
@@ -38,10 +35,10 @@ struct Point2D {
 
 #[derive(PartialEq, From, Add, Display)]
 enum MyEnum {
-    #[display("int: {_0}")]
+    #[display(fmt = "int: {}", _0)]
     Int(i32),
     Uint(u32),
-    #[display("nothing")]
+    #[display(fmt = "nothing")]
     Nothing,
 }
 
@@ -52,9 +49,6 @@ assert!(MyEnum::Int(15).to_string() == "int: 15");
 assert!(MyEnum::Uint(42).to_string() == "42");
 assert!(MyEnum::Nothing.to_string() == "nothing");
 ```
-
-
-
 
 ## The derivable traits
 
@@ -77,7 +71,6 @@ This will show you your code with all macros and derives expanded.
 **NOTE**: You still have to derive each trait separately. So `#[derive(Mul)]` doesn't
 automatically derive `Div` as well. To derive both you should do `#[derive(Mul, Div)]`
 
-
 ### Conversion traits
 
 These are traits that are used to convert automatically between types.
@@ -85,27 +78,22 @@ These are traits that are used to convert automatically between types.
 1. [`From`]
 2. [`Into`]
 3. [`FromStr`]
-4. [`TryFrom`]
-5. [`TryInto`]
-6. [`IntoIterator`]
-7. [`AsRef`], [`AsMut`]
-
+4. [`TryInto`]
+5. [`IntoIterator`]
+6. [`AsRef`]
+7. [`AsMut`]
 
 ### Formatting traits
 
 These traits are used for converting a struct to a string in different ways.
 
-1. [`Debug`]
-2. [`Display`-like], contains `Display`, `Binary`, `Octal`, `LowerHex`,
-   `UpperHex`, `LowerExp`, `UpperExp`, `Pointer`
-
+1. [`Display`-like], contains `Display`, `DebugCustom`, `Binary`, `Octal`,
+   `LowerHex`, `UpperHex`, `LowerExp`, `UpperExp`, `Pointer`
 
 ### Error-handling traits
-
 These traits are used to define error-types.
 
 1. [`Error`]
-
 
 ### Operators
 
@@ -116,15 +104,13 @@ These are traits that can be used for operator overloading.
 3. [`Not`-like], contains `Not` and `Neg`
 4. [`Add`-like], contains `Add`, `Sub`, `BitAnd`, `BitOr`, `BitXor`
 5. [`Mul`-like], contains `Mul`, `Div`, `Rem`, `Shr` and `Shl`
-6. [`Sum`-like], contains `Sum` and `Product`
-7. [`IndexMut`]
-8. [`DerefMut`]
-9. [`AddAssign`-like], contains `AddAssign`, `SubAssign`, `BitAndAssign`,
+3. [`Sum`-like], contains `Sum` and `Product`
+6. [`IndexMut`]
+7. [`DerefMut`]
+8. [`AddAssign`-like], contains `AddAssign`, `SubAssign`, `BitAndAssign`,
    `BitOrAssign` and `BitXorAssign`
-10. [`MulAssign`-like], contains `MulAssign`, `DivAssign`, `RemAssign`,
-    `ShrAssign` and `ShlAssign`
-11. [`Eq`], [`PartialEq`]
-
+9. [`MulAssign`-like], contains `MulAssign`, `DivAssign`, `RemAssign`,
+   `ShrAssign` and `ShlAssign`
 
 ### Static methods
 
@@ -135,141 +121,63 @@ These don't derive traits, but derive static methods instead.
    out the [`derive-new`] crate.
 2. [`IsVariant`], for each variant `foo` of an enum type, derives a `is_foo` method.
 3. [`Unwrap`], for each variant `foo` of an enum type, derives an `unwrap_foo` method.
-4. [`TryUnwrap`], for each variant `foo` of an enum type, derives an `try_unwrap_foo` method.
 
-
-### Re-exports
-
-This crate also re-exports all the standard library traits, that it adds derives
-for, in the `with_trait` module. So, both the `Display` derive and the `Display`
-trait will be in scope when you add the following code:
-```rust
-use derive_more::with_trait::Display; // also imports `core::fmt::Display`
-```
-
-By default, derive macros only, without the corresponding traits, are imported from
-the crate's root (or from the `derive` module):
-```rust
-use derive_more::Display;   // imports macro only
-use derive_more::derive::*; // imports all macros only
-```
-
-#### Hygiene
-
-For hygiene purposes, macros use `derive_more::*` absolute paths in their expansions.
-This might introduce a trouble, if you want to re-export `derive_more` macros in your
-own crate without using the `derive_more` as a direct dependency in downstream crates:
-```rust,ignore
-use my_lib::Display; // re-exported in `my_lib` crate
-
-#[derive(Display)] // error: could not find `derive_more` in the list of imported crates
-struct MyInt(i32);
-```
-In such case, you should re-export the `derive_more` module too:
-```rust,ignore
-use my_lib::{derive_more, Display}; // re-exported in `my_lib` crate
-
-#[derive(Display)] // works fine now!
-struct MyInt(i32);
-```
-
-
-
+## Generated code
 
 ## Installation
 
-To avoid redundant compilation times, by default no derives are supported.
-You have to enable each type of derive as a feature in `Cargo.toml`:
+This library requires Rust 1.65 or higher and it supports `no_std` out of the box.
+Then add the following to `Cargo.toml`:
+
 ```toml
 [dependencies]
-# You can specify the types of derives that you need for less time spent
-# compiling. For the full list of features see this crate its `Cargo.toml`.
-derive_more = { version = "2", features = ["from", "add", "into_iterator"] }
-```
-```toml
-[dependencies]
-# If you don't care much about compilation times and simply want to have
-# support for all the possible derives, you can use the "full" feature.
-derive_more = { version = "2", features = ["full"] }
-```
-```toml
-[dependencies]
-# If you run in a `no_std` environment you should disable the default features,
-# because the only default feature is the "std" feature.
-# NOTE: You can combine this with "full" feature to get support for all the
-#       possible derives in a `no_std` environment.
-derive_more = { version = "2", default-features = false }
+derive_more = "0.99.0"
+# You can specifiy the types of derives that you need for less time spent
+# compiling. For the full list of features see this crate its Cargo.toml.
+default-features = false
+features = ["from", "add", "iterator"]
 ```
 
-And this to the top of your Rust file:
+And this to the top of your Rust file for Rust 2018:
+
 ```rust
+extern crate derive_more;
 // use the derives that you want in the file
 use derive_more::{Add, Display, From};
 ```
-If you're still using Rust 2015, add this instead:
-```rust,edition2015
+If you're still using Rust 2015 you should add this instead:
+```rust
 extern crate core;
 #[macro_use]
 extern crate derive_more;
-# fn main() {} // omit wrapping statements above into `main()` in tests
 ```
-
-
-## [MSRV] policy
-
-This library requires Rust 1.81 or higher.
-
-Changing [MSRV] (minimum supported Rust version) of this crate is treated as a **minor version change** in terms of [Semantic Versioning].
-- So, if [MSRV] changes are **NOT concerning** for your project, just use the default [caret requirement]:
-  ```toml
-  [dependencies]
-  derive_more = "2" # or "2.1", or "^2.1"
-  ```
-- However, if [MSRV] changes are concerning for your project, then use the [tilde requirement] to **pin to a specific minor version**:
-  ```toml
-  [dependencies]
-  derive_more = "~2.1" # or "~2.1.1"
-  ```
-
-
-
 
 [`cargo-expand`]: https://github.com/dtolnay/cargo-expand
 [`derive-new`]: https://github.com/nrc/derive-new
 
-[`From`]: https://docs.rs/derive_more/latest/derive_more/derive.From.html
-[`Into`]: https://docs.rs/derive_more/latest/derive_more/derive.Into.html
-[`FromStr`]: https://docs.rs/derive_more/latest/derive_more/derive.FromStr.html
-[`TryFrom`]: https://docs.rs/derive_more/latest/derive_more/derive.TryFrom.html
-[`TryInto`]: https://docs.rs/derive_more/latest/derive_more/derive.TryInto.html
-[`IntoIterator`]: https://docs.rs/derive_more/latest/derive_more/derive.IntoIterator.html
-[`AsRef`]: https://docs.rs/derive_more/latest/derive_more/derive.AsRef.html
-[`AsMut`]: https://docs.rs/derive_more/latest/derive_more/derive.AsMut.html
+[`From`]: https://jeltef.github.io/derive_more/derive_more/from.html
+[`Into`]: https://jeltef.github.io/derive_more/derive_more/into.html
+[`FromStr`]: https://jeltef.github.io/derive_more/derive_more/from_str.html
+[`TryInto`]: https://jeltef.github.io/derive_more/derive_more/try_into.html
+[`IntoIterator`]: https://jeltef.github.io/derive_more/derive_more/into_iterator.html
+[`AsRef`]: https://jeltef.github.io/derive_more/derive_more/as_ref.html
+[`AsMut`]: https://jeltef.github.io/derive_more/derive_more/as_mut.html
 
-[`Debug`]: https://docs.rs/derive_more/latest/derive_more/derive.Debug.html
-[`Display`-like]: https://docs.rs/derive_more/latest/derive_more/derive.Display.html
+[`Display`-like]: https://jeltef.github.io/derive_more/derive_more/display.html
 
-[`Error`]: https://docs.rs/derive_more/latest/derive_more/derive.Error.html
+[`Error`]: https://jeltef.github.io/derive_more/derive_more/error.html
 
-[`Index`]: https://docs.rs/derive_more/latest/derive_more/derive.Index.html
-[`Deref`]: https://docs.rs/derive_more/latest/derive_more/derive.Deref.html
-[`Not`-like]: https://docs.rs/derive_more/latest/derive_more/derive.Not.html
-[`Add`-like]: https://docs.rs/derive_more/latest/derive_more/derive.Add.html
-[`Mul`-like]: https://docs.rs/derive_more/latest/derive_more/derive.Mul.html
-[`Sum`-like]: https://docs.rs/derive_more/latest/derive_more/derive.Sum.html
-[`IndexMut`]: https://docs.rs/derive_more/latest/derive_more/derive.IndexMut.html
-[`DerefMut`]: https://docs.rs/derive_more/latest/derive_more/derive.DerefMut.html
-[`AddAssign`-like]: https://docs.rs/derive_more/latest/derive_more/derive.AddAssign.html
-[`MulAssign`-like]: https://docs.rs/derive_more/latest/derive_more/derive.MulAssign.html
-[`Eq`]: https://docs.rs/derive_more/latest/derive_more/derive.Eq.html
-[`PartialEq`]: https://docs.rs/derive_more/latest/derive_more/derive.PartialEq.html
+[`Index`]: https://jeltef.github.io/derive_more/derive_more/index_op.html
+[`Deref`]: https://jeltef.github.io/derive_more/derive_more/deref.html
+[`Not`-like]: https://jeltef.github.io/derive_more/derive_more/not.html
+[`Add`-like]: https://jeltef.github.io/derive_more/derive_more/add.html
+[`Mul`-like]: https://jeltef.github.io/derive_more/derive_more/mul.html
+[`Sum`-like]: https://jeltef.github.io/derive_more/derive_more/sum.html
+[`IndexMut`]: https://jeltef.github.io/derive_more/derive_more/index_mut.html
+[`DerefMut`]: https://jeltef.github.io/derive_more/derive_more/deref_mut.html
+[`AddAssign`-like]: https://jeltef.github.io/derive_more/derive_more/add_assign.html
+[`MulAssign`-like]: https://jeltef.github.io/derive_more/derive_more/mul_assign.html
 
-[`Constructor`]: https://docs.rs/derive_more/latest/derive_more/derive.Constructor.html
-[`IsVariant`]: https://docs.rs/derive_more/latest/derive_more/derive.IsVariant.html
-[`Unwrap`]: https://docs.rs/derive_more/latest/derive_more/derive.Unwrap.html
-[`TryUnwrap`]: https://docs.rs/derive_more/latest/derive_more/derive.TryUnwrap.html
-
-[caret requirement]: https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#caret-requirements
-[tilde requirement]: https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#tilde-requirements
-[MSRV]: https://doc.rust-lang.org/cargo/reference/manifest.html#the-rust-version-field
-[Semantic Versioning]: http://semver.org
+[`Constructor`]: https://jeltef.github.io/derive_more/derive_more/constructor.html
+[`IsVariant`]: https://jeltef.github.io/derive_more/derive_more/is_variant.html
+[`Unwrap`]: https://jeltef.github.io/derive_more/derive_more/unwrap.html

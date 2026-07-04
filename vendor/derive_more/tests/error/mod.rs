@@ -1,7 +1,4 @@
-#[cfg(not(feature = "std"))]
-extern crate alloc;
-
-use derive_more::with_trait::Error;
+use std::error::Error;
 
 /// Derives `std::fmt::Display` for structs/enums.
 /// Derived implementation outputs empty string.
@@ -30,17 +27,17 @@ use derive_more::with_trait::Error;
 /// ```
 macro_rules! derive_display {
     (@fmt) => {
-        fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
             write!(f, "")
         }
     };
     ($type:ident) => {
-        impl ::core::fmt::Display for $type {
+        impl ::std::fmt::Display for $type {
             derive_display!(@fmt);
         }
     };
     ($type:ident, $($type_parameters:ident),*) => {
-        impl<$($type_parameters),*> ::core::fmt::Display for $type<$($type_parameters),*> {
+        impl<$($type_parameters),*> ::std::fmt::Display for $type<$($type_parameters),*> {
             derive_display!(@fmt);
         }
     };
@@ -50,9 +47,6 @@ mod derives_for_enums_with_source;
 mod derives_for_generic_enums_with_source;
 mod derives_for_generic_structs_with_source;
 mod derives_for_structs_with_source;
-
-#[cfg(all(feature = "std", nightly))]
-mod nightly;
 
 derive_display!(SimpleErr);
 #[derive(Default, Debug, Error)]
