@@ -1804,6 +1804,23 @@ impl<'a> Builder<'a> {
     /// We want to be able to take breaking changes to html5ever itself
     /// without having to break Ammonia's API.
     fn clean_dom(&self, dom: RcDom) -> Document {
+        let mut id_to_tag_name_map = HashMap::new();
+        let mut id_to_tag_name_stack = vec![{
+            let children = dom.document.children.borrow();
+            children[0].clone()
+        }];
+        while let Some(tag) = id_to_tag_name_stack.pop() {
+            if let NodeData::Element { name, attrs, .. } = &tag.data {
+                let attrs = attrs.borrow();
+                for attr in &attrs[..] {
+                    if &*attr.name.local == "id" {
+                        id_to_tag_name_map.entry(attr.value.to_string()).and_modify(|ent| *ent = None).or_insert_with(|| Some(name.local.to_string()));
+                    }
+                }
+            }
+            id_to_tag_name_stack.extend(tag.children.borrow().iter().map(|x| x.clone()));
+        }
+
         let mut stack = Vec::new();
         let mut removed = Vec::new();
         let link_rel = self
@@ -1854,8 +1871,8 @@ impl<'a> Builder<'a> {
             let parent = node.parent
                 .replace(None).expect("a node in the DOM will have a parent, except the root, which is not processed")
                 .upgrade().expect("a node's parent will be pointed to by its parent (or the root pointer), and will not be dropped");
-            let pass = self.clean_child(&mut node);
-            self.adjust_node_attributes(&mut node, &link_rel, self.id_prefix);
+            let pass = self.clean_child(&mut node, &parent, &id_to_tag_name_map);
+            self.adjust_node_attributes(&mut node, &link_rel, self.id_prefix, &parent, &id_to_tag_name_map);
             if self.clean_node_content(&node) || !self.check_expected_namespace(&parent, &node) {
                 removed.push(node);
                 continue;
@@ -1919,7 +1936,7 @@ impl<'a> Builder<'a> {
     /// The root node doesn't need cleaning because we create the root node ourselves,
     /// and it doesn't get serialized, and ... it just exists to give the parser
     /// a context (in this case, a div-like block context).
-    fn clean_child(&self, child: &mut Handle) -> bool {
+    fn clean_child(&self, child: &mut Handle, parent: &Handle, id_to_tag_name_map: &HashMap<String, Option<String>>) -> bool {
         match child.data {
             NodeData::Text { .. } => true,
             NodeData::Comment { .. } => !self.strip_comments,
@@ -1932,34 +1949,33 @@ impl<'a> Builder<'a> {
                 ..
             } => {
                 if self.tags.contains(&*name.local) {
-                    let attr_filter = |attr: &html5ever::Attribute| {
-                        let whitelisted = self.generic_attributes.contains(&*attr.name.local)
+                    let whitelisted = |tag_name: &str, attr_name: &str, attr_val: &str|
+                        self.generic_attributes.contains(attr_name)
                             || self.generic_attribute_prefixes.as_ref().map(|prefixes| {
-                                prefixes.iter().any(|&p| attr.name.local.starts_with(p))
+                                prefixes.iter().any(|&p| attr_name.starts_with(p))
                             }) == Some(true)
                             || self
                                 .tag_attributes
-                                .get(&*name.local)
-                                .map(|ta| ta.contains(&*attr.name.local))
+                                .get(tag_name)
+                                .map(|ta| ta.contains(attr_name))
                                 == Some(true)
                             || self
                                 .tag_attribute_values
-                                .get(&*name.local)
-                                .and_then(|tav| tav.get(&*attr.name.local))
+                                .get(tag_name)
+                                .and_then(|tav| tav.get(attr_name))
                                 .map(|vs| {
-                                    let attr_val = attr.value.to_lowercase();
-                                    vs.iter().any(|v| v.to_lowercase() == attr_val)
+                                    vs.iter().any(|v| v.to_lowercase() == attr_val.to_lowercase())
                                 })
                                 == Some(true);
-                        if !whitelisted {
+                    let attr_filter = |tag_name: &str, attr_name: &str, attr_val: &str| {
+                        if !whitelisted(tag_name, attr_name, attr_val) {
                             // If the class attribute is not whitelisted,
                             // but there is a whitelisted set of allowed_classes,
                             // do not strip out the class attribute.
                             // Banned classes will be filtered later.
-                            &*attr.name.local == "class"
-                                && self.allowed_classes.contains_key(&*name.local)
-                        } else if is_url_attr(&name.local, &attr.name.local) {
-                            let url = Url::parse(&attr.value);
+                            attr_name == "class" && self.allowed_classes.contains_key(tag_name)
+                        } else if is_url_attr(tag_name, attr_name) {
+                            let url = Url::parse(attr_val);
                             if let Ok(url) = url {
                                 self.url_schemes.contains(url.scheme())
                             } else if url == Err(url::ParseError::RelativeUrlWithoutBase) {
@@ -1971,8 +1987,71 @@ impl<'a> Builder<'a> {
                             true
                         }
                     };
-                    attrs.borrow_mut().retain(attr_filter);
-                    true
+                    attrs.borrow_mut().retain(|attr| attr_filter(&*name.local, &*attr.name.local, &*attr.value));
+                    if
+                        // https://svgwg.org/specs/animations/#AnimateElement
+                        name.ns == ns!(svg) &&
+                        (&*name.local == "animate" || &*name.local == "set")
+                    {
+                        let animate_name = attrs.borrow()
+                            .iter()
+                            .find(|attr| &*attr.name.local == "attributeName")
+                            .map(|attr| attr.value.clone());
+                        let animate_values = attrs.borrow()
+                            .iter()
+                            .find(|attr| &*attr.name.local == "values")
+                            .map(|attr| attr.value.clone());
+                        let animate_from = attrs.borrow()
+                            .iter()
+                            .find(|attr| &*attr.name.local == "from")
+                            .map(|attr| attr.value.clone());
+                        let animate_to = attrs.borrow()
+                            .iter()
+                            .find(|attr| &*attr.name.local == "to")
+                            .map(|attr| attr.value.clone());
+                        let animate_href = attrs.borrow()
+                            .iter()
+                            .find(|attr| &*attr.name.local == "href")
+                            .map(|attr| attr.value.clone());
+                        let animate_tag_name = animate_href
+                            .map(|href| {
+                                if href.starts_with("#") {
+                                    id_to_tag_name_map.get(&href[1..]).and_then(|inner| Some(&inner.as_ref()?[..]))
+                                } else {
+                                    None
+                                }
+                            })
+                            .unwrap_or_else(|| {
+                                if let &NodeData::Element { name: ref parent_name, .. } = &parent.data {
+                                    Some(&*parent_name.local)
+                                } else {
+                                    None
+                                }
+                            });
+                        match (animate_name, animate_values, animate_from, animate_to, animate_tag_name) {
+                            (Some(animate_name), _, _, _, Some(animate_tag_name)) if self.set_tag_attribute_values.get(animate_tag_name).map_or(false, |attribute_values| attribute_values.contains_key(&*animate_name)) => false,
+                            (Some(animate_name), Some(animate_values), None, None, Some(animate_tag_name)) => {
+                                // https://svgwg.org/specs/animations/#ValuesAttribute
+                                animate_values.split(';').all(|attr_val| attr_filter(animate_tag_name, &*animate_name, attr_val))
+                            }
+                            (Some(animate_name), None, Some(animate_from), Some(animate_to), Some(animate_tag_name)) => {
+                                // https://svgwg.org/specs/animations/#FromAttribute
+                                attr_filter(animate_tag_name, &*animate_name, &*animate_from) &&
+                                    attr_filter(animate_tag_name, &*animate_name, &*animate_to)
+                            }
+                            (Some(animate_name), None, Some(animate_from), None, Some(animate_tag_name)) => {
+                                // https://svgwg.org/specs/animations/#FromAttribute
+                                attr_filter(animate_tag_name, &*animate_name, &*animate_from)
+                            }
+                            (Some(animate_name), None, None, Some(animate_to), Some(animate_tag_name)) => {
+                                // https://svgwg.org/specs/animations/#FromAttribute
+                                attr_filter(animate_tag_name, &*animate_name, &*animate_to)
+                            }
+                            _ => false,
+                        }
+                    } else {
+                        true
+                    }
                 } else {
                     false
                 }
@@ -2138,6 +2217,8 @@ impl<'a> Builder<'a> {
         child: &mut Handle,
         link_rel: &Option<StrTendril>,
         id_prefix: Option<&'a str>,
+        parent: &Handle,
+        id_to_tag_name_map: &HashMap<String, Option<String>>,
     ) {
         if let NodeData::Element {
             ref name,
@@ -2246,6 +2327,188 @@ impl<'a> Builder<'a> {
                     }
                 }
             }
+            if
+                // https://svgwg.org/specs/animations/#AnimateElement
+                name.ns == ns!(svg) &&
+                (&*name.local == "animate" || &*name.local == "set")
+            {
+                let mut attrs = attrs.borrow_mut();
+                let animate_name = attrs
+                    .iter()
+                    .find(|attr| &*attr.name.local == "attributeName")
+                    .map(|attr| attr.value.clone());
+                let animate_href = attrs
+                    .iter()
+                    .find(|attr| &*attr.name.local == "href")
+                    .map(|attr| attr.value.clone());
+                let animate_tag_name = animate_href
+                    .map(|href| {
+                        if href.starts_with("#") {
+                            id_to_tag_name_map.get(&href[1..]).and_then(|inner| Some(&inner.as_ref()?[..]))
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or_else(|| {
+                        if let &NodeData::Element { name: ref parent_name, .. } = &parent.data {
+                            Some(&*parent_name.local)
+                        } else {
+                            None
+                        }
+                    });
+                if let (Some(animate_name), Some(animate_tag_name)) = (animate_name, animate_tag_name) {
+                    if let Some(ref attr_filter) = self.attribute_filter {
+                        if let Some((i, animate_values)) = attrs
+                            .iter_mut()
+                            .enumerate()
+                            .find(|(_, attr)| &*attr.name.local == "values")
+                            .map(|(i, attr)| (i, &mut attr.value))
+                        {
+                            let mut drop = false;
+                            let new_value = animate_values.split(';')
+                                .map(|value| {
+                                    if let Some(new_value) = attr_filter.filter(animate_tag_name, &animate_name, &value) {
+                                        String::from(new_value)
+                                    } else {
+                                        drop = true;
+                                        String::new()
+                                    }
+                                })
+                                .collect::<Vec<String>>()
+                                .join(";");
+                            if drop {
+                                attrs.swap_remove(i);
+                            } else {
+                                *animate_values = new_value.into();
+                            }
+                        }
+                        let mut drop_attrs = Vec::new();
+                        for (i, animate_value) in attrs
+                            .iter_mut()
+                            .enumerate()
+                            .filter(|(_, attr)| &*attr.name.local == "from" || &*attr.name.local == "to")
+                            .map(|(i, attr)| (i, &mut attr.value))
+                        {
+                            if let Some(new_value) = attr_filter.filter(animate_tag_name, &animate_name, &animate_value) {
+                                *animate_value = new_value[..].into();
+                            } else {
+                                drop_attrs.push(i);
+                            };
+                        }
+                        for i in drop_attrs.into_iter().rev() {
+                            attrs.swap_remove(i);
+                        }
+                    }
+                    if is_url_attr(animate_tag_name, &*animate_name) {
+                        if let Some((i, animate_values)) = attrs
+                            .iter_mut()
+                            .enumerate()
+                            .find(|(_, attr)| &*attr.name.local == "values")
+                            .map(|(i, attr)| (i, &mut attr.value))
+                        {
+                            let mut drop = false;
+                            let new_value = animate_values.split(';')
+                                .map(|value| {
+                                    if !is_url_relative(value) {
+                                        String::from(value)
+                                    } else if let Some(new_value) = self.url_relative.evaluate(value) {
+                                        String::from(new_value)
+                                    } else {
+                                        drop = true;
+                                        String::new()
+                                    }
+                                })
+                                .collect::<Vec<String>>()
+                                .join(";");
+                            if drop {
+                                attrs.swap_remove(i);
+                            } else {
+                                *animate_values = new_value.into();
+                            }
+                        }
+                        let mut drop_attrs = Vec::new();
+                        for (i, animate_value) in attrs
+                            .iter_mut()
+                            .enumerate()
+                            .filter(|(_, attr)| &*attr.name.local == "from" || &*attr.name.local == "to")
+                            .map(|(i, attr)| (i, &mut attr.value))
+                        {
+                            if !is_url_relative(animate_value) {
+                                // do nothing
+                            } else if let Some(new_value) = self.url_relative.evaluate(animate_value) {
+                                *animate_value = new_value;
+                            } else {
+                                drop_attrs.push(i);
+                            };
+                        }
+                        for i in drop_attrs.into_iter().rev() {
+                            attrs.swap_remove(i);
+                        }
+                    }
+                    if &*animate_name == "style" {
+                        if let Some(allowed_values) = &self.style_properties {
+                            if let Some(animate_values) = attrs
+                                .iter_mut()
+                                .find(|attr| &*attr.name.local == "values")
+                                .map(|attr| &mut attr.value)
+                            {
+                                let new_value = animate_values.split(';')
+                                    .map(|value| {
+                                        style::filter_style_attribute(&value, allowed_values)
+                                    })
+                                    .collect::<Vec<String>>()
+                                    .join(";");
+                                *animate_values = new_value.into();
+                            }
+                            for animate_value in attrs
+                                .iter_mut()
+                                .filter(|attr| &*attr.name.local == "from" || &*attr.name.local == "to")
+                                .map(|attr| &mut attr.value)
+                            {
+                                *animate_value = style::filter_style_attribute(&animate_value, allowed_values).into();
+                            }
+                        }
+                    }
+                    if &*animate_name == "class" {
+                        if let Some(allowed_values) = self.allowed_classes.get(animate_tag_name) {
+                            if let Some(animate_values) = attrs
+                                .iter_mut()
+                                .find(|attr| &*attr.name.local == "values")
+                                .map(|attr| &mut attr.value)
+                            {
+                                let new_value = animate_values.split(';')
+                                    .map(|value| {
+                                        let mut classes = vec![];
+                                        // https://html.spec.whatwg.org/#global-attributes:classes-2
+                                        for class in value.split_ascii_whitespace() {
+                                            if allowed_values.contains(class) {
+                                                classes.push(class.to_owned());
+                                            }
+                                        }
+                                        classes.join(" ")
+                                    })
+                                    .collect::<Vec<String>>()
+                                    .join(";");
+                                *animate_values = new_value.into();
+                            }
+                            for animate_value in attrs
+                                .iter_mut()
+                                .filter(|attr| &*attr.name.local == "from" || &*attr.name.local == "to")
+                                .map(|attr| &mut attr.value)
+                            {
+                                let mut classes = vec![];
+                                // https://html.spec.whatwg.org/#global-attributes:classes-2
+                                for class in animate_value.split_ascii_whitespace() {
+                                    if allowed_values.contains(class) {
+                                        classes.push(class.to_owned());
+                                    }
+                                }
+                                *animate_value = classes.join(" ").into();
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -2266,7 +2529,11 @@ impl<'a> Builder<'a> {
 
 /// Given an element name and attribute name, determine if the given attribute contains a URL.
 fn is_url_attr(element: &str, attr: &str) -> bool {
-    attr == "href"
+    (element != "animate" && element != "set" && attr == "href")
+        // Don't have to worry about alternate xmlns prefixes, because HTML doesn't
+        // parse them, anyway:
+        // https://html.spec.whatwg.org/#adjust-foreign-attributes
+        || (element != "animate" && element != "set" && attr == "xlink:href")
         || attr == "src"
         || (element == "form" && attr == "action")
         || (element == "object" && attr == "data")
@@ -3815,7 +4082,6 @@ mod test {
             .clean(fragment);
         assert_eq!(
             result.to_string(),
-            // yes, I tried it in Firefox, and the script didn't run
             r#"<math><annotation-xml encoding="image/svg+xml"></annotation-xml></math>"#
         );
         // now with actual SVG
@@ -3827,11 +4093,507 @@ mod test {
             .clean(fragment);
         assert_eq!(
             result.to_string(),
-            // yes, I tried it in Firefox, and the script didn't run
             r#"<math><annotation-xml encoding="image/svg+xml"><svg></svg></annotation-xml></math>"#
         );
     }
 
+    #[test]
+    fn ns_svg_animate_url_attr() {
+        let fragment = r##"
+            <svg>
+                <a>
+                    <animate attributeName="xss" values="http://example.com"></animate>
+                    <animate attributeName="href" values="http://example.com"></animate>
+                    <animate attributeName="href" values="http://example.com;/test"></animate>
+                    <animate attributeName="href" values="http://example.com;/test;javascript:xss"></animate>
+                    <animate attributeName="href" from="http://example.com" to="http://example.com"></animate>
+                    <animate attributeName="href" from="javascript:xss" to="http://example.com"></animate>
+                    <animate attributeName="href" from="http://example.com" to="javascript:xss"></animate>
+                    <animate attributeName="href" from="http://example.com" to="./test2"></animate>
+                    <animate attributeName="href" from="./test2" to="http://example.com"></animate>
+                </a>
+            </svg>
+        "##;
+        let filtered = r##"
+            <svg>
+                <a rel="noopener noreferrer">
+                    
+                    <animate attributeName="href" values="http://example.com"></animate>
+                    <animate attributeName="href" values="http://example.com;http://notriddle.com/test"></animate>
+                    
+                    <animate attributeName="href" from="http://example.com" to="http://example.com"></animate>
+                    
+                    
+                    <animate attributeName="href" from="http://example.com" to="http://notriddle.com/test2"></animate>
+                    <animate attributeName="href" from="http://notriddle.com/test2" to="http://example.com"></animate>
+                </a>
+            </svg>
+        "##;
+        let result =  Builder::default()
+            .add_tags(&["svg","a","animate"])
+            .add_tag_attributes("animate", ["attributeName","values","from","to"])
+            .url_relative(UrlRelative::RewriteWithBase(Url::parse("http://notriddle.com").unwrap()))
+            .clean(fragment);
+        assert_eq!(
+            result.to_string(),
+            filtered,
+        );
+    }
+
+    #[test]
+    fn ns_svg_set_url_attr() {
+        let fragment = r##"
+            <svg>
+                <a>
+                    <set attributeName="href" to="./test2"></set>
+                    <set attributeName="href" to="http://example.com"></set>
+                    <set attributeName="href" to="javascript:xss"></set>
+                </a>
+            </svg>
+        "##;
+        let filtered = r##"
+            <svg>
+                <a rel="noopener noreferrer">
+                    <set attributeName="href" to="http://notriddle.com/test2"></set>
+                    <set attributeName="href" to="http://example.com"></set>
+                    
+                </a>
+            </svg>
+        "##;
+        let result =  Builder::default()
+            .add_tags(&["svg","a","set"])
+            .add_tag_attributes("set", ["attributeName","values","from","to"])
+            .url_relative(UrlRelative::RewriteWithBase(Url::parse("http://notriddle.com").unwrap()))
+            .clean(fragment);
+        assert_eq!(
+            result.to_string(),
+            filtered,
+        );
+    }
+
+    #[test]
+    fn ns_svg_set_url_xlink_attr() {
+        let fragment = r##"
+            <svg>
+                <a>
+                    <set attributeName="xlink:href" to="./test2"></set>
+                    <set attributeName="xlink:href" to="http://example.com"></set>
+                    <set attributeName="xlink:href" to="javascript:xss"></set>
+                </a>
+            </svg>
+        "##;
+        let filtered = r##"
+            <svg>
+                <a rel="noopener noreferrer">
+                    <set attributeName="xlink:href" to="http://notriddle.com/test2"></set>
+                    <set attributeName="xlink:href" to="http://example.com"></set>
+                    
+                </a>
+            </svg>
+        "##;
+        let result =  Builder::default()
+            .add_tags(&["svg","a","set"])
+            .add_tag_attributes("a", ["xlink:href"])
+            .add_tag_attributes("set", ["attributeName","values","from","to"])
+            .url_relative(UrlRelative::RewriteWithBase(Url::parse("http://notriddle.com").unwrap()))
+            .clean(fragment);
+        assert_eq!(
+            result.to_string(),
+            filtered,
+        );
+    }
+
+    #[test]
+    fn ns_svg_set_url_attr_non_path() {
+        let fragment = r##"
+            <svg>
+                <a>
+                    <set attributeName="href" to="./test2"></set>
+                    <set attributeName="href" to="http://example.com"></set>
+                    <set attributeName="href" to="javascript:xss"></set>
+                </a>
+            </svg>
+        "##;
+        let filtered = r##"
+            <svg>
+                <a rel="noopener noreferrer">
+                    <set attributeName="href"></set>
+                    <set attributeName="href" to="http://example.com"></set>
+                    
+                </a>
+            </svg>
+        "##;
+        let result =  Builder::default()
+            .add_tags(&["svg","a","set"])
+            .add_tag_attributes("set", ["attributeName","values","from","to"])
+            .url_relative(UrlRelative::RewriteWithBase(Url::parse("magnet:?xt=urn:btih:da39a3ee5e6b4b0d3255bfef95601890afd80709&xt=urn:btmh:1220e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855").unwrap()))
+            .clean(fragment);
+        assert_eq!(
+            result.to_string(),
+            filtered,
+        );
+    }
+
+    #[test]
+    fn ns_svg_animate_set_attr() {
+        let fragment = r##"
+            <svg>
+                <a>
+                    <animate attributeName="x" values="1;2;3"></animate>
+                    <animate attributeName="x" from="1" to="2"></animate>
+                    <animate attributeName="x" from="1"></animate>
+                    <animate attributeName="x" to="2"></animate>
+                    <animate attributeName="y" values="1;2;3"></animate>
+                    <animate attributeName="y" from="1" to="2"></animate>
+                    <animate attributeName="y" from="1"></animate>
+                    <animate attributeName="y" to="2"></animate>
+                </a>
+            </svg>
+        "##;
+        let filtered = r##"
+            <svg>
+                <a x="0" rel="noopener noreferrer">
+                    
+                    
+                    
+                    
+                    <animate attributeName="y" values="1;2;3"></animate>
+                    <animate attributeName="y" from="1" to="2"></animate>
+                    <animate attributeName="y" from="1"></animate>
+                    <animate attributeName="y" to="2"></animate>
+                </a>
+            </svg>
+        "##;
+        let result =  Builder::default()
+            .add_tags(&["svg","a","animate"])
+            .add_tag_attributes("animate", ["attributeName","values","from","to"])
+            .add_tag_attributes("a", ["x", "y"])
+            .set_tag_attribute_value("a", "x", "0")
+            .clean(fragment);
+        assert_eq!(
+            result.to_string(),
+            filtered,
+        );
+    }
+
+    #[test]
+    fn ns_svg_animate_attr_filter() {
+        let fragment = r##"
+            <svg>
+                <a>
+                    <animate attributeName="x" values="1;2;3"></animate>
+                    <animate attributeName="x" from="1" to="2"></animate>
+                    <animate attributeName="x" from="1"></animate>
+                    <animate attributeName="x" to="2"></animate>
+                    <animate attributeName="y" values="1;2;3"></animate>
+                    <animate attributeName="y" from="1" to="2"></animate>
+                    <animate attributeName="y" from="1"></animate>
+                    <animate attributeName="y" to="2"></animate>
+                </a>
+            </svg>
+        "##;
+        let filtered = r##"
+            <svg>
+                <a rel="noopener noreferrer">
+                    <animate attributeName="x" values="0;0;0"></animate>
+                    <animate attributeName="x" from="0" to="0"></animate>
+                    <animate attributeName="x" from="0"></animate>
+                    <animate attributeName="x" to="0"></animate>
+                    <animate attributeName="y"></animate>
+                    <animate attributeName="y" to="2"></animate>
+                    <animate attributeName="y"></animate>
+                    <animate attributeName="y" to="2"></animate>
+                </a>
+            </svg>
+        "##;
+        let result =  Builder::default()
+            .add_tags(&["svg","a","animate"])
+            .add_tag_attributes("animate", ["attributeName","values","from","to"])
+            .add_tag_attributes("a", ["x", "y"])
+            .attribute_filter(|_tag, key, value| Some(if key == "x" {
+                "0".into()
+            } else if key == "y" && value == "1" {
+                return None;
+            } else {
+                value.into()
+            }))
+            .clean(fragment);
+        assert_eq!(
+            result.to_string(),
+            filtered,
+        );
+    }
+
+    #[test]
+    fn ns_svg_animate_allowed_classes() {
+        let fragment = r##"
+            <svg>
+                <a>
+                    <animate attributeName="class" values="a b c;a b c d;a b"></animate>
+                    <animate attributeName="class" from="a b c" to="a b c d"></animate>
+                    <animate attributeName="class" from="a b c d"></animate>
+                    <animate attributeName="class" to="a d c"></animate>
+                </a>
+            </svg>
+        "##;
+        let filtered = r##"
+            <svg>
+                <a rel="noopener noreferrer">
+                    <animate attributeName="class" values="a b c;a b c;a b"></animate>
+                    <animate attributeName="class" from="a b c" to="a b c"></animate>
+                    <animate attributeName="class" from="a b c"></animate>
+                    <animate attributeName="class" to="a c"></animate>
+                </a>
+            </svg>
+        "##;
+        let result =  Builder::default()
+            .add_tags(&["svg","a","animate"])
+            .add_tag_attributes("animate", ["attributeName","values","from","to"])
+            .add_allowed_classes("a", ["a", "b", "c"])
+            .clean(fragment);
+        assert_eq!(
+            result.to_string(),
+            filtered,
+        );
+    }
+
+    #[test]
+    fn ns_svg_animate_allowed_styles() {
+        let fragment = r##"
+            <svg>
+                <a>
+                    <animate attributeName="style" values="background:red;color:blue"></animate>
+                    <animate attributeName="style" from="background:red;text-decoration:none" to="color: blue;background:red"></animate>
+                    <animate attributeName="style" from="background:red;text-decoration:none"></animate>
+                    <animate attributeName="style" to="text-decoration:none"></animate>
+                </a>
+            </svg>
+        "##;
+        let filtered = r##"
+            <svg>
+                <a rel="noopener noreferrer">
+                    <animate attributeName="style" values="background:red;"></animate>
+                    <animate attributeName="style" from="background:red" to="background:red"></animate>
+                    <animate attributeName="style" from="background:red"></animate>
+                    <animate attributeName="style" to=""></animate>
+                </a>
+            </svg>
+        "##;
+        let result =  Builder::default()
+            .add_tags(&["svg","a","animate"])
+            .add_tag_attributes("animate", ["attributeName","values","from","to"])
+            .add_tag_attributes("a", ["style"])
+            .filter_style_properties(["background"].into())
+            .clean(fragment);
+        assert_eq!(
+            result.to_string(),
+            filtered,
+        );
+    }
+
+    #[test]
+    fn ns_svg_animate_url_attr_href() {
+        let fragment = r##"
+            <svg>
+                <a id="x1">
+                </a>
+                <animate href="#x1" attributeName="xss" values="http://example.com"></animate>
+                <animate href="#x1" attributeName="href" values="http://example.com"></animate>
+                <animate href="#x2" attributeName="href" values="http://example.com;/test"></animate>
+                <animate href="#x2" attributeName="href" values="http://example.com;/test;javascript:xss"></animate>
+                <animate href="#x2" attributeName="href" from="http://example.com" to="http://example.com"></animate>
+                <animate href="#x2" attributeName="href" from="javascript:xss" to="http://example.com"></animate>
+                <animate href="#x2" attributeName="href" from="http://example.com" to="javascript:xss"></animate>
+                <animate href="#x2" attributeName="href" from="http://example.com" to="./test2"></animate>
+                <animate href="#x2" attributeName="href" from="./test2" to="http://example.com"></animate>
+            </svg>
+        "##;
+        let filtered = r##"
+            <svg>
+                <a rel="noopener noreferrer">
+                </a>
+                
+                <animate href="#x1" attributeName="href" values="http://example.com"></animate>
+                
+                
+                
+                
+                
+                
+                
+            </svg>
+        "##;
+        let result =  Builder::default()
+            .add_tags(&["svg","a","animate"])
+            .add_tag_attributes("animate", ["attributeName","values","from","to","href"])
+            .url_relative(UrlRelative::RewriteWithBase(Url::parse("http://notriddle.com").unwrap()))
+            .clean(fragment);
+        assert_eq!(
+            result.to_string(),
+            filtered,
+        );
+    }
+
+    #[test]
+    fn ns_svg_animate_url_attr_href_depends_on_tag_name() {
+        let fragment = r##"
+            <object id="x2"></object>
+            <svg>
+                <g id="x1">
+                </g>
+                <animate href="#x1" attributeName="data" values="javascript:xss"></animate>
+                <animate href="#x2" attributeName="data" values="javascript:xss"></animate>
+            </svg>
+        "##;
+        let filtered = r##"
+            <object id="x2"></object>
+            <svg>
+                <g id="x1">
+                </g>
+                <animate href="#x1" attributeName="data" values="javascript:xss"></animate>
+                
+            </svg>
+        "##;
+        let result =  Builder::default()
+            .add_tags(&["svg","g","animate","object"])
+            .add_tag_attributes("animate", ["attributeName","values","href"])
+            .add_tag_attributes("g", ["data","id"])
+            .add_tag_attributes("object", ["data","id"])
+            .clean(fragment);
+        assert_eq!(
+            result.to_string(),
+            filtered,
+        );
+    }
+
+    #[test]
+    fn ns_svg_animate_set_attr_href() {
+        let fragment = r##"
+            <svg>
+                <a id="x1">
+                </a>
+                <animate href="#x1" attributeName="x" values="1;2;3"></animate>
+                <animate href="#x1" attributeName="x" from="1" to="2"></animate>
+                <animate href="#x1" attributeName="x" from="1"></animate>
+                <animate href="#x1" attributeName="x" to="2"></animate>
+                <animate href="#x1" attributeName="y" values="1;2;3"></animate>
+                <animate href="#x1" attributeName="y" from="1" to="2"></animate>
+                <animate href="#x1" attributeName="y" from="1"></animate>
+                <animate href="#x2" attributeName="y" to="2"></animate>
+            </svg>
+        "##;
+        let filtered = r##"
+            <svg>
+                <a id="x1" x="0" rel="noopener noreferrer">
+                </a>
+                
+                
+                
+                
+                <animate href="#x1" attributeName="y" values="1;2;3"></animate>
+                <animate href="#x1" attributeName="y" from="1" to="2"></animate>
+                <animate href="#x1" attributeName="y" from="1"></animate>
+                
+            </svg>
+        "##;
+        let result =  Builder::default()
+            .add_tags(&["svg","a","animate"])
+            .add_tag_attributes("animate", ["attributeName","values","from","to","href"])
+            .add_tag_attributes("a", ["id", "x", "y"])
+            .set_tag_attribute_value("a", "x", "0")
+            .clean(fragment);
+        assert_eq!(
+            result.to_string(),
+            filtered,
+        );
+    }
+
+    #[test]
+    fn ns_svg_animate_attr_filter_href() {
+        let fragment = r##"
+            <svg>
+                <a id="x1">
+                </a>
+                <animate href="#x1" attributeName="x" values="1;2;3"></animate>
+                <animate href="#x1" attributeName="x" from="1" to="2"></animate>
+                <animate href="#x1" attributeName="x" from="1"></animate>
+                <animate href="#x1" attributeName="x" to="2"></animate>
+                <animate href="#x1" attributeName="y" values="1;2;3"></animate>
+                <animate href="#x1" attributeName="y" from="1" to="2"></animate>
+                <animate href="x1" attributeName="y" from="1"></animate>
+                <animate href="#x2" attributeName="y" to="2"></animate>
+            </svg>
+        "##;
+        let filtered = r##"
+            <svg>
+                <a id="x1" rel="noopener noreferrer">
+                </a>
+                <animate href="#x1" attributeName="x" values="0;0;0"></animate>
+                <animate href="#x1" attributeName="x" from="0" to="0"></animate>
+                <animate href="#x1" attributeName="x" from="0"></animate>
+                <animate href="#x1" attributeName="x" to="0"></animate>
+                <animate href="#x1" attributeName="y"></animate>
+                <animate href="#x1" attributeName="y" to="2"></animate>
+                
+                
+            </svg>
+        "##;
+        let result =  Builder::default()
+            .add_tags(&["svg","a","animate"])
+            .add_tag_attributes("animate", ["attributeName","values","from","to","href"])
+            .add_tag_attributes("a", ["id", "x", "y"])
+            .attribute_filter(|_tag, key, value| Some(if key == "x" {
+                "0".into()
+            } else if key == "y" && value == "1" {
+                return None;
+            } else {
+                value.into()
+            }))
+            .clean(fragment);
+        assert_eq!(
+            result.to_string(),
+            filtered,
+        );
+    }
+
+    #[test]
+    fn ns_svg_animate_id_conflict() {
+        let fragment = r##"
+            <svg>
+                <a id="x1">
+                </a>
+                <a id="x2">
+                </a>
+                <a id="x2">
+                </a>
+                <animate href="#x1" attributeName="x" values="1;2;3"></animate>
+                <animate href="#x2" attributeName="x" values="1;2;3"></animate>
+                <animate href="#x3" attributeName="x" values="1;2;3"></animate>
+            </svg>
+        "##;
+        let filtered = r##"
+            <svg>
+                <a id="x1" rel="noopener noreferrer">
+                </a>
+                <a id="x2" rel="noopener noreferrer">
+                </a>
+                <a id="x2" rel="noopener noreferrer">
+                </a>
+                <animate href="#x1" attributeName="x" values="1;2;3"></animate>
+                
+                
+            </svg>
+        "##;
+        let result =  Builder::default()
+            .add_tags(&["svg","a","animate"])
+            .add_tag_attributes("animate", ["attributeName","values","from","to","href"])
+            .add_tag_attributes("a", ["id", "x", "y"])
+            .clean(fragment);
+        assert_eq!(
+            result.to_string(),
+            filtered,
+        );
+    }
 
     #[test]
     fn xml_processing_instruction() {

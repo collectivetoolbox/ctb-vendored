@@ -1,8 +1,12 @@
 # Unreleased
 
+# 4.1.4
+
+* fix: SVG `animation` and `set` can cause XSS, because `attributeName` is not checked (reported by Younghun Ko, koyokr)
+
 # 4.1.3
 
-* fix: unexpected namespace switches after cleanup on MathML `annotation-xml` can cause mXSS
+* fix: unexpected namespace switches after cleanup on MathML `annotation-xml` can cause mXSS (reported by [Ivan Ivančić](https://ivan09999.github.io/ammonia-mxss))
 
 * chore: upgrade to [html5ever 0.37.1][]
 
