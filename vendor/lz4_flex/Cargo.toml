@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.81"
 name = "lz4_flex"
-version = "0.13.1"
+version = "0.14.0"
 authors = [
     "Pascal Seitz <pascal.seitz@gmail.com>",
     "Arthur Silva <arthurprs@gmail.com>",
@@ -53,6 +53,7 @@ rustdoc-args = [
 ]
 
 [features]
+alloc = []
 checked-decode = []
 default = [
     "std",
@@ -68,7 +69,7 @@ frame = [
 nightly = []
 safe-decode = []
 safe-encode = []
-std = []
+std = ["alloc"]
 
 [lib]
 name = "lz4_flex"

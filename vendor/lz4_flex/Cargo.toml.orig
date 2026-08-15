@@ -8,7 +8,7 @@ homepage = "https://github.com/pseitz/lz4_flex"
 repository = "https://github.com/pseitz/lz4_flex"
 readme = "README.md"
 license = "MIT"
-version = "0.13.1"
+version = "0.14.0"
 include = ["src/*.rs", "src/frame/**/*", "src/block/**/*", "README.md", "LICENSE"]
 rust-version = "1.81"
 
@@ -43,7 +43,8 @@ safe-decode = []
 safe-encode = []
 checked-decode = [] # Adds important checks while decoding. Only remove on trusted input!
 frame = ["std", "dep:twox-hash"]
-std = []
+std = ["alloc"]
+alloc = []
 # use nightly compiler features
 nightly = []
 

@@ -91,27 +91,17 @@ fn open_browser_default(target: &TargetType, options: &BrowserOptions) -> Result
 
 fn try_with_browser_env(url: &str, options: &BrowserOptions) -> Result<()> {
     // $BROWSER can contain ':' delimited options, each representing a potential browser command line
-    for browser in std::env::var("BROWSER")
+    for browser_env in std::env::var("BROWSER")
         .unwrap_or_else(|_| String::from(""))
         .split(':')
     {
-        if !browser.is_empty() {
-            // each browser command can have %s to represent URL, while %c needs to be replaced
-            // with ':' and %% with '%'
-            let cmdline = browser
-                .replace("%s", url)
-                .replace("%c", ":")
-                .replace("%%", "%");
-            let cmdarr: Vec<&str> = cmdline.split_ascii_whitespace().collect();
-            let browser_cmd = cmdarr[0];
+        if !browser_env.is_empty() {
+            let cmdarr = browser_env_cmd_arr(browser_env, url);
+            let browser_cmd = &cmdarr[0];
             let env_exit = for_matching_path(browser_cmd, |pb| {
                 let mut cmd = Command::new(pb);
                 for arg in cmdarr.iter().skip(1) {
                     cmd.arg(arg);
-                }
-                if !browser.contains("%s") {
-                    // append the url as an argument only if it was not already set via %s
-                    cmd.arg(url);
                 }
                 run_command(&mut cmd, !is_text_browser(pb), options)
             });
@@ -124,6 +114,64 @@ fn try_with_browser_env(url: &str, options: &BrowserOptions) -> Result<()> {
         ErrorKind::NotFound,
         "No valid browser configured in BROWSER environment variable",
     ))
+}
+
+/// Given a part in BROWSER env variable, return a Vec of parsed strings, such
+/// that:
+/// - `%s` is replaced with the provided `url`.
+/// - `%c` is replaced with `:`.
+/// - `%%` is replaced with `%`.
+///
+/// If none of the options had a `%s` in them, `url` is appended as the last option, so that
+/// it's always passed to the browser exactly once. See issue #120
+fn browser_env_cmd_arr(browser_env: &str, url: &str) -> Vec<String> {
+    let mut url_set = false;
+    let mut arr: Vec<String> = browser_env
+        .split_ascii_whitespace()
+        .map(|opt| {
+            let (val, has_url) = expand_field_codes(opt, url);
+            url_set |= has_url;
+            val
+        })
+        .collect();
+    if !url_set {
+        arr.push(url.to_string());
+    }
+    arr
+}
+
+/// Expand the field codes inside a single BROWSER option `opt`, returning the expanded option,
+/// and whether it had a `%s` in it.
+///
+/// We expand in a single left to right pass, instead of one [str::replace] per field code, so
+/// that each `%` is consumed by exactly one expansion. Doing it otherwise would make an option
+/// like `--url=%s%%` lose either its `%s` or its `%%` expansion, and would also make the text
+/// coming in from `url` liable to be scanned for field codes.
+fn expand_field_codes(opt: &str, url: &str) -> (String, bool) {
+    let mut val = String::with_capacity(opt.len());
+    let mut url_set = false;
+    let mut chars = opt.chars();
+    while let Some(ch) = chars.next() {
+        if ch != '%' {
+            val.push(ch);
+            continue;
+        }
+        match chars.next() {
+            Some('s') => {
+                val.push_str(url);
+                url_set = true;
+            }
+            Some('c') => val.push(':'),
+            Some('%') => val.push('%'),
+            // we leave unknown field codes untouched
+            Some(other) => {
+                val.push('%');
+                val.push(other);
+            }
+            None => val.push('%'),
+        }
+    }
+    (val, url_set)
 }
 
 /// Check if we are inside WSL on Windows, and interoperability with Windows tools is
@@ -280,7 +328,7 @@ fn try_xdg(options: &BrowserOptions, url: &str) -> Result<()> {
     if browser_name.is_empty() {
         return Err(Error::new(ErrorKind::NotFound, "no default xdg browser"));
     }
-    trace!("found xdg browser: {:?}", &browser_name);
+    trace!("found xdg browser: {browser_name:?}");
 
     // search for the config file corresponding to this browser name
     let mut config_found = false;
@@ -464,7 +512,7 @@ mod tests_xdg {
     use std::fs::File;
     use std::io::Write;
 
-    fn get_temp_path(name: &str, suffix: &str) -> String {
+    pub(super) fn get_temp_path(name: &str, suffix: &str) -> String {
         let pid = std::process::id();
         std::env::temp_dir()
             .join(format!("{name}.{pid}.{suffix}"))
@@ -492,17 +540,16 @@ mod tests_xdg {
                 if [ "$1" != "p1" ]; then
                     echo "1st parameter should've been p1" >&2
                     exit 1
-                elif [ "$2" != "{}" ]; then
-                    echo "2nd parameter should've been {}" >&2
+                elif [ "$2" != "{txt_path}" ]; then
+                    echo "2nd parameter should've been {txt_path}" >&2
                     exit 1
                 elif [ "$3" != "p3" ]; then
                     echo "3rd parameter should've been p3" >&2
                     exit 1
                 fi
 
-                echo "$2" > "{}"
-            "#,
-                &txt_path, &txt_path, &flag_path
+                echo "$2" > "{flag_path}"
+            "#
             ));
             let mut perms = browser_file
                 .metadata()
@@ -520,12 +567,11 @@ mod tests_xdg {
             let _ = xdg_file.write_fmt(format_args!(
                 r#"# this line should be ignored
 [Desktop Entry]
-Exec={} p1 %u p3
+Exec={browser_path} p1 %u p3
 [Another Entry]
 Exec=/bin/ls
 # the above Exec line should be getting ignored
-            "#,
-                &browser_path
+            "#
             ));
         }
 
@@ -645,7 +691,7 @@ mod wsl {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null());
-        log::debug!("running command: ${:?}", &cmd);
+        log::debug!("running command: ${cmd:?}");
         let mut child = cmd.spawn()?;
 
         let mut stdin = child.stdin.take().ok_or_else(err_fn)?;
@@ -674,7 +720,7 @@ mod wsl {
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::null());
-        log::debug!("running command: ${:?}", &cmd);
+        log::debug!("running command: ${cmd:?}");
         let output_u8 = cmd.output()?;
 
         let output = String::from_utf8_lossy(&output_u8.stdout);
@@ -754,8 +800,7 @@ mod wsl {
             // windows needs to access it via network
             let wsl_hostname = get_wsl_distro_name(wc)?;
             Ok(format!(
-                "\\\\wsl$\\{}{}",
-                &wsl_hostname,
+                "\\\\wsl$\\{wsl_hostname}{}",
                 path.as_os_str().to_string_lossy()
             )
             .replace('/', "\\"))
@@ -782,7 +827,7 @@ mod wsl {
                 .current_dir("/")
                 .stdin(Stdio::null())
                 .stderr(Stdio::null());
-            log::debug!("running command: ${:?}", &cmd);
+            log::debug!("running command: ${cmd:?}");
             let output_u8 = cmd.output()?.stdout;
             let output = String::from_utf8_lossy(&output_u8);
             let output = output.trim_end_matches('\\');
@@ -859,4 +904,185 @@ Write-Output $([Win32Api]::GetDefaultBrowser())
             assert!(open("/mnt/c/T/abc.html").is_ok());
         }
     }*/
+}
+
+#[cfg(test)]
+mod tests_browser_env {
+    use super::tests_xdg::get_temp_path;
+    use super::*;
+    use serial_test::serial;
+    use std::fs::File;
+    use std::io::Write;
+
+    #[test]
+    fn test_basic_substitution() {
+        let url = "https://github.com/amodm/webbrowser-rs";
+        let cmdarr = browser_env_cmd_arr("firefox --url=%s", url);
+        assert_eq!(cmdarr.len(), 2);
+        assert_eq!(cmdarr[0], "firefox");
+        assert_eq!(cmdarr[1], format!("--url={url}"));
+    }
+
+    #[test]
+    fn test_all_substitution() {
+        let url = "https://github.com/amodm/webbrowser-rs";
+        let cmdarr = browser_env_cmd_arr("firefox --url=%s --some=%% --other=%c", url);
+        assert_eq!(cmdarr.len(), 4);
+        assert_eq!(cmdarr[0], "firefox");
+        assert_eq!(cmdarr[1], format!("--url={url}"));
+        assert_eq!(cmdarr[2], "--some=%");
+        assert_eq!(cmdarr[3], "--other=:");
+    }
+
+    #[test]
+    fn test_no_substitution() {
+        let url = "https://github.com/amodm/webbrowser-rs";
+        let cmdarr = browser_env_cmd_arr("firefox --option1 --option2", url);
+        assert_eq!(cmdarr.len(), 4);
+        assert_eq!(cmdarr[0], "firefox");
+        assert_eq!(cmdarr[1], "--option1");
+        assert_eq!(cmdarr[2], "--option2");
+        assert_eq!(cmdarr[3], url);
+    }
+
+    /// An option can hold more than one field code, and each `%` must be consumed by exactly
+    /// one expansion, so that no expansion undoes another
+    #[test]
+    fn test_multiple_field_codes_in_one_option() {
+        let url = "https://github.com/amodm/webbrowser-rs";
+        let cmdarr = browser_env_cmd_arr("firefox --url=%s%% --other=%s%c9222", url);
+        assert_eq!(cmdarr.len(), 3);
+        assert_eq!(cmdarr[0], "firefox");
+        assert_eq!(cmdarr[1], format!("--url={url}%"));
+        assert_eq!(cmdarr[2], format!("--other={url}:9222"));
+    }
+
+    /// `%%s` is an escaped `%` followed by an `s`, and not a url placeholder, so the url still
+    /// needs to be passed separately
+    #[test]
+    fn test_escaped_url_field_code() {
+        let url = "https://github.com/amodm/webbrowser-rs";
+        let cmdarr = browser_env_cmd_arr("firefox --x=%%s --y=%z --z=100%", url);
+        assert_eq!(cmdarr.len(), 5);
+        assert_eq!(cmdarr[0], "firefox");
+        assert_eq!(cmdarr[1], "--x=%s");
+        // unknown field codes, and a trailing %, are left as they are
+        assert_eq!(cmdarr[2], "--y=%z");
+        assert_eq!(cmdarr[3], "--z=100%");
+        assert_eq!(cmdarr[4], url);
+    }
+
+    /// Field codes in the url itself must never get expanded
+    #[test]
+    fn test_url_is_not_scanned_for_field_codes() {
+        let url = "https://example.com/%cf%80?a=100%%";
+        let cmdarr = browser_env_cmd_arr("firefox --url=%s", url);
+        assert_eq!(cmdarr.len(), 2);
+        assert_eq!(cmdarr[1], format!("--url={url}"));
+    }
+
+    /// Sets `$BROWSER` to `browser_env_tmpl` (with `{}` in it replaced by the path of a script
+    /// that records the argv it receives), opens `url` with it, and returns the recorded argv
+    fn record_argv(name: &str, browser_env_tmpl: &str, url: &str) -> Vec<String> {
+        let flag_path = get_temp_path(name, "flag");
+        let _ = std::fs::remove_file(&flag_path);
+
+        // create a browser script which records each arg it got on its own line
+        let browser_path = get_temp_path(name, "browser");
+        {
+            let mut browser_file =
+                File::create(&browser_path).expect("failed to create browser file");
+            browser_file
+                .write_fmt(format_args!(
+                    r#"#!/bin/sh
+for arg in "$@"; do echo "$arg"; done > "{flag_path}"
+"#
+                ))
+                .expect("failed to write browser file");
+            let mut perms = browser_file
+                .metadata()
+                .expect("failed to get permissions")
+                .permissions();
+            perms.set_mode(0o755);
+            let _ = browser_file.set_permissions(perms);
+        }
+
+        // we go through $BROWSER (instead of invoking the browser directly), as that's the
+        // path on which the url gets assembled into the command line
+        let browser_env = browser_env_tmpl.replace("{}", &browser_path);
+        let prev_browser_env = std::env::var_os("BROWSER");
+        std::env::set_var("BROWSER", &browser_env);
+        let result = try_with_browser_env(url, &BrowserOptions::default());
+        match prev_browser_env {
+            Some(prev) => std::env::set_var("BROWSER", prev),
+            None => std::env::remove_var("BROWSER"),
+        }
+        assert!(result.is_ok(), "failed to run {browser_env:?}: {result:?}");
+
+        // the script runs in the background, so wait for it to write the flag file
+        let mut recorded: Option<String> = None;
+        for _ in 0..20 {
+            if let Ok(contents) = std::fs::read_to_string(&flag_path) {
+                recorded = Some(contents);
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(250));
+        }
+
+        let _ = std::fs::remove_file(&flag_path);
+        let _ = std::fs::remove_file(&browser_path);
+
+        recorded
+            .expect("flag file not found")
+            .lines()
+            .map(|l| l.to_owned())
+            .collect()
+    }
+
+    /// The browser must receive the url exactly once, regardless of how (or whether) the
+    /// BROWSER entry positions it via %s. See issue #120
+    #[test]
+    #[serial]
+    fn test_url_passed_exactly_once() {
+        let _ = env_logger::try_init();
+        let url = "https://github.com/amodm/webbrowser-rs?a=1";
+
+        assert_eq!(record_argv("test_be_plain", "{}", url), vec![url]);
+        assert_eq!(
+            record_argv("test_be_opts", "{} --option1", url),
+            vec!["--option1", url]
+        );
+        assert_eq!(record_argv("test_be_s", "{} %s", url), vec![url]);
+        assert_eq!(
+            record_argv("test_be_app", "{} --app=%s", url),
+            vec![format!("--app={url}")]
+        );
+        assert_eq!(
+            record_argv("test_be_mixed", "{} --app=%s%%", url),
+            vec![format!("--app={url}%")]
+        );
+        assert_eq!(
+            record_argv("test_be_esc", "{} --x=%%s", url),
+            vec!["--x=%s".to_string(), url.to_string()]
+        );
+    }
+
+    /// A url which keeps its spaces even after being parsed (e.g. one with a non http(s)
+    /// scheme) must not be able to add argv entries of its own. See GHSA-2ph8-5cr8-hr33
+    #[test]
+    #[serial]
+    fn test_url_with_spaces_is_one_arg() {
+        let _ = env_logger::try_init();
+        let target =
+            TargetType::try_from("about:blank --remote-debugging-port=9222").expect("bad url");
+        let url: &str = &target;
+        assert!(url.contains(' '), "test url must have spaces, got {url:?}");
+
+        assert_eq!(record_argv("test_be_sp_s", "{} %s", url), vec![url]);
+        assert_eq!(
+            record_argv("test_be_sp_app", "{} --app=%s", url),
+            vec![format!("--app={url}")]
+        );
+        assert_eq!(record_argv("test_be_sp_plain", "{}", url), vec![url]);
+    }
 }
