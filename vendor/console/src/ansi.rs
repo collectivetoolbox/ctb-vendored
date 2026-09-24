@@ -1,11 +1,144 @@
-use std::{
-    borrow::Cow,
+#[cfg(feature = "alloc")]
+use alloc::{borrow::Cow, string::String};
+use core::{
+    fmt::Display,
     iter::{FusedIterator, Peekable},
     str::CharIndices,
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
+struct OscSequence;
+
+impl EscSequence for OscSequence {
+    const START: char = ']';
+
+    fn on_escape(next: Option<char>) -> EscAction {
+        let end = matches!(next, Some('\\'));
+        EscAction {
+            consume_next: end,
+            end,
+        }
+    }
+
+    fn on_char(c: char) -> EscAction {
+        EscAction {
+            consume_next: false,
+            end: c == '\u{07}',
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct DcsSequence;
+
+impl EscSequence for DcsSequence {
+    const START: char = 'P';
+
+    fn on_escape(next: Option<char>) -> EscAction {
+        match next {
+            Some('\\') => EscAction {
+                consume_next: true,
+                end: true,
+            },
+            None => EscAction {
+                consume_next: false,
+                end: true,
+            },
+            Some('\u{1b}') => EscAction {
+                consume_next: true,
+                end: false,
+            },
+            _ => EscAction {
+                consume_next: false,
+                end: false,
+            },
+        }
+    }
+
+    fn on_char(_c: char) -> EscAction {
+        EscAction {
+            consume_next: false,
+            end: false,
+        }
+    }
+}
+
+trait EscSequence {
+    fn on_escape(next: Option<char>) -> EscAction;
+    fn on_char(c: char) -> EscAction;
+    const START: char;
+}
+
+struct EscAction {
+    consume_next: bool,
+    end: bool,
+}
+
+fn consume_end_exclusive<S: EscSequence>(
+    it: &mut Peekable<CharIndices<'_>>,
+    start: usize,
+) -> usize {
+    let mut end = start + 1;
+    let Some((idx, start_char)) = it.next() else {
+        return end;
+    };
+    if start_char != S::START {
+        return end;
+    }
+    end = idx + start_char.len_utf8();
+
+    while let Some((idx, c)) = it.next() {
+        end = idx + c.len_utf8();
+
+        if c == '\u{1b}' {
+            let action = S::on_escape(it.peek().map(|(_, next)| *next));
+            if action.consume_next {
+                if let Some((next_idx, next)) = it.next() {
+                    end = next_idx + next.len_utf8();
+                }
+            }
+            if action.end {
+                return end;
+            }
+            continue;
+        }
+
+        match c {
+            '\u{9c}' => return end,
+            _ if S::on_char(c).end => return end,
+            _ => {}
+        }
+    }
+
+    end
+}
+
+fn find_dfa_end_exclusive_after_entry(it: &mut Peekable<CharIndices<'_>>) -> Option<usize> {
+    let mut state = State::S1;
+    let mut maybe_end = None;
+
+    loop {
+        let item = it.peek();
+
+        if let Some((idx, c)) = item {
+            state.transition(*c);
+
+            if state.is_final() {
+                maybe_end = Some(*idx);
+            }
+        }
+
+        if state.is_trapped() || item.is_none() {
+            return maybe_end.map(|end| end + 1);
+        }
+
+        it.next();
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
 enum State {
+    #[default]
     Start,
     S1,
     S2,
@@ -19,12 +152,6 @@ enum State {
     S10,
     S11,
     Trap,
-}
-
-impl Default for State {
-    fn default() -> Self {
-        Self::Start
-    }
 }
 
 impl State {
@@ -146,47 +273,42 @@ impl FusedIterator for Matches<'_> {}
 
 fn find_ansi_code_exclusive(it: &mut Peekable<CharIndices>) -> Option<(usize, usize)> {
     'outer: loop {
-        if let (start, '\u{1b}') | (start, '\u{9b}') = it.peek()? {
-            let start = *start;
-            let mut state = State::default();
-            let mut maybe_end = None;
-
-            loop {
-                let item = it.peek();
-
-                if let Some((idx, c)) = item {
-                    state.transition(*c);
-
-                    if state.is_final() {
-                        maybe_end = Some(*idx);
+        let (start, entry) = *it.peek()?;
+        match entry {
+            '\u{1b}' => {
+                it.next();
+                match it.peek() {
+                    Some((_, OscSequence::START)) => {
+                        return Some((start, consume_end_exclusive::<OscSequence>(it, start)))
                     }
-                }
-
-                // The match is greedy so run till we hit the trap state no matter what. A valid
-                // match is just one that was final at some point
-                if state.is_trapped() || item.is_none() {
-                    match maybe_end {
-                        Some(end) => {
-                            // All possible final characters are a single byte so it's safe to make
-                            // the end exclusive by just adding one
-                            return Some((start, end + 1));
+                    Some((_, DcsSequence::START)) => {
+                        return Some((start, consume_end_exclusive::<DcsSequence>(it, start)))
+                    }
+                    _ => {
+                        if let Some(end) = find_dfa_end_exclusive_after_entry(it) {
+                            return Some((start, end));
                         }
-                        // The character we are peeking right now might be the start of a match so
-                        // we want to continue the loop without popping off that char
-                        None => continue 'outer,
+                        continue 'outer;
                     }
                 }
-
+            }
+            '\u{9b}' => {
+                it.next();
+                if let Some(end) = find_dfa_end_exclusive_after_entry(it) {
+                    return Some((start, end));
+                }
+                continue 'outer;
+            }
+            _ => {
                 it.next();
             }
         }
-
-        it.next();
     }
 }
 
 /// Helper function to strip ansi codes.
-pub fn strip_ansi_codes(s: &str) -> Cow<str> {
+#[cfg(feature = "alloc")]
+pub fn strip_ansi_codes(s: &str) -> Cow<'_, str> {
     let mut char_it = s.char_indices().peekable();
     match find_ansi_code_exclusive(&mut char_it) {
         Some(_) => {
@@ -196,6 +318,28 @@ pub fn strip_ansi_codes(s: &str) -> Cow<str> {
             Cow::Owned(stripped)
         }
         None => Cow::Borrowed(s),
+    }
+}
+
+/// A wrapper struct that implements [`core::fmt::Display`], only displaying non-ansi parts.
+pub struct WithoutAnsi<'a> {
+    str: &'a str,
+}
+
+impl<'a> WithoutAnsi<'a> {
+    pub fn new(str: &'a str) -> Self {
+        Self { str }
+    }
+}
+
+impl Display for WithoutAnsi<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        for (str, is_ansi) in AnsiCodeIterator::new(self.str) {
+            if !is_ansi {
+                f.write_str(str)?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -271,18 +415,28 @@ impl FusedIterator for AnsiCodeIterator<'_> {}
 mod tests {
     use super::*;
 
-    use once_cell::sync::Lazy;
+    use core::fmt::Write;
     use proptest::prelude::*;
     use regex::Regex;
+    use std::sync::OnceLock;
 
-    // The manual dfa `State` is a handwritten translation from the previously used regex. That
-    // regex is kept here and used to ensure that the new matches are the same as the old
-    static STRIP_ANSI_RE: Lazy<Regex> = Lazy::new(|| {
-        Regex::new(
-            r"[\x1b\x9b]([()][012AB]|[\[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-PRZcf-nqry=><])",
-        )
-        .unwrap()
-    });
+    // Keep the handwritten parser aligned with this reference regex, including OSC sequences and
+    // DCS passthrough sequences used by tmux.
+    fn strip_ansi_re() -> &'static Regex {
+        static RE: OnceLock<Regex> = OnceLock::new();
+
+        RE.get_or_init(|| {
+            Regex::new(concat!(
+                r"(?s)(?:",
+                r"\x1b\].*?(?:\x07|\x9c|\x1b\\|\z)|",
+                r"\x1bP(?:[^\x1b\x9c]|\x1b\x1b|\x1b[^\x1b\\])*?(?:\x9c|\x1b\\|\x1b\z|\z)|",
+                r"[\x1b\x9b]([()][012AB]|[\[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?",
+                r"[0-9A-PRZcf-nqry=><])",
+                r")",
+            ))
+            .unwrap()
+        })
+    }
 
     impl<'a> PartialEq<Match<'a>> for regex::Match<'_> {
         fn eq(&self, other: &Match<'a>) -> bool {
@@ -293,7 +447,7 @@ mod tests {
     proptest! {
         #[test]
         fn dfa_matches_old_regex(s in r"([\x1b\x9b]?.*){0,5}") {
-            let old_matches: Vec<_> = STRIP_ANSI_RE.find_iter(&s).collect();
+            let old_matches: Vec<_> = strip_ansi_re().find_iter(&s).collect();
             let new_matches: Vec<_> = Matches::new(&s).collect();
             assert_eq!(old_matches, new_matches);
         }
@@ -312,8 +466,8 @@ mod tests {
 
         fn _check_all_strings_of_len(len: usize, chunk: &mut Vec<u8>) {
             if len == 0 {
-                if let Ok(s) = std::str::from_utf8(chunk) {
-                    let old_matches: Vec<_> = STRIP_ANSI_RE.find_iter(s).collect();
+                if let Ok(s) = core::str::from_utf8(chunk) {
+                    let old_matches: Vec<_> = strip_ansi_re().find_iter(s).collect();
                     let new_matches: Vec<_> = Matches::new(s).collect();
                     assert_eq!(old_matches, new_matches);
                 }
@@ -342,7 +496,7 @@ mod tests {
         )
         .unwrap();
 
-        let old_matches: Vec<_> = STRIP_ANSI_RE.find_iter(&s).collect();
+        let old_matches: Vec<_> = strip_ansi_re().find_iter(&s).collect();
         let new_matches: Vec<_> = Matches::new(&s).collect();
         assert_eq!(old_matches, new_matches);
     }
@@ -381,6 +535,39 @@ mod tests {
         let s = "\u{1b}00000";
         let matches: Vec<_> = Matches::new(s).map(|m| m.as_str()).collect();
         assert_eq!(&[s], matches.as_slice());
+    }
+
+    #[test]
+    fn test_without_ansi() {
+        let str_with_ansi = "\x1b[1;97;41mError\x1b[0m";
+        let without_ansi = WithoutAnsi::new(str_with_ansi);
+        for _ in 0..2 {
+            let mut output = String::default();
+            write!(output, "{without_ansi}").unwrap();
+            assert_eq!(output, "Error");
+        }
+    }
+
+    #[test]
+    fn strip_osc8_hyperlink_st() {
+        let s = "\x1b]8;;file:///tmp/test\x1b\\hello\x1b]8;;\x1b\\";
+        assert_eq!(strip_ansi_codes(s).as_ref(), "hello");
+    }
+
+    #[test]
+    fn strip_osc8_hyperlink_bel() {
+        let s = "\x1b]8;;file:///tmp/test\x07hello\x1b]8;;\x07";
+        assert_eq!(strip_ansi_codes(s).as_ref(), "hello");
+    }
+
+    #[test]
+    fn strip_tmux_passthrough_dcs() {
+        let open = "\x1bPtmux;\x1b\x1b\x1b]8;;file:///tmp/test\x1b\x1b\\\x1b\\";
+        let close = "\x1bPtmux;\x1b\x1b\x1b]8;;\x1b\x1b\\\x1b\\";
+        assert_eq!(
+            strip_ansi_codes(&format!("{open}hello{close}")).as_ref(),
+            "hello"
+        );
     }
 
     #[test]
