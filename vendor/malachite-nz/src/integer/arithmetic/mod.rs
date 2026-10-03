@@ -25,11 +25,16 @@ pub mod add_mul;
 pub mod binomial_coefficient;
 /// Division of [`Integer`](super::Integer)s.
 pub mod div;
+/// Implementations of [`DivEuclidean`](malachite_base::num::arithmetic::traits::DivEuclidean) and
+/// [`DivAssignEuclidean`](malachite_base::num::arithmetic::traits::DivAssignEuclidean), traits for
+/// simultaneously finding the quotient and remainder of two numbers, where the remainder is
+/// nonnegative.
+pub mod div_euclidean;
 /// Implementations of [`DivExact`](malachite_base::num::arithmetic::traits::DivExact) and
 /// [`DivExactAssign`](malachite_base::num::arithmetic::traits::DivExactAssign), traits for dividing
 /// two numbers when it's known that the division is exact.
 pub mod div_exact;
-/// Implementations of raits for simultaneously finding the quotient and remainder of two numbers,
+/// Implementations of traits for simultaneously finding the quotient and remainder of two numbers,
 /// subject to various rounding rules.
 ///
 /// These are the traits:

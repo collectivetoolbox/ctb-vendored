@@ -10,20 +10,59 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
-edition = "2018"
+edition = "2021"
+rust-version = "1.60"
 name = "radium"
-version = "0.7.0"
-authors = ["Nika Layzell <nika@thelayzells.com>", "myrrlyn <self@myrrlyn.dev>"]
-include = ["src/**/*.rs", "Cargo.toml", "README.md", "LICENSE.txt", "build.rs"]
+version = "1.1.1"
+build = false
+include = [
+    "Cargo.toml",
+    "src/**/*.rs",
+    "README.md",
+    "doc/**/*.md",
+    "LICENSE.txt",
+]
+autolib = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
 description = "Portable interfaces for maybe-atomic types"
-homepage = "https://github.com/bitvecto-rs/radium"
+homepage = "https://ferrilab.github.io/ferrilab"
 documentation = "https://docs.rs/radium"
 readme = "README.md"
-keywords = ["atomic", "cell", "sync", "generic", "trait"]
-categories = ["concurrency", "no-std"]
+keywords = [
+    "atomic",
+    "cell",
+    "sync",
+    "generic",
+    "trait",
+]
+categories = [
+    "concurrency",
+    "no-std",
+]
 license = "MIT"
-repository = "https://github.com/bitvecto-rs/radium"
+repository = "https://github.com/ferrilab/ferrilab"
 
-[dependencies]
-[dev-dependencies.static_assertions]
+[features]
+portable-atomic = ["dep:portable-atomic"]
+portable-atomic-fallback = [
+    "portable-atomic",
+    "portable-atomic/fallback",
+]
+
+[lib]
+name = "radium"
+path = "src/lib.rs"
+
+[dependencies.cfg-if]
 version = "1"
+
+[dependencies.portable-atomic]
+version = "1"
+optional = true
+default-features = false
+
+[dev-dependencies.static_assertions]
+version = "1.1"

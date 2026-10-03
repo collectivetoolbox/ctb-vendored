@@ -17,6 +17,9 @@
 // Lesser General Public License (LGPL) as published by the Free Software Foundation; either version
 // 3 of the License, or (at your option) any later version. See <https://www.gnu.org/licenses/>.
 
+/// The type whose [`Vec`](alloc::vec::Vec)s store the limbs (large digits) of a
+/// [`Natural`](crate::natural::Natural). [`u64`] by default, or [`u32`] with the `32_bit_limbs`
+/// feature.
 pub type Limb = u64;
 pub type HalfLimb = u32;
 pub type DoubleLimb = u128;
@@ -32,9 +35,9 @@ pub(crate) const AORSMUL_FASTER_3AORSLSH: bool = true;
 pub(crate) const AORSMUL_FASTER_AORS_AORSLSH: bool = true;
 pub(crate) const AORSMUL_FASTER_AORS_2AORSLSH: bool = true;
 
-pub(crate) const MUL_TOOM22_THRESHOLD: usize = 20;
-pub(crate) const MUL_TOOM33_THRESHOLD: usize = 39;
-pub(crate) const MUL_TOOM44_THRESHOLD: usize = 340; // unclear when 44 is better than 33
+pub(crate) const MUL_TOOM22_THRESHOLD: usize = 16;
+pub(crate) const MUL_TOOM33_THRESHOLD: usize = 105;
+pub(crate) const MUL_TOOM44_THRESHOLD: usize = 315; // unclear when 44 is better than 33
 pub(crate) const MUL_TOOM6H_THRESHOLD: usize = 345;
 pub(crate) const MUL_TOOM8H_THRESHOLD: usize = 640;
 
@@ -44,6 +47,12 @@ pub(crate) const MUL_TOOM42_TO_TOOM53_THRESHOLD: usize = 600;
 pub(crate) const MUL_TOOM42_TO_TOOM63_THRESHOLD: usize = 103;
 
 pub(crate) const MUL_FFT_THRESHOLD: usize = 1500;
+
+// Binary-to-string conversion thresholds (see natural/conversion/digits/general_digits.rs). TODO
+// tune
+pub(crate) const GET_STR_DC_THRESHOLD: usize = 18;
+// TODO tune
+pub(crate) const GET_STR_PRECOMPUTE_THRESHOLD: usize = 26;
 
 pub(crate) const DC_DIV_QR_THRESHOLD: usize = 85;
 pub(crate) const DC_DIVAPPR_Q_THRESHOLD: usize = 211;

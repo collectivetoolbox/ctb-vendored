@@ -1,0 +1,36 @@
+[package]
+name = "syn-ext"
+version = "0.5.0"
+authors = ["Jeong YunWon <jeong+synext@youknowone.org>"]
+edition = "2018"
+description = "Human friendly or editable extension for syn"
+repository = "https://github.com/youknowone/syn-ext"
+license-file = "LICENSE"
+documentation = "https://docs.rs/syn-ext/"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default = ["derive", "parsing", "printing", "clone-impls", "proc-macro", "syn/default"]
+derive = ["syn/derive"]
+full = ["syn/full"]
+parsing = ["syn/parsing"]
+printing = ["syn/printing"]
+visit = ["syn/visit"]
+visit-mut = ["syn/visit-mut"]
+fold = ["syn/fold"]
+clone-impls = ["syn/clone-impls"]
+extra-traits = ["syn/extra-traits"]
+proc-macro = ["syn/proc-macro"]
+# test = ["syn-test-suite/all-features"]
+
+[dependencies]
+syn = "^2"
+proc-macro2 = "1"
+quote = "1"
+
+[dev-dependencies]
+quote = "^1"
+
+[package.metadata.docs.rs]
+features = ["full"]

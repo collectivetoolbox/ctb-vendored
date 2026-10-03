@@ -215,6 +215,17 @@ pub trait DivMod<RHS = Self> {
     fn div_mod(self, other: RHS) -> (Self::DivOutput, Self::ModOutput);
 }
 
+/// Divides two numbers, returning the quotient and remainder. The quotient is rounded towards the
+/// quotient that makes the remainder nonnegative, and the remainder is always nonnegative.
+///
+/// The quotient and remainder satisfy $x = qy + r$ and $0 \leq r < |y|$.
+pub trait DivEuclidean<RHS = Self> {
+    type DivOutput;
+    type ModOutput;
+
+    fn div_euclidean(self, other: RHS) -> (Self::DivOutput, Self::ModOutput);
+}
+
 /// Divides a number by another number in place, returning the remainder. The quotient is rounded
 /// towards negative infinity, and the remainder has the same sign as the divisor (second input).
 ///
@@ -223,6 +234,17 @@ pub trait DivAssignMod<RHS = Self> {
     type ModOutput;
 
     fn div_assign_mod(&mut self, other: RHS) -> Self::ModOutput;
+}
+
+/// Divides a number by another number in place, returning the remainder. The quotient is rounded
+/// towards the quotient that makes the remainder nonnegative, and the remainder is always
+/// nonnegative.
+///
+/// The quotient and remainder satisfy $x = qy + r$ and $0 \leq r < |y|$.
+pub trait DivAssignEuclidean<RHS = Self> {
+    type ModOutput;
+
+    fn div_assign_euclidean(&mut self, other: RHS) -> Self::ModOutput;
 }
 
 /// Divides two numbers, returning the quotient and remainder. The quotient is rounded towards zero,
@@ -446,6 +468,23 @@ pub trait Ln {
     fn ln(self) -> Self::Output;
 }
 
+/// Replaces a number with its natural logarithm.
+pub trait LnAssign {
+    fn ln_assign(&mut self);
+}
+
+/// Computes $\ln(1+x)$.
+pub trait Ln1PlusX {
+    type Output;
+
+    fn ln_1_plus_x(self) -> Self::Output;
+}
+
+/// Replaces a number $x$ by $\ln(1+x)$.
+pub trait Ln1PlusXAssign {
+    fn ln_1_plus_x_assign(&mut self);
+}
+
 /// Calculates the LCM (least common multiple) of two numbers, returning `None` if the result is not
 /// representable.
 pub trait CheckedLcm<RHS = Self> {
@@ -500,6 +539,78 @@ pub trait CheckedLogBase2 {
     fn checked_log_base_2(self) -> Option<Self::Output>;
 }
 
+/// Calculates the base-2 logarithm of a number.
+pub trait LogBase2 {
+    type Output;
+
+    fn log_base_2(self) -> Self::Output;
+}
+
+/// Replaces a number with its base-2 logarithm.
+pub trait LogBase2Assign {
+    fn log_base_2_assign(&mut self);
+}
+
+/// Calculates the base-10 logarithm of a number, rounding the (generally irrational) result.
+pub trait LogBase10 {
+    type Output;
+
+    fn log_base_10(self) -> Self::Output;
+}
+
+/// Replaces a number with its base-10 logarithm, rounding the (generally irrational) result.
+pub trait LogBase10Assign {
+    fn log_base_10_assign(&mut self);
+}
+
+/// Computes $\log_2(1+x)$.
+pub trait LogBase2Of1PlusX {
+    type Output;
+
+    fn log_base_2_1_plus_x(self) -> Self::Output;
+}
+
+/// Replaces a number $x$ by $\log_2(1+x)$.
+pub trait LogBase2Of1PlusXAssign {
+    fn log_base_2_1_plus_x_assign(&mut self);
+}
+
+/// Computes $\log_{2^k}(1+x)$.
+pub trait LogBasePowerOf2Of1PlusX<POW> {
+    type Output;
+
+    fn log_base_power_of_2_1_plus_x(self, pow: POW) -> Self::Output;
+}
+
+/// Replaces a number $x$ by $\log_{2^k}(1+x)$.
+pub trait LogBasePowerOf2Of1PlusXAssign<POW> {
+    fn log_base_power_of_2_1_plus_x_assign(&mut self, pow: POW);
+}
+
+/// Computes $\log_b(1+x)$ for an integer base $b$.
+pub trait LogBaseOf1PlusX<B = Self> {
+    type Output;
+
+    fn log_base_1_plus_x(self, base: B) -> Self::Output;
+}
+
+/// Replaces a number $x$ by $\log_b(1+x)$ for an integer base $b$.
+pub trait LogBaseOf1PlusXAssign<B = Self> {
+    fn log_base_1_plus_x_assign(&mut self, base: B);
+}
+
+/// Computes $\log_{10}(1+x)$.
+pub trait LogBase10Of1PlusX {
+    type Output;
+
+    fn log_base_10_1_plus_x(self) -> Self::Output;
+}
+
+/// Replaces a number $x$ by $\log_{10}(1+x)$.
+pub trait LogBase10Of1PlusXAssign {
+    fn log_base_10_1_plus_x_assign(&mut self);
+}
+
 /// Calculates the floor of the base-2 logarithm of a number.
 pub trait FloorLogBase2 {
     type Output;
@@ -534,6 +645,30 @@ pub trait CeilingLogBasePowerOf2<POW> {
     type Output;
 
     fn ceiling_log_base_power_of_2(self, pow: POW) -> Self::Output;
+}
+
+/// Calculates the base-$2^k$ logarithm of a number.
+pub trait LogBasePowerOf2<POW> {
+    type Output;
+
+    fn log_base_power_of_2(self, pow: POW) -> Self::Output;
+}
+
+/// Replaces a number with its base-$2^k$ logarithm.
+pub trait LogBasePowerOf2Assign<POW> {
+    fn log_base_power_of_2_assign(&mut self, pow: POW);
+}
+
+/// Calculates the base-$b$ logarithm of a number, rounding the (generally irrational) result.
+pub trait LogBase<B = Self> {
+    type Output;
+
+    fn log_base(self, base: B) -> Self::Output;
+}
+
+/// Replaces a number with its base-$b$ logarithm, rounding the (generally irrational) result.
+pub trait LogBaseAssign<B = Self> {
+    fn log_base_assign(&mut self, base: B);
 }
 
 /// Adds two numbers modulo a third number $m$. The inputs must be already reduced modulo $m$.

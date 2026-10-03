@@ -1,0 +1,6 @@
+{
+  "git": {
+    "sha1": "9d911257962b955f50b9b1207d73491b6b07b3c3"
+  },
+  "path_in_vcs": "crates/ruff_source_file"
+}

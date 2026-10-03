@@ -1,0 +1,6 @@
+{
+  "git": {
+    "sha1": "7b059fcc85b9b6c52591814d63b9990325165b0c"
+  },
+  "path_in_vcs": "crates/ruff_text_size"
+}

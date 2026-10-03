@@ -13,7 +13,7 @@
 edition = "2024"
 rust-version = "1.90.0"
 name = "malachite-base"
-version = "0.9.1"
+version = "0.9.2"
 authors = ["Mikhail Hogrefe <mikhailhogrefe@gmail.com>"]
 build = false
 autolib = false
@@ -129,12 +129,17 @@ optional = true
 default-features = false
 
 [dependencies.time]
-version = "0.3.46"
+version = "0.3.47"
 optional = true
 
 [dependencies.walkdir]
 version = "2.5.0"
 optional = true
+
+[dev-dependencies.malachite-base]
+version = "0.9.1"
+features = ["test_build"]
+default-features = false
 
 [dev-dependencies.maplit]
 version = "1.0.2"
