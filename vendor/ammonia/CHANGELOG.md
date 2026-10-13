@@ -1,5 +1,33 @@
 # Unreleased
 
+# 4.2.3
+
+* Security fix: CSS sanitization did not correctly escape URLs
+  when the URL scheme doesn't escape the quotes itself. This bug
+  was reported by Uttej Badwane.
+* Security fix: Add missing elements to the list of CSS animation
+  elements. This bug was reported by [ucsurf](https://uc.surf).
+* 4.2.2 was accidentally released with an incomplete fix.
+
+# 4.2.1
+
+* fix: apply URL rewrites to CSS `url()` function
+* Security fix: CSS sanitization only ever worked on attributes,
+  not stylesheets. This now panics if you try to enable the
+  style tag while also using style attribute filtering
+
+# 4.2.0
+
+* chore: upgrade to [html5ever 0.40.0][]
+* chore: upgrade to [cssparser 0.38.0][]
+* chore: bump MSRV to 1.85.0
+* feat: add introspection methods for relative url settings to Builder (@gghez)
+* Security fixes are not backported to 4.0 any more.
+  Only 3.3, 4.1, and 4.2 are supported.
+
+[cssparser 0.38.0]: https://github.com/servo/rust-cssparser/releases/tag/v0.38.0
+[html5ever 0.39.0]: https://docs.rs/html5ever/0.40.0/html5ever/
+
 # 4.1.4
 
 * fix: SVG `animation` and `set` can cause XSS, because `attributeName` is not checked (reported by Younghun Ko, koyokr)
