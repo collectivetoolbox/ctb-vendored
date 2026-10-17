@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "ammonia"
-version = "4.2.3"
+version = "4.2.4"
 dependencies = [
  "cssparser",
  "env_logger",

@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.85"
 name = "ammonia"
-version = "4.2.3"
+version = "4.2.4"
 authors = ["Michael Howell <michael@notriddle.com>"]
 build = false
 autolib = false
