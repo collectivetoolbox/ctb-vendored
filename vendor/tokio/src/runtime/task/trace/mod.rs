@@ -147,7 +147,9 @@ impl Context {
     pub(crate) fn is_tracing() -> bool {
         // SAFETY: This call can only access the trace_leaf_fn field, so it cannot break the trace
         // frame linked list.
-        unsafe { Self::try_with_current(|ctx| ctx.trace_leaf_fn.get().is_some()).unwrap_or(false) }
+        unsafe {
+            Self::try_with_current(|ctx| ctx.trace_leaf_fn.get().is_some()).unwrap_or_default()
+        }
     }
 }
 
@@ -168,11 +170,16 @@ pub struct TraceMeta {
     pub trace_leaf_addr: *const c_void,
 }
 
-/// Runs `f`. If `f` hits a Tokio yield point `trace_leaf` will be invoked.
+/// Runs `f`. If `f` hits a Tokio yield point, the `trace_leaf` callback will be invoked.
 ///
-/// This allows taking a task dump with caller-provided task dump machinery. If `f` is the poll
-/// function of a future and that future returns `Poll::Pending`, then `trace_leaf` will be
-/// invoked. `trace_leaf` can then take a backtrace to determine exactly where the yield occurred.
+/// This allows taking a task dump with caller-provided task dump machinery. At each Tokio yield
+/// point reached while polling a future, `trace_leaf` can take a backtrace. The leaf future then
+/// returns `Poll::Pending` instead of performing its normal work.
+///
+/// When running on a Tokio scheduler, each captured leaf's waker is deferred until the scheduler
+/// regains control, so that the future can be polled again. The future must be polled outside of
+/// `trace_with` to make progress. Capturing on every poll can cause a wake-and-capture loop even
+/// when the future has no work to do.
 ///
 /// # Example
 ///
@@ -257,7 +264,9 @@ impl Trace {
     where
         F: FnOnce() -> R,
     {
-        trace_impl::capture(f)
+        let mut trace = Trace::empty();
+        let result = trace_with(f, |meta| trace_impl::trace_leaf(meta, &mut trace));
+        (result, trace)
     }
 
     pub(crate) fn empty() -> Self {
@@ -279,12 +288,10 @@ impl Trace {
     }
 }
 
-/// If this is a sub-invocation of [`Trace::capture`], capture a backtrace.
+/// If this is a sub-invocation of [`trace_with`], invoke its callback, defer a wake,
+/// and return `Poll::Pending`.
 ///
-/// The captured backtrace will be returned by [`Trace::capture`].
-///
-/// Invoking this function does nothing when it is not a sub-invocation
-/// [`Trace::capture`].
+/// Otherwise, return `Poll::Ready(())` without waking the future.
 // This function is marked `#[inline(never)]` to ensure that it gets a distinct `Frame` in the
 // backtrace, below which frames should not be included in the backtrace (since they reflect the
 // internal implementation details of this crate).
@@ -299,8 +306,10 @@ pub(crate) fn trace_leaf(cx: &mut task::Context<'_>) -> Poll<()> {
         };
         leaf_fn(&meta);
 
-        // Use the same logic that `yield_now` uses to send out wakeups after
-        // the task yields.
+        // Callers using `ready!(trace_leaf(cx))` return early on `Pending`,
+        // potentially before registering their waker. Wake that future so it
+        // can be polled again outside `trace_with`. As with `yield_now`, defer
+        // the wake until the scheduler regains control.
         context::with_scheduler(|scheduler| {
             if let Some(scheduler) = scheduler {
                 match scheduler {
@@ -394,21 +403,14 @@ pub(in crate::runtime) fn trace_current_thread(
 }
 
 cfg_rt_multi_thread! {
-    use crate::loom::sync::Mutex;
+    use crate::runtime::scheduler::inject::InjectQueue;
     use crate::runtime::scheduler::multi_thread;
-    use crate::runtime::scheduler::multi_thread::Synced;
-    use crate::runtime::scheduler::inject::Shared;
 
-    /// Trace and poll all tasks of the `current_thread` runtime.
-    ///
-    /// ## Safety
-    ///
-    /// Must be called with the same `synced` that `injection` was created with.
-    pub(in crate::runtime) unsafe fn trace_multi_thread(
+    /// Trace and poll all tasks of the `multi_thread` runtime.
+    pub(in crate::runtime) fn trace_multi_thread(
         owned: &OwnedTasks<Arc<multi_thread::Handle>>,
         local: &mut multi_thread::queue::Local<Arc<multi_thread::Handle>>,
-        synced: &Mutex<Synced>,
-        injection: &Shared<Arc<multi_thread::Handle>>,
+        injection: &InjectQueue<Arc<multi_thread::Handle>>,
     ) -> Vec<(Id, Trace)> {
         let mut dequeued = Vec::new();
 
@@ -418,13 +420,7 @@ cfg_rt_multi_thread! {
         }
 
         // clear the injection queue
-        let mut synced = synced.lock();
-        // Safety: exactly the same safety requirements as `trace_multi_thread` function.
-        while let Some(notified) = unsafe { injection.pop(&mut synced.inject) } {
-            dequeued.push(notified);
-        }
-
-        drop(synced);
+        injection.drain_into(&mut dequeued);
 
         // precondition: we have drained the tasks from the local and injection
         // queues.
@@ -440,12 +436,12 @@ cfg_rt_multi_thread! {
 /// in any other queue.
 fn trace_owned<S: Schedule>(owned: &OwnedTasks<S>, dequeued: Vec<Notified<S>>) -> Vec<(Id, Trace)> {
     let mut tasks = dequeued;
-    // Notify and trace all un-notified tasks. The dequeued tasks are already
-    // notified and so do not need to be re-notified.
+    // Notify and trace all un-notified idle tasks. The dequeued tasks are
+    // already notified and so do not need to be re-notified.
     owned.for_each(|task| {
         // Notify the task (and thus make it poll-able) and stash it. This fails
-        // if the task is already notified. In these cases, we skip tracing the
-        // task.
+        // if the task is already notified or not idle. In these cases, we skip
+        // tracing the task.
         if let Some(notified) = task.notify_for_tracing() {
             tasks.push(notified);
         }
@@ -459,6 +455,7 @@ fn trace_owned<S: Schedule>(owned: &OwnedTasks<S>, dequeued: Vec<Notified<S>>) -
         .map(|task| {
             let local_notified = owned.assert_owner(task);
             let id = local_notified.task.id();
+
             let ((), trace) = Trace::capture(|| local_notified.run());
             (id, trace)
         })

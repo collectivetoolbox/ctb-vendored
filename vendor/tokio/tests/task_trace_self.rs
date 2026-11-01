@@ -3,7 +3,12 @@
     tokio_unstable,
     feature = "taskdump",
     target_os = "linux",
-    any(target_arch = "aarch64", target_arch = "x86", target_arch = "x86_64")
+    any(
+        target_arch = "aarch64",
+        target_arch = "x86",
+        target_arch = "x86_64",
+        target_arch = "s390x"
+    )
 ))]
 
 use std::future::Future;
@@ -138,7 +143,7 @@ fn trace_leaf_for_test(meta: &TraceMeta, log: &mut Vec<Vec<String>>) {
     for frame in bt.frames() {
         for symbol in frame.symbols() {
             if let Some(name) = symbol.name() {
-                names.push(strip_symbol_hash(&format!("{name}")).to_owned());
+                names.push(strip_symbol_hash(&format!("{name:#}")).to_owned());
             }
         }
     }
@@ -159,13 +164,14 @@ fn strip_symbol_hash(s: &str) -> &str {
 }
 
 pin_project_lite::pin_project! {
-    /// A future wrapper that uses `trace_with` to capture a backtrace on every
-    /// poll.
+    /// A future wrapper that uses `trace_with` for a single capture after the
+    /// wrapped future first returns `Pending`.
     /// The captured backtraces are stored in `logs`.
     pub struct TaskDump<F: Future> {
         #[pin]
         f: Root<F>,
         logs: Arc<Mutex<Vec<Vec<String>>>>,
+        captured: bool,
     }
 }
 
@@ -174,6 +180,7 @@ impl<F: Future> TaskDump<F> {
         TaskDump {
             f: Trace::root(f),
             logs,
+            captured: false,
         }
     }
 }
@@ -184,24 +191,25 @@ impl<F: Future> Future for TaskDump<F> {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<F::Output> {
         let mut this = self.project();
 
-        // Poll the future with a real waker. if it returns Ready, exit immediately
-        match this.f.as_mut().poll(cx) {
-            Poll::Ready(result) => return Poll::Ready(result),
-            Poll::Pending => {}
+        // if the future is ready, exit immediately
+        if let Poll::Ready(result) = this.f.as_mut().poll(cx) {
+            return Poll::Ready(result);
         };
 
+        // Capture only once so capture-induced wakes do not cause a
+        // wake-and-capture loop.
+        if *this.captured {
+            return Poll::Pending;
+        }
+
+        // if is pending, trace its location:
         let mut logs = Vec::new();
 
-        // Tracing poll with a noop waker. If the future is at a yield
-        // point, trace_leaf fires our callback and returns Pending. We discard
-        // the result — this poll is purely for capturing the backtrace.
-        let noop = futures::task::noop_waker();
-        let mut noop_cx = Context::from_waker(&noop);
         let trace_poll = trace_with(
-            || this.f.as_mut().poll(&mut noop_cx),
+            || this.f.as_mut().poll(cx),
             |meta| trace_leaf_for_test(meta, &mut logs),
         );
-        // trace should always produce poll pending
+        // The futures used in these tests remain pending during capture.
         assert!(
             matches!(trace_poll, Poll::Pending),
             "expected trace to produce Poll::Pending but it was ready"
@@ -209,6 +217,7 @@ impl<F: Future> Future for TaskDump<F> {
 
         // Drain any frames captured by trace_leaf_for_test into our log.
         this.logs.lock().unwrap().extend(logs);
+        *this.captured = true;
         Poll::Pending
     }
 }
@@ -272,4 +281,24 @@ async fn trace_with_callback_and_backtrace() {
             "expected frame containing {expected:?}, got {actual:?}\nfull trace:\n{trace:#?}"
         );
     }
+}
+
+#[tokio::test]
+async fn trace_with_wakes_pending_future() {
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    let logs = Arc::new(Mutex::new(vec![]));
+    let mut task = tokio_test::task::spawn(TaskDump::new(receiver, logs.clone()));
+
+    assert!(task.poll().is_pending());
+    tokio::task::yield_now().await;
+    assert!(task.is_woken());
+
+    assert!(task.poll().is_pending());
+    tokio::task::yield_now().await;
+    assert!(!task.is_woken());
+    assert_eq!(logs.lock().unwrap().len(), 1);
+
+    sender.send(42).unwrap();
+    assert!(task.is_woken());
+    assert_eq!(task.poll(), Poll::Ready(Ok(42)));
 }
