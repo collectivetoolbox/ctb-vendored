@@ -11,7 +11,7 @@
 
 [package]
 name = "brotli-decompressor"
-version = "5.0.1"
+version = "6.2.0"
 authors = [
     "Daniel Reiter Horn <danielrh@dropbox.com>",
     "The Brotli Authors",
@@ -42,8 +42,9 @@ benchmark = []
 default = ["std"]
 disable-timer = []
 ffi-api = []
+no-stdlib-ffi-binding = ["ffi-api"]
 pass-through-ffi-panics = []
-seccomp = []
+seccomp = ["alloc-no-stdlib/unsafe"]
 std = ["alloc-stdlib"]
 unsafe = [
     "alloc-no-stdlib/unsafe",
@@ -63,11 +64,27 @@ doc = false
 name = "decompress"
 path = "examples/decompress.rs"
 
+[[test]]
+name = "bit_reader_streaming"
+path = "tests/bit_reader_streaming.rs"
+
+[[test]]
+name = "ffi_default_allocator_failure"
+path = "tests/ffi_default_allocator_failure.rs"
+
+[[test]]
+name = "pool_ring_buffer"
+path = "tests/pool_ring_buffer.rs"
+
+[[test]]
+name = "serialized_dictionary_cli"
+path = "tests/serialized_dictionary_cli.rs"
+
 [dependencies.alloc-no-stdlib]
-version = "2.0"
+version = ">=3.0.0, <4.0.0"
 
 [dependencies.alloc-stdlib]
-version = "~0.2"
+version = ">=0.3.0, <0.4"
 optional = true
 
 [profile.release]

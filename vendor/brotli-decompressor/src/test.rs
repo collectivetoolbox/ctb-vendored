@@ -14,7 +14,69 @@ pub use super::{BrotliDecompressStream, BrotliResult, BrotliState, HuffmanCode};
 
 declare_stack_allocator_struct!(MemPool, 4096, stack);
 
+struct FailSecondBlockTreeAllocation<AllocHC> {
+  alloc: AllocHC,
+  block_tree_allocations: u8,
+}
 
+struct FailFirstHtreeAllocation<AllocU32> {
+  alloc: AllocU32,
+  failed: bool,
+}
+
+impl<AllocU32> FailFirstHtreeAllocation<AllocU32> {
+  fn new(alloc: AllocU32) -> Self {
+    FailFirstHtreeAllocation {
+      alloc,
+      failed: false,
+    }
+  }
+}
+
+impl<AllocU32: Allocator<u32>> Allocator<u32> for FailFirstHtreeAllocation<AllocU32> {
+  type AllocatedMemory = AllocU32::AllocatedMemory;
+
+  fn alloc_cell(&mut self, len: usize) -> Self::AllocatedMemory {
+    if !self.failed {
+      self.failed = true;
+      return Self::AllocatedMemory::default();
+    }
+    self.alloc.alloc_cell(len)
+  }
+
+  fn free_cell(&mut self, data: Self::AllocatedMemory) {
+    self.alloc.free_cell(data);
+  }
+}
+
+impl<AllocHC> FailSecondBlockTreeAllocation<AllocHC> {
+  fn new(alloc: AllocHC) -> Self {
+    FailSecondBlockTreeAllocation {
+      alloc,
+      block_tree_allocations: 0,
+    }
+  }
+}
+
+impl<AllocHC: Allocator<HuffmanCode>> Allocator<HuffmanCode>
+  for FailSecondBlockTreeAllocation<AllocHC> {
+  type AllocatedMemory = AllocHC::AllocatedMemory;
+
+  fn alloc_cell(&mut self, len: usize) -> Self::AllocatedMemory {
+    if len == 3 * super::huffman::BROTLI_HUFFMAN_MAX_SIZE_258 as usize ||
+       len == 3 * super::huffman::BROTLI_HUFFMAN_MAX_SIZE_26 as usize {
+      self.block_tree_allocations += 1;
+      if self.block_tree_allocations == 2 {
+        return Self::AllocatedMemory::default();
+      }
+    }
+    self.alloc.alloc_cell(len)
+  }
+
+  fn free_cell(&mut self, data: Self::AllocatedMemory) {
+    self.alloc.free_cell(data);
+  }
+}
 
 fn oneshot(input: &mut [u8], mut output: &mut [u8]) -> (BrotliResult, usize, usize) {
   let mut available_out: usize = output.len();
@@ -42,6 +104,289 @@ fn oneshot(input: &mut [u8], mut output: &mut [u8]) -> (BrotliResult, usize, usi
                                       &mut written,
                                       &mut brotli_state);
   return (result, input_offset, output_offset);
+}
+
+// As oneshot, with at most in_chunk bytes of input and out_chunk bytes of
+// output space per call.
+fn decode_in_chunks(input: &[u8],
+                    output: &mut [u8],
+                    in_chunk: usize,
+                    out_chunk: usize)
+                    -> (BrotliResult, usize, usize) {
+  let mut stack_u8_buffer = define_allocator_memory_pool!(4096, u8, [0; 16 * 1024], stack);
+  let mut stack_u32_buffer = define_allocator_memory_pool!(4096, u32, [0; 4 * 1024], stack);
+  let mut stack_hc_buffer = define_allocator_memory_pool!(4096,
+                                                          super::HuffmanCode,
+                                                          [HuffmanCode::default(); 20 * 1024],
+                                                          stack);
+  let stack_u8_allocator = MemPool::<u8>::new_allocator(&mut stack_u8_buffer, bzero);
+  let stack_u32_allocator = MemPool::<u32>::new_allocator(&mut stack_u32_buffer, bzero);
+  let stack_hc_allocator = MemPool::<HuffmanCode>::new_allocator(&mut stack_hc_buffer, bzero);
+  let mut brotli_state =
+    BrotliState::new(stack_u8_allocator, stack_u32_allocator, stack_hc_allocator);
+  let mut input_offset: usize = 0;
+  let mut output_offset: usize = 0;
+  let mut written: usize = 0;
+  loop {
+    let mut available_in = core::cmp::min(in_chunk, input.len() - input_offset);
+    let mut available_out = core::cmp::min(out_chunk, output.len() - output_offset);
+    let result = BrotliDecompressStream(&mut available_in,
+                                        &mut input_offset,
+                                        input,
+                                        &mut available_out,
+                                        &mut output_offset,
+                                        output,
+                                        &mut written,
+                                        &mut brotli_state);
+    match result {
+      BrotliResult::NeedsMoreInput if input_offset < input.len() => {}
+      BrotliResult::NeedsMoreOutput if output_offset < output.len() => {}
+      _ => return (result, input_offset, output_offset),
+    }
+  }
+}
+
+#[test]
+fn test_block_len_trees_allocation_failure() {
+  // testdata/fuzz502.compressed: its first metablock has several block types,
+  // which is when the block type and length trees are allocated.
+  let input = [0xe2u8, 0xe1, 0x84, 0x88, 0x6a, 0x56, 0x30, 0x80, 0xe0, 0x39, 0x16, 0x03,
+               0xe4, 0x30, 0xf9];
+  let mut output = [0u8; 1];
+  let mut stack_u8_buffer = define_allocator_memory_pool!(4096, u8, [0; 16 * 1024], stack);
+  let mut stack_u32_buffer = define_allocator_memory_pool!(4096, u32, [0; 4 * 1024], stack);
+  let mut stack_hc_buffer = define_allocator_memory_pool!(4096,
+                                                          HuffmanCode,
+                                                          [HuffmanCode::default(); 20 * 1024],
+                                                          stack);
+  let stack_u8_allocator = MemPool::<u8>::new_allocator(&mut stack_u8_buffer, bzero);
+  let stack_u32_allocator = MemPool::<u32>::new_allocator(&mut stack_u32_buffer, bzero);
+  let stack_hc_allocator =
+    FailSecondBlockTreeAllocation::new(MemPool::<HuffmanCode>::new_allocator(&mut stack_hc_buffer,
+                                                                             bzero));
+  let mut state = BrotliState::new(stack_u8_allocator, stack_u32_allocator, stack_hc_allocator);
+  let mut available_in = input.len();
+  let mut input_offset = 0;
+  let mut available_out = output.len();
+  let mut output_offset = 0;
+  let mut total_out = 0;
+
+  let result = BrotliDecompressStream(&mut available_in,
+                                      &mut input_offset,
+                                      &input,
+                                      &mut available_out,
+                                      &mut output_offset,
+                                      &mut output,
+                                      &mut total_out,
+                                      &mut state);
+
+  match result {
+    BrotliResult::ResultFailure => {}
+    _ => panic!("block_len_trees allocation failure must fail decoding"),
+  }
+  match state.error_code {
+    super::state::BrotliDecoderErrorCode::BROTLI_DECODER_ERROR_ALLOC_BLOCK_TYPE_TREES => {}
+    _ => panic!("unexpected decoder error after block_len_trees allocation failure"),
+  }
+}
+
+#[test]
+fn test_stream_without_block_switches_needs_no_block_trees() {
+  // An empty stream decodes even if the block tree allocations would fail.
+  let input = [0x06u8];
+  let mut output = [0u8; 1];
+  let mut stack_u8_buffer = define_allocator_memory_pool!(4096, u8, [0; 16 * 1024], stack);
+  let mut stack_u32_buffer = define_allocator_memory_pool!(4096, u32, [0; 4 * 1024], stack);
+  let mut stack_hc_buffer = define_allocator_memory_pool!(4096,
+                                                          HuffmanCode,
+                                                          [HuffmanCode::default(); 20 * 1024],
+                                                          stack);
+  let stack_u8_allocator = MemPool::<u8>::new_allocator(&mut stack_u8_buffer, bzero);
+  let stack_u32_allocator = MemPool::<u32>::new_allocator(&mut stack_u32_buffer, bzero);
+  let stack_hc_allocator =
+    FailSecondBlockTreeAllocation::new(MemPool::<HuffmanCode>::new_allocator(&mut stack_hc_buffer,
+                                                                             bzero));
+  let mut state = BrotliState::new(stack_u8_allocator, stack_u32_allocator, stack_hc_allocator);
+  let mut available_in = input.len();
+  let mut input_offset = 0;
+  let mut available_out = output.len();
+  let mut output_offset = 0;
+  let mut total_out = 0;
+  match BrotliDecompressStream(&mut available_in, &mut input_offset, &input,
+                               &mut available_out, &mut output_offset, &mut output,
+                               &mut total_out, &mut state) {
+    BrotliResult::ResultSuccess => {}
+    _ => panic!("an empty stream must decode without the block trees"),
+  }
+  assert_eq!(state.alloc_hc.block_tree_allocations, 0);
+}
+
+// Records whether the block trees are allocated after a HuffmanCode allocation
+// has been freed, as the tree groups are at the end of each metablock.
+#[cfg(feature="std")]
+struct BlockTreesAfterFree<AllocHC> {
+  alloc: AllocHC,
+  freed: bool,
+  block_trees: usize,
+  block_trees_after_free: bool,
+}
+
+#[cfg(feature="std")]
+impl<AllocHC: Allocator<HuffmanCode>> Allocator<HuffmanCode> for BlockTreesAfterFree<AllocHC> {
+  type AllocatedMemory = AllocHC::AllocatedMemory;
+
+  fn alloc_cell(&mut self, len: usize) -> Self::AllocatedMemory {
+    if len == 3 * super::huffman::BROTLI_HUFFMAN_MAX_SIZE_258 as usize ||
+       len == 3 * super::huffman::BROTLI_HUFFMAN_MAX_SIZE_26 as usize {
+      self.block_trees += 1;
+      self.block_trees_after_free |= self.freed;
+    }
+    self.alloc.alloc_cell(len)
+  }
+
+  fn free_cell(&mut self, data: Self::AllocatedMemory) {
+    self.freed |= data.slice().len() != 0;
+    self.alloc.free_cell(data);
+  }
+}
+
+// The C encoder at quality 5, window 16, given the first 300 bytes of
+// alice29.txt, a flush, then the next 8000: the flushed first metablock has no
+// block switches, the second has, so the block trees are first needed after
+// the first tree groups are freed.
+#[test]
+#[cfg(feature="std")]
+fn test_block_switches_after_a_flushed_metablock() {
+  let mut input = include_bytes!("../testdata/flushed_then_block_switches.compressed").to_vec();
+  let expected = &include_bytes!("../testdata/alice29.txt")[..8300];
+  let mut output = vec![0u8; expected.len() + 1];
+  let (result, _, written) = oneshot_std(&mut input, &mut output);
+  match result {
+    BrotliResult::ResultSuccess => {}
+    _ => panic!("decoding failed"),
+  }
+  assert_eq!(&output[..written], expected);
+}
+
+// The block trees are allocated only when first needed, but never after a
+// tree group has been freed: in a pool allocator that never merges what it
+// gets back, they then cannot take a gap that a later tree group would have
+// reused, so the pool never needs more than when they were allocated first.
+#[test]
+#[cfg(feature="std")]
+fn test_block_trees_are_never_allocated_after_a_free() {
+  let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("testdata");
+  let mut paths: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().path())
+    .filter(|p| p.extension().map_or(false, |e| e == "compressed")).collect();
+  paths.sort();
+  let (mut with_trees, mut without_trees) = (0, 0);
+  for path in paths {
+    let input = std::fs::read(&path).unwrap();
+    let mut state = BrotliState::new(super::StandardAlloc::default(),
+                                     super::StandardAlloc::default(),
+                                     BlockTreesAfterFree { alloc: super::StandardAlloc::default(),
+                                                           freed: false,
+                                                           block_trees: 0,
+                                                           block_trees_after_free: false });
+    let mut available_in = input.len();
+    let mut input_offset = 0;
+    let mut total_out = 0;
+    let mut output = [0u8; 65536];
+    loop {
+      let mut available_out = output.len();
+      let mut output_offset = 0;
+      match BrotliDecompressStream(&mut available_in, &mut input_offset, &input,
+                                   &mut available_out, &mut output_offset, &mut output,
+                                   &mut total_out, &mut state) {
+        BrotliResult::NeedsMoreOutput => {}
+        _ => break,
+      }
+    }
+    assert!(!state.alloc_hc.block_trees_after_free, "{}", path.display());
+    if state.alloc_hc.block_trees != 0 { with_trees += 1 } else { without_trees += 1 }
+  }
+  // Guard against the corpus not covering both cases.
+  assert!(with_trees >= 5 && without_trees >= 5, "{} {}", with_trees, without_trees);
+}
+
+#[test]
+fn test_hgroup_htrees_allocation_failure() {
+  let input = [0x1b, 0x13, 0x00, 0x00, 0xa4, 0xb0, 0xb2, 0xea, 0x81, 0x47, 0x02, 0x8a];
+  let mut output = [0u8; 20];
+  let mut stack_u8_buffer = define_allocator_memory_pool!(4096, u8, [0; 16 * 1024], stack);
+  let mut stack_u32_buffer = define_allocator_memory_pool!(4096, u32, [0; 4 * 1024], stack);
+  let mut stack_hc_buffer = define_allocator_memory_pool!(4096,
+                                                          HuffmanCode,
+                                                          [HuffmanCode::default(); 20 * 1024],
+                                                          stack);
+  let stack_u8_allocator = MemPool::<u8>::new_allocator(&mut stack_u8_buffer, bzero);
+  let stack_u32_allocator =
+    FailFirstHtreeAllocation::new(MemPool::<u32>::new_allocator(&mut stack_u32_buffer, bzero));
+  let stack_hc_allocator = MemPool::<HuffmanCode>::new_allocator(&mut stack_hc_buffer, bzero);
+  let mut state = BrotliState::new(stack_u8_allocator, stack_u32_allocator, stack_hc_allocator);
+  let mut available_in = input.len();
+  let mut input_offset = 0;
+  let mut available_out = output.len();
+  let mut output_offset = 0;
+  let mut total_out = 0;
+
+  let result = BrotliDecompressStream(&mut available_in,
+                                      &mut input_offset,
+                                      &input,
+                                      &mut available_out,
+                                      &mut output_offset,
+                                      &mut output,
+                                      &mut total_out,
+                                      &mut state);
+
+  match result {
+    BrotliResult::ResultFailure => {}
+    _ => panic!("hgroup htrees allocation failure must fail decoding"),
+  }
+  match state.error_code {
+    super::state::BrotliDecoderErrorCode::BROTLI_DECODER_ERROR_ALLOC_TREE_GROUPS => {}
+    _ => panic!("unexpected decoder error after hgroup htrees allocation failure"),
+  }
+}
+
+#[test]
+fn test_rejects_invalid_carry_buffer_length() {
+  let input = [];
+  let mut output = [];
+  let mut stack_u8_buffer = define_allocator_memory_pool!(4096, u8, [0; 16 * 1024], stack);
+  let mut stack_u32_buffer = define_allocator_memory_pool!(4096, u32, [0; 4 * 1024], stack);
+  let mut stack_hc_buffer = define_allocator_memory_pool!(4096,
+                                                          HuffmanCode,
+                                                          [HuffmanCode::default(); 20 * 1024],
+                                                          stack);
+  let stack_u8_allocator = MemPool::<u8>::new_allocator(&mut stack_u8_buffer, bzero);
+  let stack_u32_allocator = MemPool::<u32>::new_allocator(&mut stack_u32_buffer, bzero);
+  let stack_hc_allocator = MemPool::<HuffmanCode>::new_allocator(&mut stack_hc_buffer, bzero);
+  let mut state = BrotliState::new(stack_u8_allocator, stack_u32_allocator, stack_hc_allocator);
+  state.buffer_length = state.buffer.len() as u32 + 1;
+  let mut available_in = 0;
+  let mut input_offset = 0;
+  let mut available_out = 0;
+  let mut output_offset = 0;
+  let mut total_out = 0;
+
+  let result = BrotliDecompressStream(&mut available_in,
+                                      &mut input_offset,
+                                      &input,
+                                      &mut available_out,
+                                      &mut output_offset,
+                                      &mut output,
+                                      &mut total_out,
+                                      &mut state);
+
+  match result {
+    BrotliResult::ResultFailure => {}
+    _ => panic!("invalid carry-buffer length must fail decoding"),
+  }
+  match state.error_code {
+    super::state::BrotliDecoderErrorCode::BROTLI_DECODER_ERROR_UNREACHABLE => {}
+    _ => panic!("unexpected decoder error for invalid carry-buffer length"),
+  }
 }
 
 // no-std variant of oneshot that seeds the decoder with a custom dictionary.
@@ -136,6 +481,58 @@ fn test_x() {
   assert_eq!(output[0], 'X' as u8);
   assert_eq!(output_offset, 1);
   assert_eq!(input_offset, input.len());
+}
+
+// 60 lines of "The quick brown fox jumps over the lazy dog <i> times.\n",
+// compressed at quality 5 with a 4 MiB window (lgwin 22), flushing every 700
+// bytes. As with fast or flushing encoders, the data sits in metablocks that
+// are not the last one. The ring buffer grows only as that data needs, here
+// 1 KiB, then 2 KiB, then 4 KiB, where it used to take the whole 4 MiB window.
+// So the stream decodes within a 16 KiB pool, and every later metablock
+// copies from bytes decoded before a growth.
+#[test]
+fn test_flushed_stream_grows_ring_buffer_in_small_pool() {
+  let input: [u8; 181] = [
+    0x8b, 0x5d, 0x01, 0x00, 0xc4, 0x60, 0x97, 0x9e, 0xd0, 0x01, 0xb5, 0x86,
+    0x78, 0x20, 0xf5, 0x63, 0x0c, 0xc4, 0xc1, 0x01, 0xd8, 0x40, 0xe4, 0xe4,
+    0x41, 0x12, 0x58, 0x06, 0x01, 0x50, 0x30, 0x91, 0xa3, 0x80, 0x5b, 0x72,
+    0x90, 0x27, 0xb6, 0x15, 0x9a, 0xbf, 0xc8, 0xfb, 0xf2, 0xcc, 0xa8, 0x97,
+    0x17, 0xfd, 0x35, 0xad, 0x07, 0x96, 0xbb, 0xda, 0x3f, 0x30, 0x5e, 0x63,
+    0xfa, 0x3f, 0x94, 0x4b, 0x03, 0x0e, 0x65, 0xed, 0xa0, 0x44, 0xe4, 0x82,
+    0x4b, 0xae, 0xb8, 0xe6, 0x86, 0x5b, 0xee, 0xb8, 0xe7, 0x61, 0x40, 0xcc,
+    0xa2, 0x9e, 0x5e, 0x60, 0x00, 0xd8, 0x15, 0x00, 0x40, 0x2a, 0x46, 0xa6,
+    0x9d, 0x71, 0xa2, 0x08, 0x25, 0x46, 0x31, 0x7b, 0x9e, 0xe7, 0x79, 0x9e,
+    0xd7, 0xef, 0xf7, 0xfb, 0xfd, 0xd7, 0x00, 0xd8, 0x15, 0x00, 0x40, 0x4a,
+    0x66, 0x26, 0x9d, 0x48, 0xc2, 0x88, 0x00, 0x02, 0xcf, 0xf3, 0x3c, 0xdf,
+    0xf7, 0x7d, 0xdf, 0xf7, 0xfd, 0x37, 0x00, 0xd8, 0x15, 0x00, 0x40, 0x92,
+    0x66, 0xa6, 0x26, 0x9d, 0x40, 0xc2, 0x88, 0x00, 0x12, 0x9f, 0xe7, 0x79,
+    0x9e, 0xe7, 0x79, 0x9e, 0xe7, 0xf9, 0xbf, 0x01, 0xd1, 0x1a, 0x00, 0x40,
+    0xa2, 0x26, 0x9d, 0x30, 0xe2, 0x81, 0x00, 0x26, 0xef, 0xbd, 0xf7, 0xde,
+    0x07];
+  let mut expected = [0u8; 3230];
+  let mut len = 0;
+  for i in 0..60u8 {
+    let digits = [b'0' + i / 10, b'0' + i % 10];
+    let number: &[u8] = if i < 10 { &digits[1..] } else { &digits[..] };
+    for part in [&b"The quick brown fox jumps over the lazy dog "[..], number, &b" times.\n"[..]].iter() {
+      expected[len..len + part.len()].clone_from_slice(part);
+      len += part.len();
+    }
+  }
+  assert_eq!(len, expected.len());
+  // One call, then byte by byte, then odd chunks, each in a fresh 16 KiB pool.
+  for &(in_chunk, out_chunk) in &[(usize::MAX, usize::MAX), (1, 1), (7, 13)] {
+    let mut output = [0u8; 4096];
+    let (result, input_offset, output_offset) =
+      decode_in_chunks(&input[..], &mut output[..], in_chunk, out_chunk);
+    match result {
+      BrotliResult::ResultSuccess => {}
+      _ => assert!(false),
+    }
+    assert_eq!(output_offset, expected.len());
+    assert_eq!(input_offset, input.len());
+    assert!(output[..output_offset] == expected[..]);
+  }
 }
 
 #[test]

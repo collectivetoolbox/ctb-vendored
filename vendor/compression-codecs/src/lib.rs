@@ -22,6 +22,10 @@ pub mod gzip;
 pub mod lz4;
 #[cfg(feature = "lzma")]
 pub mod lzma;
+#[cfg(all(feature = "brotli-mbrotli", async_compression_unstable))]
+pub mod mbrotli;
+#[cfg(all(feature = "zstd-mzstd", async_compression_unstable))]
+pub mod mzstd;
 #[cfg(feature = "xz")]
 pub mod xz;
 #[cfg(feature = "lzma")]
@@ -49,6 +53,10 @@ pub use self::gzip::{GzipDecoder, GzipEncoder};
 pub use self::lz4::{Lz4Decoder, Lz4Encoder};
 #[cfg(feature = "lzma")]
 pub use self::lzma::{LzmaDecoder, LzmaEncoder};
+#[cfg(all(feature = "brotli-mbrotli", async_compression_unstable))]
+pub use self::mbrotli::{MbrotliDecoder, MbrotliEncoder};
+#[cfg(all(feature = "zstd-mzstd", async_compression_unstable))]
+pub use self::mzstd::{MzstdDecoder, MzstdEncoder};
 #[cfg(feature = "xz")]
 pub use self::xz::{XzDecoder, XzEncoder};
 #[cfg(feature = "lzma")]

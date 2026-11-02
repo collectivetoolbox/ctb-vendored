@@ -14,6 +14,10 @@ pub const BROTLI_SHORT_FILL_BIT_WINDOW_READ: u32 = 4;
 #[allow(non_camel_case_types)]
 pub type reg_t = u64;
 
+#[cfg(test)]
+mod regression_tests;
+
+#[cfg(test)]
 #[allow(non_upper_case_globals)]
 const kBitMask: [u32; 33] =
   [0x0000, 0x00000001, 0x00000003, 0x00000007, 0x0000000F, 0x0000001F, 0x0000003F, 0x0000007F,
@@ -22,15 +26,14 @@ const kBitMask: [u32; 33] =
    0x00FFFFFF, 0x01FFFFFF, 0x03FFFFFF, 0x07FFFFFF, 0x0FFFFFFF, 0x1FFFFFFF, 0x3FFFFFFF, 0x7FFFFFFF,
    0xFFFFFFFF];
 
-#[inline]
+// Equals kBitMask[n] for every n in 0..=32, the only values callers pass,
+// without the table load and its bounds check; C computes it the same way
+// wherever it has a bit-field extract instruction. Computed in 64 bits so that
+// n == 32 does not overflow, and n is masked so that no n can make the shift
+// overflow.
+#[inline(always)]
 pub fn BitMask(n: u32) -> u32 {
-  if false {
-    // Masking with this expression turns to a single
-    // "Unsigned Bit Field Extract" UBFX instruction on ARM.
-    !((0xffffffffu32) << n)
-  } else {
-    fast!((kBitMask)[n as usize])
-  }
+  (!(u64::MAX << (n & 63))) as u32
 }
 
 pub struct BrotliBitReader {
@@ -89,6 +92,22 @@ pub fn BrotliGetAvailableBits(br: &BrotliBitReader) -> u32 {
   ((::core::mem::size_of::<reg_t>() as u32) << 3) - br.bit_pos_
 }
 
+// The bit reader keeps its cursor in u32, so the one-past-the-end offset must
+// fit too: bounding the offset and the length separately would still let
+// consuming the last byte overflow next_in. usize may be 64 bits wide, so the
+// sum saturates rather than wraps.
+#[inline]
+pub fn is_valid_input_range(input_offset: usize, available_in: usize, input_len: usize) -> bool {
+  let end = (input_offset as u64).saturating_add(available_in as u64);
+  end <= input_len as u64 && end <= u64::from(u32::MAX)
+}
+
+pub fn is_valid_bit_reader(br: &BrotliBitReader, input: &[u8]) -> bool {
+  let register_bits = (::core::mem::size_of::<reg_t>() as u32) << 3;
+  br.bit_pos_ <= register_bits &&
+    u64::from(br.next_in) + u64::from(br.avail_in) <= input.len() as u64
+}
+
 // Returns amount of unread bytes the bit reader still has buffered from the
 // BrotliInput, including whole bytes in br->val_.
 pub fn BrotliGetRemainingBytes(br: &BrotliBitReader) -> u32 {
@@ -109,13 +128,14 @@ fn BrotliLoad16LE(input: &[u8], next_in_u32: u32) -> u16 {
 }
 
 
+// from_le_bytes compiles to one unaligned load; assembling the value byte by
+// byte let LLVM split the load into pieces once callers shift out high bytes.
 #[inline(always)]
 fn BrotliLoad32LE(input: &[u8], next_in_u32: u32) -> u32 {
   let next_in: usize = next_in_u32 as usize;
   let mut four_byte: [u8; 4] = fast_uninitialized![4];
   four_byte.clone_from_slice(fast!((input)[next_in ; next_in + 4]));
-  (four_byte[0] as u32) | ((four_byte[1] as u32) << 8) | ((four_byte[2] as u32) << 16) |
-      ((four_byte[3] as u32) << 24)
+  u32::from_le_bytes(four_byte)
 }
 
 #[inline(always)]
@@ -123,11 +143,7 @@ fn BrotliLoad64LE(input: &[u8], next_in_u32: u32) -> u64 {
   let next_in: usize = next_in_u32 as usize;
   let mut eight_byte: [u8; 8] = fast_uninitialized![8];
   eight_byte.clone_from_slice(fast!((input)[next_in ; next_in + 8]));
-
-  (eight_byte[0] as u64) | ((eight_byte[1] as u64) << 8) | ((eight_byte[2] as u64) << 16) |
-      ((eight_byte[3] as u64) << 24) |
-      ((eight_byte[4] as u64) << 32) | ((eight_byte[5] as u64) << 40) |
-      ((eight_byte[6] as u64) << 48) | ((eight_byte[7] as u64) << 56)
+  u64::from_le_bytes(eight_byte)
 }
 pub const BROTLI_ALIGNED_READ: u8 = 0;
 
@@ -257,6 +273,7 @@ pub fn BrotliGet16BitsUnmasked(br: &mut BrotliBitReader, input: &[u8]) -> u32 {
 }
 
 // Returns the specified number of bits from br without advancing bit pos.
+#[inline(always)]
 pub fn BrotliGetBits(br: &mut BrotliBitReader, n_bits: u32, input: &[u8]) -> u32 {
   BrotliFillBitWindow(br, n_bits, input);
   (BrotliGetBitsUnmasked(br) as u32) & BitMask(n_bits)
@@ -318,9 +335,20 @@ pub fn BrotliTakeBits(br: &mut BrotliBitReader, n_bits: u32, val: &mut u32) {
 
 // Reads the specified number of bits from br and advances the bit pos.
 // Assumes that there is enough input to perform BrotliFillBitWindow.
+//
+// Callers pass a data-dependent n_bits (extra bits of lengths and distances),
+// for which C's BrotliReadBits24 compiles BrotliFillBitWindow to its generic
+// case alone: refill 32 bits once half the window is consumed, which leaves at
+// least 33 bits for any n_bits up to 32. Choosing among the narrower n_bits
+// cases at run time, as before, costs extra unpredictable branches.
 #[inline(always)]
 pub fn BrotliReadBits(br: &mut BrotliBitReader, n_bits: u32, input: &[u8]) -> u32 {
-  if ::core::mem::size_of::<reg_t>() == 8 || (n_bits <= 16) {
+  if ::core::mem::size_of::<reg_t>() == 8 {
+    let mut val: u32 = 0;
+    BrotliFillBitWindowCompileTimeNbits(br, 32, input);
+    BrotliTakeBits(br, n_bits, &mut val);
+    val
+  } else if n_bits <= 16 {
     let mut val: u32 = 0;
     BrotliFillBitWindow(br, n_bits, input);
     BrotliTakeBits(br, n_bits, &mut val);
@@ -386,17 +414,25 @@ pub fn BrotliJumpToByteBoundary(br: &mut BrotliBitReader) -> bool {
 // Peeks a byte at specified offset.
 // Precondition: bit reader is parked to a byte boundary.
 // Returns -1 if operation is not feasible.
-#[allow(dead_code)]
 pub fn BrotliPeekByte(br: &mut BrotliBitReader, mut offset: u32, input: &[u8]) -> i32 {
+  if !is_valid_bit_reader(br, input) {
+    return -1;
+  }
   let available_bits: u32 = BrotliGetAvailableBits(br);
   let bytes_left: u32 = (available_bits >> 3);
-  assert!((available_bits & 7) == 0);
+  if (available_bits & 7) != 0 {
+    return -1;
+  }
   if offset < bytes_left {
     return ((BrotliGetBitsUnmasked(br) >> ((offset << 3)) as u32) & 0xFF) as i32;
   }
   offset -= bytes_left;
   if offset < br.avail_in {
-    return fast!((input)[br.next_in as usize + offset as usize]) as i32;
+    let input_index = u64::from(br.next_in) + u64::from(offset);
+    return match input.get(input_index as usize) {
+      Some(value) => *value as i32,
+      None => -1,
+    };
   }
   -1
 }
@@ -412,10 +448,11 @@ pub fn BrotliCopyBytes(dest: &mut [u8], br: &mut BrotliBitReader, mut num: u32, 
     offset += 1;
     num -= 1;
   }
-  for index in 0..num {
-    fast_mut!((dest)[offset as usize + index as usize]) =
-      fast!((input)[br.next_in as usize + index as usize]);
-  }
+  // One bulk copy of the same bytes the per-byte loop used to copy.
+  let dest_start = offset as usize;
+  let input_start = br.next_in as usize;
+  fast_mut!((dest)[dest_start ; dest_start + num as usize])
+    .clone_from_slice(fast!((input)[input_start ; input_start + num as usize]));
   br.avail_in -= num;
   br.next_in += num;
 }
@@ -449,6 +486,60 @@ pub fn BrotliWarmupBitReader(br: &mut BrotliBitReader, input: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn bit_mask_matches_the_table() {
+    for n in 0..kBitMask.len() as u32 {
+      assert_eq!(BitMask(n), kBitMask[n as usize]);
+    }
+  }
+
+  #[test]
+  fn input_range_checks_the_end_cursor() {
+    // Exercise the range arithmetic without allocating a multi-GiB input.
+    let max_cursor = u32::MAX as usize;
+    assert!(is_valid_input_range(0, 0, 0));
+    assert!(is_valid_input_range(3, 5, 8));
+    assert!(!is_valid_input_range(3, 6, 8));
+    assert!(!is_valid_input_range(9, 0, 8));
+    assert!(is_valid_input_range(0, max_cursor, max_cursor));
+    assert!(is_valid_input_range(max_cursor - 1, 1, max_cursor));
+    assert!(is_valid_input_range(max_cursor, 0, max_cursor));
+    assert!(!is_valid_input_range(max_cursor, 1, usize::MAX));
+    assert!(!is_valid_input_range(max_cursor - 1, 2, usize::MAX));
+    assert!(!is_valid_input_range(usize::MAX, 1, usize::MAX));
+  }
+
+  #[cfg(target_pointer_width="64")]
+  #[test]
+  fn a_large_input_slice_does_not_widen_the_cursor() {
+    let input_len = 1usize << 32;
+    assert!(is_valid_input_range(0, input_len - 1, input_len));
+    assert!(!is_valid_input_range(input_len - 1, 1, input_len));
+    assert!(!is_valid_input_range(1, input_len - 1, input_len));
+    assert!(!is_valid_input_range(0, input_len, input_len));
+    assert!(!is_valid_input_range(input_len, 0, input_len));
+  }
+
+  #[test]
+  fn peek_byte_rejects_invalid_state() {
+    let data: [u8; 1] = [0x7f];
+    let mut unaligned_reader = BrotliBitReader {
+      val_: 0,
+      bit_pos_: 1,
+      avail_in: 0,
+      next_in: 0,
+    };
+    assert_eq!(BrotliPeekByte(&mut unaligned_reader, 0, &data), -1);
+
+    let mut out_of_bounds_reader = BrotliBitReader {
+      val_: 0,
+      bit_pos_: 64,
+      avail_in: 1,
+      next_in: 1,
+    };
+    assert_eq!(BrotliPeekByte(&mut out_of_bounds_reader, 0, &data), -1);
+  }
 
   #[test]
   fn warmup_works() {

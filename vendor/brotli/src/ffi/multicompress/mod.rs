@@ -3,17 +3,19 @@ mod test;
 
 use alloc::SliceWrapper;
 use core::cmp::min;
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", not(feature = "pass-through-ffi-panics")))]
 use std::io::Write;
 #[cfg(feature = "std")]
 use std::panic;
 
+#[cfg(feature = "std")]
+use brotli_decompressor;
 use brotli_decompressor::ffi::alloc_util::SubclassableAllocator;
 use brotli_decompressor::ffi::interface::{
     brotli_alloc_func, brotli_free_func, c_void, CAllocator,
 };
 use brotli_decompressor::ffi::{slice_from_raw_parts_or_nil, slice_from_raw_parts_or_nil_mut};
-use {brotli_decompressor, core, enc};
+use {core, enc};
 
 use super::alloc_util::BrotliSubclassableAllocator;
 use super::compressor;
@@ -261,6 +263,9 @@ pub unsafe extern "C" fn BrotliEncoderCreateWorkPool(
                 allocators.opaque,
                 core::mem::size_of::<BrotliEncoderWorkPool>(),
             );
+            if ptr.is_null() {
+                return core::ptr::null_mut();
+            }
             let brotli_work_pool_ptr =
                 core::mem::transmute::<*mut c_void, *mut BrotliEncoderWorkPool>(ptr);
             core::ptr::write(brotli_work_pool_ptr, to_box);

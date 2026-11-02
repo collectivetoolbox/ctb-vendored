@@ -1,5 +1,9 @@
 #![cfg_attr(feature = "benchmark", feature(test))]
 
+// The seccomp decompress path builds a calloc-backed stack allocator with
+// declare_stack_allocator_struct!/define_allocator_memory_pool!; those macros
+// are only in scope with macro_use, which would otherwise be unused here.
+#[cfg_attr(feature = "seccomp", macro_use)]
 extern crate alloc_no_stdlib;
 extern crate brotli;
 extern crate brotli_decompressor;
@@ -219,6 +223,11 @@ extern "C" {
 const PR_SET_SECCOMP: i32 = 22;
 #[cfg(feature = "seccomp")]
 const SECCOMP_MODE_STRICT: u32 = 1;
+
+#[cfg(feature = "seccomp")]
+use alloc_no_stdlib::{bzero, AllocatedStackMemory, StackAllocator};
+#[cfg(feature = "seccomp")]
+use brotli::HuffmanCode;
 
 #[cfg(feature = "seccomp")]
 declare_stack_allocator_struct!(CallocAllocatedFreelist, 8192, calloc);
@@ -843,13 +852,15 @@ fn main() {
             }
             panic!("Unknown Argument {:}", argument);
         }
-        if params.bare_stream && !params.appendable {
+        // -catable implies -appendable, but SanitizeParams only derives that later
+        let concatenable = params.appendable || params.catable;
+        if params.bare_stream && !concatenable {
             println_stderr!("bare streams only supported when catable or appendable!");
-            return;
+            std::process::exit(1);
         }
-        if params.byte_align && !params.appendable {
+        if params.byte_align && !concatenable {
             println_stderr!("byte aligned streams only supported when catable or appendable!");
-            return;
+            std::process::exit(1);
         }
         if filenames[0] != "" {
             let mut input = match File::open(Path::new(&filenames[0])) {

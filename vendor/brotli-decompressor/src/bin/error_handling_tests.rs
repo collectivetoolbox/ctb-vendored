@@ -218,3 +218,61 @@ fn test_padding_2_rejection() {
         );
     }
 }
+
+// Found by the differential_dictionaries fuzzer: a corrupted stream whose
+// final command overruns the declared metablock length
+// (meta_block_remaining_len goes negative). The C implementation rejects it
+// with BROTLI_DECODER_ERROR_FORMAT_BLOCK_LENGTH_2; this decoder used to
+// accept it and emit 326 bytes.
+#[test]
+fn test_metablock_overrun_rejection() {
+    let corrupted: &[u8] = &[
+        0x03, 0xa0, 0x00, 0x00, 0x80, 0xaa, 0xaa, 0xaa, 0xea, 0xff, 0x70, 0x91, 0xc3, 0x4d, 0x2e,
+        0x04, 0x77, 0x39, 0xdc, 0xe4, 0x70, 0x95, 0xc3, 0x4d, 0x0e, 0x57, 0x3d, 0xdc, 0xf4, 0x70,
+        0xd5, 0xc3, 0x4d, 0x0f, 0x57, 0x3d, 0xdc, 0xf4, 0x70, 0xd5, 0xc3, 0x4d, 0x0f, 0x57, 0x3d,
+        0xdc, 0xf4, 0x20, 0xa0, 0x83, 0x1b, 0xc4, 0x90, 0xc3, 0x61, 0x78, 0x60, 0x0c, 0xd0, 0x63,
+        0x1c, 0x30, 0x67, 0x84, 0x43, 0x15, 0xfd, 0xcd, 0xb3, 0xd7, 0x1d, 0xbf, 0x69, 0x38, 0x42,
+        0xbb, 0x1b, 0x86, 0x2c, 0x26, 0x94, 0x87, 0x10, 0x22, 0xc8, 0x1d, 0xe9, 0xff, 0x95, 0x01,
+    ];
+    let mut d = brotli_decompressor::Decompressor::new(Cursor::new(corrupted), 4096);
+    let mut sink = Vec::new();
+    let err = d.read_to_end(&mut sink).err();
+    assert_eq!(err.map(|e| e.kind()), Some(io::ErrorKind::InvalidData),
+               "stream overrunning its metablock length must be rejected");
+}
+
+// A metablock whose commands emit more than the MLEN declared in its header is
+// invalid: RFC 7932 §9.3 says a command that "would cause MLEN to be exceeded"
+// means "the stream should be rejected as invalid." The C reference and
+// andybalholm/brotli (Go) reject it as BLOCK_LENGTH_2; this decoder previously
+// accepted it because the only negative-`meta_block_remaining_len` guard was in
+// WriteRingBuffer, which is not reached when the whole output fits in the ring
+// buffer before the final flush. This vector was found by differential fuzzing
+// against andybalholm.
+#[test]
+fn test_rejects_metablock_length_overflow() {
+    fn unhex(s: &str) -> Vec<u8> {
+        (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap()).collect()
+    }
+    let corrupt = unhex(
+        "0b2b01008cd4484d73bb8171bab646fb2203e581794e0cb52237983782d1e0880c00200849a0f3a41ab32b9\
+         8909e575ad3dc35383ab3bc757871fff6ab3a7135eeae1f988262c82ca1426ff34692b30a2beadb7a8589f9\
+         b5dd93eba74fd1f0b376393efe188bc0d3b812b5c91988a7e5965437750e8c4c2f6d1e9cdfbdfe2876540ed\
+         bcb1b222168125320d7593de1a4cc82f2bad61e7e7c6e75e7f8eaf1e35ff7d2663edc7f2803c751396295d1\
+         e18fa5e614573576f40f4f2d6eec9fddbe7ccb5658f49bf30b24c02822832fd35adca1c48cfcb2da966e6e6\
+         c7665fbe8f2e1fd4f73937adadfbe080dc352d822a5c1ee8ba664175536b4f70d4d2eacef9dde3c7f496690\
+         77ebe909e02024813e3000b81200c0488dd434b70b8000286308abc0fb1d453300b81200c0488dd434b70b8\
+         0002863088be0b73600b81200c0488dd434b70b80002863088be0b73600b81200c0488dd434b70b80002863\
+         088be0b73600b81200c0488dd434b70b80c88fc6428cc0bb0103",
+    );
+
+    let mut d = brotli_decompressor::Decompressor::new(Cursor::new(corrupt), 4096);
+    let mut sink = Vec::new();
+    let err = d.read_to_end(&mut sink).err();
+    assert_eq!(
+        err.as_ref().map(|e| e.kind()),
+        Some(io::ErrorKind::InvalidData),
+        "decoder must reject a metablock that overshoots its declared length; got {:?}",
+        err.as_ref().map_or_else(|| format!("Ok({} bytes)", sink.len()), |e| format!("{:?}", e)),
+    );
+}
