@@ -1,0 +1,34 @@
+[package]
+name = "tinywasm-types"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Shared runtime, module, and archive types for TinyWasm"
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+portable-atomic-util = { version = "0.2.8", default-features = false, features = ["alloc"], optional = true }
+postcard = { version = "1.1", default-features = false, features = ["alloc"], optional = true }
+serde = { version = "1.0", default-features = false, features = ["alloc"], optional = true }
+
+[features]
+default = ["archive", "debug", "std"]
+
+# support serializing and deserializing twasm archives
+archive = ["dep:postcard", "dep:serde", "portable-atomic-util?/serde", "serde/rc"]
+
+# derive Debug for runtime and module types
+debug = []
+
+# enable standard library support
+std = ["serde?/std"]
+
+# support targets without native atomic CAS
+portable-atomic = ["dep:portable-atomic-util"]
+
+[lints]
+workspace = true
