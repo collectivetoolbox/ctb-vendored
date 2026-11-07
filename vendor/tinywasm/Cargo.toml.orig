@@ -1,138 +1,91 @@
 [package]
-name = "tinywasm"
-version.workspace = true
-edition.workspace = true
-rust-version.workspace = true
-description = "A tiny WebAssembly interpreter"
-readme = "../../README.md"
-homepage.workspace = true
-repository.workspace = true
-license.workspace = true
-keywords.workspace = true
-categories.workspace = true
-
-[package.metadata.docs.rs]
-features = ["std", "validate", "parser", "archive", "log", "canonicalize-nans", "state", "debug", "guest-debug"]
-rustdoc-args = ["--cfg", "docsrs"]
+name="tinywasm"
+version.workspace=true
+description="A tiny WebAssembly interpreter"
+edition.workspace=true
+license.workspace=true
+authors.workspace=true
+repository.workspace=true
+rust-version.workspace=true
+readme="../../README.md"
 
 [lib]
-name = "tinywasm"
-path = "src/lib.rs"
-
-[[test]]
-harness = false
-name = "test-wasm-1"
-
-[[test]]
-harness = false
-name = "test-wasm-3"
-
-[[test]]
-harness = false
-name = "test-wasm-2"
-
-[[test]]
-harness = false
-name = "test-wasm-latest"
-
-[[test]]
-harness = false
-name = "test-wasm-multi-memory"
-
-[[test]]
-harness = false
-name = "test-wasm-threads"
-test = false
-
-[[test]]
-harness = false
-name = "test-wast"
-test = false
-
-[[test]]
-harness = false
-name = "test-wasm-custom-page-sizes"
-
-[[test]]
-harness = false
-name = "test-wasm-custom"
-
-[[test]]
-harness = false
-name = "test-wasm-gc"
-
-[[test]]
-harness = false
-name = "test-wasm-memory64"
-
-[[test]]
-harness = false
-name = "test-wasm-relaxed-simd"
-
-[[test]]
-harness = false
-name = "test-wasm-simd"
-
-[[test]]
-harness = false
-name = "test-wasm-wide-arithmetic"
+name="tinywasm"
+path="src/lib.rs"
 
 [dependencies]
-libm = { version = "0.2", default-features = false }
-log = { workspace = true, optional = true }
-portable-atomic = { version = "1.15.0", default-features = false, optional = true }
-tinywasm-parser = { workspace = true, optional = true }
-tinywasm-types = { workspace = true }
+log={workspace=true, optional=true}
+tinywasm-parser={version="0.8.0-alpha.0", path="../parser", default-features=false, optional=true}
+tinywasm-types={version="0.8.0-alpha.0", path="../types", default-features=false}
+libm={version="0.2", default-features=false}
 
 [dev-dependencies]
-tinywasm-cli = { path = "../cli", features = ["tests", "wat"] }
-wasm-testsuite.workspace = true
-wat.workspace = true
+wasm-testsuite={path="../wasm-testsuite"}
+wast={workspace=true}
+eyre={workspace=true}
+pretty_env_logger={workspace=true}
+criterion={workspace=true}
+owo-colors={version="4.0"}
+serde_json={version="1.0"}
+serde={version="1.0", features=["derive"]}
 
 [features]
-default = ["full", "std"]
-full = ["archive", "debug", "parallel-parser", "parser", "state", "validate"]
+default=["std", "parser", "logging", "archive"]
+logging=["log", "tinywasm-parser?/logging", "tinywasm-types/logging"]
+std=["tinywasm-parser?/std", "tinywasm-types/std"]
+parser=["tinywasm-parser"]
+archive=["tinywasm-types/archive"]
+simd=[]
+nightly=["tinywasm-parser?/nightly"]
 
-log = ["dep:log", "tinywasm-parser?/log"]
-std = ["tinywasm-parser?/std", "tinywasm-types/std"]
+[[test]]
+name="test-wasm-1"
+harness=false
+test=false
 
-# make stores, instances, references, and host callbacks movable across threads
-send = []
+[[test]]
+name="test-wasm-2"
+harness=false
+test=false
 
-# store host state for access from host callbacks
-state = []
+[[test]]
+name="test-wasm-multi-memory"
+harness=false
+test=false
 
-# support for parsing WebAssembly
-parser = ["dep:tinywasm-parser"]
+[[test]]
+name="test-wasm-memory64"
+harness=false
+test=false
 
-# validate WebAssembly while parsing
-validate = ["tinywasm-parser?/validate"]
+[[test]]
+name="test-wasm-annotations"
+harness=false
+test=false
 
-# parallelize function parsing/validation across threads (requires std)
-parallel-parser = ["tinywasm-parser?/parallel"]
+[[test]]
+name="test-wasm-extended-const"
+harness=false
+test=false
 
-# support targets without native atomic CAS
-portable-atomic = ["dep:portable-atomic", "tinywasm-parser?/portable-atomic", "tinywasm-types/portable-atomic"]
+[[test]]
+name="test-wasm-simd"
+harness=false
+test=false
 
-# support for "archiving" tinywasm bytecode
-archive = ["tinywasm-types/archive"]
+[[test]]
+name="test-wast"
+harness=false
+test=false
 
-# canonicalize all NaN values to a single representation
-canonicalize-nans = []
+[[bench]]
+name="argon2id"
+harness=false
 
-# derive Debug for runtime/types structs
-debug = ["tinywasm-types/debug"]
+[[bench]]
+name="fibonacci"
+harness=false
 
-# expose module-internal by-index inspection APIs for non-exported entities (for testing and debugging)
-guest-debug = []
-
-# use explicit tail calls for interpreter dispatch (requires nightly Rust)
-nightly-tail-calls = []
-
-# enable x86-specific SIMD intrinsics in Value128 (uses unsafe code)
-# note: for x86 backend selection, compile with x86-64-v3 target features
-# (for example: `RUSTFLAGS="-C target-cpu=x86-64-v3"`)
-simd-x86 = []
-
-[lints]
-workspace = true
+[[bench]]
+name="tinywasm"
+harness=false

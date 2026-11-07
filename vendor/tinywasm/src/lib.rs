@@ -1,112 +1,86 @@
 #![no_std]
-#![cfg_attr(feature = "nightly-tail-calls", allow(incomplete_features))]
-#![cfg_attr(feature = "nightly-tail-calls", feature(explicit_tail_calls))]
 #![doc(test(
     no_crate_inject,
     attr(deny(warnings, rust_2018_idioms), allow(dead_code, unused_assignments, unused_variables))
 ))]
-#![warn(missing_docs, rust_2018_idioms, unreachable_pub)]
-#![cfg_attr(not(feature = "simd-x86"), forbid(unsafe_code))]
-#![cfg_attr(feature = "simd-x86", deny(unsafe_code))]
+#![warn(missing_docs, missing_debug_implementations, rust_2018_idioms, unreachable_pub)]
+#![cfg_attr(feature = "nightly", feature(portable_simd))]
+#![forbid(unsafe_code)]
 
-//! A small and portable WebAssembly interpreter.
+//! A tiny WebAssembly Runtime written in Rust
 //!
-//! `tinywasm` passes the full WebAssembly 3.0 core testsuite and supports the
-//! [Lime1](https://github.com/WebAssembly/tool-conventions/blob/main/Lime.md#lime1)
-//! interoperability target. It is designed for embedding in applications, tools,
-//! and `no_std + alloc` environments.
-
-#![cfg_attr(docsrs, feature(doc_cfg))]
+//! `TinyWasm` provides a minimal WebAssembly runtime for executing WebAssembly modules.
+//! It currently supports all features of the WebAssembly MVP specification and is
+//! designed to be easy to use and integrate in other projects.
 //!
-//! ## Getting started
+//! ## Features
+//!- **`std`**\
+//!  Enables the use of `std` and `std::io` for parsing from files and streams. This is enabled by default.
+//!- **`logging`**\
+//!  Enables logging using the `log` crate. This is enabled by default.
+//!- **`parser`**\
+//!  Enables the `tinywasm-parser` crate. This is enabled by default.
+//!- **`archive`**\
+//!  Enables pre-parsing of archives. This is enabled by default.
 //!
-//! Use [`parse_bytes`] to parse and validate a WebAssembly module, then instantiate it
-//! in a [`Store`]. A module can be reused, while each store owns its runtime state.
+//! With all these features disabled, `TinyWasm` only depends on `core`, `alloc` and `libm`.
+//! By disabling `std`, you can use `TinyWasm` in `no_std` environments. This requires
+//! a custom allocator and removes support for parsing from files and streams, but otherwise the API is the same.
+//! Additionally, to have proper error types in `no_std`, you currently need a `nightly` compiler to use the unstable error trait in `core`.
+//!
+//! ## Getting Started
+//! The easiest way to get started is to use the [`Module::parse_bytes`] function to load a
+//! WebAssembly module from bytes. This will parse the module and validate it, returning
+//! a [`Module`] that can be used to instantiate the module.
+//!
 //!
 //! ```rust
-//! # #[cfg(feature = "parser")]
-//! # fn main() -> tinywasm::Result<()> {
-//! use tinywasm::{ModuleInstance, Store};
+//! use tinywasm::{Store, Module};
 //!
+//! // Load a module from bytes
 //! let wasm = include_bytes!("../../../examples/wasm/add.wasm");
-//! let module = tinywasm::parse_bytes(wasm)?;
+//! let module = Module::parse_bytes(wasm)?;
 //!
+//! // Create a new store
+//! // Stores are used to allocate objects like functions and globals
 //! let mut store = Store::default();
-//! let instance = ModuleInstance::instantiate(&mut store, &module, None)?;
 //!
-//! let add = instance.func::<(i32, i32), i32>(&store, "add")?;
-//! let result = add.call(&mut store, (1, 2))?;
+//! // Instantiate the module
+//! // This will allocate the module and its globals into the store
+//! // and execute the module's start function.
+//! // Every ModuleInstance has its own ID space for functions, globals, etc.
+//! let instance = module.instantiate(&mut store, None)?;
 //!
-//! assert_eq!(result, 3);
-//! # Ok(())
-//! # }
-//! # #[cfg(not(feature = "parser"))]
-//! # fn main() {}
+//! // Get a typed handle to the exported "add" function
+//! // Alternatively, you can use `instance.get_func` to get an untyped handle
+//! // that takes and returns [`WasmValue`]s
+//! let func = instance.exported_func::<(i32, i32), i32>(&mut store, "add")?;
+//! let res = func.call(&mut store, (1, 2))?;
+//!
+//! assert_eq!(res, 3);
+//! # Ok::<(), tinywasm::Error>(())
 //! ```
 //!
-//! Typed functions convert Rust values directly. Use [`ModuleInstance::func_untyped`]
-//! and [`WasmValue`] when types are selected at runtime. References such as [`StructRef`]
-//! and [`ExternRef`] are owned handles tied to their store. Cloning a managed reference
-//! keeps its referent live.
-//!
-//! Construct a store with a custom [`Engine`] and [`engine::Config`] to configure
-//! stack limits, fuel, and GC collection. A [`ResourceLimiter`] can bound guest memory,
-//! table, and GC heap growth.
-//!
-//! ## References and GC
-//!
-//! Runtime references belong to a [`Store`]. Passing a reference to another store
-//! returns [`Trap::InvalidStore`]. Managed references are cloneable owned handles, and
-//! their referents become collectible after the last handle is dropped. Nullable typed
-//! parameters and results use `Option<T>`. Use [`RefValue`] for dynamic reference values
-//! and [`Store::gc`] to request collection explicitly.
-//!
-//! For more examples, see the [`examples`](https://github.com/explodingcamera/tinywasm/tree/next/examples) directory.
-//!
-//! ## Cargo features
-//!
-//! - **`full`:** Enables `archive`, `debug`, `parallel-parser`, `parser`, `state`, and `validate`. Enabled by default.
-//! - **`std`:** Enables `std` and parsing from files and streams. Enabled by default.
-//! - **`parser`:** Enables `tinywasm-parser` and top-level parse helpers. Enabled by default.
-//! - **`validate`:** Enables WebAssembly validation while parsing. Enabled by default and configurable through `ParserOptions`.
-//! - **`parallel-parser`:** Parallelizes function parsing when `std` is enabled. Enabled by default.
-//! - **`archive`:** Enables serialization and deserialization of the internal `twasm` format. Enabled by default.
-//! - **`log`:** Enables integration with the `log` crate.
-//! - **`send`:** Makes stores and store-local handles movable across threads.
-//! - **`state`:** Adds store-owned host state for access from host callbacks. Enabled by default.
-//! - **`portable-atomic`:** Supports targets without native atomic compare-and-swap.
-//! - **`canonicalize-nans`:** Uses a [canonical NaN](https://en.wikipedia.org/wiki/NaN#Canonical_NaN) for normalized NaN results.
-//! - **`debug`:** Derives `Debug` for runtime types. Enabled by default.
-//! - **`guest-debug`:** Exposes module-internal by-index inspection APIs (`*_by_index`).
-//! - **`nightly-tail-calls`:** Uses Rust's unstable explicit tail calls for interpreter dispatch. Requires nightly Rust (recommended for maximum performance).
-//! - **`simd-x86`:** Enables x86-specific SIMD intrinsics and uses `unsafe` internally.
-//!
-//! With default features disabled, `tinywasm` depends only on `core`, `alloc`, and `libm`,
-//! making it usable in `no_std + alloc` environments with a custom allocator.
+//! For more examples, see the [`examples`](https://github.com/explodingcamera/tinywasm/tree/main/examples) directory.
 //!
 //! ## Imports
 //!
 //! To provide imports to a module, you can use the [`Imports`] struct.
 //! This struct allows you to register custom functions, globals, memories, tables,
-//! tags, and other modules to be linked into the module when it is instantiated.
+//! and other modules to be linked into the module when it is instantiated.
 //!
 //! See the [`Imports`] documentation for more information.
 
-#[macro_use]
-mod macros;
 mod std;
 extern crate alloc;
 
-#[cfg(all(not(feature = "portable-atomic"), not(target_has_atomic = "32")))]
-compile_error!("tinywasm requires native 32-bit atomics; enable the `portable-atomic` feature");
-
 // log for logging (optional).
-#[cfg(feature = "log")]
-#[expect(clippy::single_component_path_imports)]
+#[cfg(feature = "logging")]
+#[allow(clippy::single_component_path_imports)]
 use log;
 
 // noop fallback if logging is disabled.
-#[cfg(not(feature = "log"))]
+#[cfg(not(feature = "logging"))]
 #[allow(unused_imports, unused_macros)]
 pub(crate) mod log {
     macro_rules! debug    ( ($($tt:tt)*) => {{}} );
@@ -119,28 +93,23 @@ pub(crate) mod log {
 
 mod error;
 pub use error::*;
-pub use func::{
-    ExecProgress, FromWasmValues, FuncContext, FuncExecution, FuncExecutionTyped, Function, FunctionTyped,
-    HostFunction, HostFunctionCallback, IntoWasmValues, WasmTypes, WasmValueType,
-};
+pub use func::{FuncHandle, FuncHandleTyped};
 pub use imports::*;
-pub use instance::{ExternItem, ModuleInstance};
+pub use instance::ModuleInstance;
+pub use module::Module;
 pub use reference::*;
 pub use store::*;
 
 mod func;
 mod imports;
 mod instance;
+mod module;
 mod reference;
-mod shared;
 mod store;
 
-mod interpreter;
-use interpreter::InterpreterRuntime;
-
-/// Global configuration for the WebAssembly interpreter
-pub mod engine;
-pub use engine::{Engine, StackConfig};
+/// Runtime for executing WebAssembly modules.
+pub mod interpreter;
+pub use interpreter::InterpreterRuntime;
 
 #[cfg(feature = "parser")]
 /// Re-export of [`tinywasm_parser`]. Requires `parser` feature.
@@ -148,15 +117,17 @@ pub mod parser {
     pub use tinywasm_parser::*;
 }
 
-#[cfg(feature = "parser")]
-pub use parser::parse_bytes;
-#[cfg(all(feature = "parser", feature = "std"))]
-pub use parser::{parse_file, parse_stream};
-
 /// Re-export of [`tinywasm_types`].
 pub mod types {
-    pub use crate::{AnyRef, ArrayRef, EqRef, ExnRef, ExternRef, FuncRef, I31Ref, RefValue, StructRef, WasmValue};
     pub use tinywasm_types::*;
 }
 
-pub use tinywasm_types::Module;
+#[cold]
+pub(crate) fn cold() {}
+
+pub(crate) fn unlikely(b: bool) -> bool {
+    if b {
+        cold();
+    };
+    b
+}

@@ -1,30 +1,21 @@
 # `tinywasm-parser`
 
-This crate provides the parser and lowering pipeline that converts WebAssembly binaries into `tinywasm` modules.
+This crate provides a parser that can parse WebAssembly modules into a TinyWasm module.
+It uses [my fork](https://crates.io/crates/tinywasm-wasmparser) of the [`wasmparser`](https://crates.io/crates/wasmparser) crate that has been modified to be compatible with `no_std` environments.
 
 ## Features
 
 - `std`: Enables the use of `std` and `std::io` for parsing from files and streams.
-- `log`: Enables logging of the parsing process using the `log` crate.
-- `parallel`: Enables multithreaded function parsing. Requires `std`.
-- `validate`: Enables `wasmparser` validation. Enabled by default and configurable through `ParserOptions`.
+- `logging`: Enables logging of the parsing process using the `log` crate.
 
 ## Usage
 
 ```rust
-use tinywasm_parser::{Parser, ParserOptions};
-
+use tinywasm_parser::Parser;
 let bytes = include_bytes!("./file.wasm");
 
-let parser = Parser::default();
-let module = parser.parse_module_bytes(bytes)?;
-
-let parser = Parser::new(ParserOptions::default().with_rewrite_optimization(false));
-let module = parser.parse_module_bytes(bytes)?;
-
-let module = parser.parse_module_file("path/to/file.wasm")?;
-let mut stream = std::fs::File::open("path/to/file.wasm")?;
-let module = parser.parse_module_stream(&mut stream)?;
+let parser = Parser::new();
+let module = parser.parse_module_bytes(bytes).unwrap();
+let mudule = parser.parse_module_file("path/to/file.wasm").unwrap();
+let module = parser.parse_module_stream(&mut stream).unwrap();
 ```
-
-If you just want the default configuration, the top-level `parse_bytes`, `parse_file`, and `parse_stream` helpers are thin wrappers around `Parser::default()`.

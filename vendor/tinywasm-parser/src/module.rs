@@ -1,510 +1,186 @@
 use crate::log::debug;
-#[cfg(parallel_parser)]
-use crate::validation::{FuncToValidate, ValidatorResources};
-use crate::validation::{FuncValidatorAllocations, Validator};
-use crate::{ParseError, ParserOptions, Result, conversion::*};
-use alloc::{boxed::Box, format, string::ToString, vec::Vec};
-use core::marker::PhantomData;
-use core::ops::Range;
-use tinywasm_types::*;
-use wasmparser::{OperatorsReaderAllocations, Payload};
+use crate::{conversion, ParseError, Result};
+use alloc::string::ToString;
+use alloc::{boxed::Box, format, vec::Vec};
+use tinywasm_types::{
+    Data, Element, Export, FuncType, Global, Import, Instruction, MemoryType, TableType, TinyWasmModule, ValType,
+    ValueCounts, ValueCountsSmall, WasmFunction,
+};
+use wasmparser::{FuncValidatorAllocations, Payload, Validator};
 
-/// Final bytecode and metadata produced by streaming function lowering.
-pub(crate) struct FunctionCode {
-    pub instructions: Vec<Instruction>,
-    pub data: WasmFunctionData,
-    pub locals: ValueCounts,
-    pub uses_local_memory: bool,
-}
+pub(crate) type Code = (Box<[Instruction]>, ValueCounts);
 
 #[derive(Default)]
-pub(crate) struct ModuleReader<'a> {
+pub(crate) struct ModuleReader {
     func_validator_allocations: Option<FuncValidatorAllocations>,
-    operators_reader_allocations: Option<OperatorsReaderAllocations>,
-    translation_metadata: Option<crate::visit::ModuleMetadata>,
-
-    has_code_section: bool,
-    has_type_section: bool,
-    marker: PhantomData<&'a [u8]>,
 
     pub(crate) version: Option<u16>,
     pub(crate) start_func: Option<u32>,
-    pub(crate) types: TypeSection,
-    pub(crate) code_type_addrs: Box<[u32]>,
-    code_results: Box<[ValueCounts]>,
-    pub(crate) exports: Shared<[Export]>,
-    pub(crate) code: Vec<FunctionCode>,
-    pub(crate) globals: Box<[Global]>,
-    pub(crate) tables: Box<[TableDefinition]>,
-    pub(crate) memory_types: Box<[MemoryType]>,
-    pub(crate) tags: Box<[TagType]>,
-    pub(crate) imports: Box<[Import]>,
-    pub(crate) data: Box<[Data]>,
-    pub(crate) elements: Box<[Element]>,
+    pub(crate) func_types: Vec<FuncType>,
+    pub(crate) code_type_addrs: Vec<u32>,
+    pub(crate) exports: Vec<Export>,
+    pub(crate) code: Vec<Code>,
+    pub(crate) globals: Vec<Global>,
+    pub(crate) table_types: Vec<TableType>,
+    pub(crate) memory_types: Vec<MemoryType>,
+    pub(crate) imports: Vec<Import>,
+    pub(crate) data: Vec<Data>,
+    pub(crate) elements: Vec<Element>,
     pub(crate) end_reached: bool,
-    imported_func_count: usize,
-    global_types: Vec<WasmType>,
-
-    #[cfg(parallel_parser)]
-    pending_functions: Option<Vec<crate::parallel::PendingFunction<'a>>>,
 }
 
-impl<'a> ModuleReader<'a> {
-    fn translation_metadata(&mut self) -> &crate::visit::ModuleMetadata {
-        if self.translation_metadata.is_none() {
-            self.translation_metadata = Some(crate::visit::ModuleMetadata::new(
-                &self.types,
-                &self.code_type_addrs,
-                &self.imports,
-                &self.globals,
-                &self.memory_types,
-                &self.tables,
-                &self.tags,
-            ));
-        }
-        self.translation_metadata.as_ref().unwrap()
+impl ModuleReader {
+    pub(crate) fn new() -> ModuleReader {
+        Self::default()
     }
 
-    pub(crate) fn process_payload(&mut self, payload: Payload<'_>, validator: Option<&mut Validator>) -> Result<()> {
-        #[cfg(feature = "validate")]
-        let mut validator = validator;
-        #[cfg(not(feature = "validate"))]
-        let _ = validator;
-        fn check_section(section: &str, duplicate: bool) -> Result<()> {
-            debug!("found {section} section");
-            if duplicate {
-                return Err(ParseError::DuplicateSection(format!("{section} section")));
-            }
-            Ok(())
-        }
+    pub(crate) fn process_payload(&mut self, payload: Payload<'_>, validator: &mut Validator) -> Result<()> {
+        use wasmparser::Payload::*;
 
         match payload {
-            Payload::Version { num, encoding, range } => {
-                #[cfg(feature = "validate")]
-                if let Some(validator) = validator.as_mut() {
-                    validator.version(num, encoding, &range)?;
-                }
-                #[cfg(not(feature = "validate"))]
-                let _ = range;
+            Version { num, encoding, range } => {
+                validator.version(num, encoding, &range)?;
                 self.version = Some(num);
-                if let wasmparser::Encoding::Component = encoding {
-                    return Err(ParseError::InvalidEncoding(encoding));
+                match encoding {
+                    wasmparser::Encoding::Module => {}
+                    wasmparser::Encoding::Component => return Err(ParseError::InvalidEncoding(encoding)),
                 }
             }
-            Payload::StartSection { func, range } => {
-                check_section("start", self.start_func.is_some())?;
-                #[cfg(feature = "validate")]
-                if let Some(validator) = validator.as_mut() {
-                    validator.start_section(func, &range)?;
+            StartSection { func, range } => {
+                if self.start_func.is_some() {
+                    return Err(ParseError::DuplicateSection("Start section".into()));
                 }
-                #[cfg(not(feature = "validate"))]
-                let _ = range;
+
+                debug!("Found start section");
+                validator.start_section(func, &range)?;
                 self.start_func = Some(func);
             }
-            Payload::TypeSection(reader) => {
-                check_section("type", self.has_type_section)?;
-                self.has_type_section = true;
-                #[cfg(feature = "validate")]
-                if let Some(validator) = validator.as_mut() {
-                    validator.type_section(&reader)?;
+            TypeSection(reader) => {
+                if !self.func_types.is_empty() {
+                    return Err(ParseError::DuplicateSection("Type section".into()));
                 }
-                let mut types = Vec::with_capacity(reader.count() as usize);
-                let mut rec_group_lengths = Vec::with_capacity(reader.count() as usize);
-                for group in reader {
-                    let group = group?;
-                    let group_start = u32::try_from(types.len())
-                        .map_err(|_| ParseError::Other("type section is too large".into()))?;
-                    let group_len = convert_rec_group(group, group_start, &mut types)?;
-                    rec_group_lengths.push(group_len);
-                }
-                self.types = TypeSection {
-                    types: types.into_boxed_slice(),
-                    rec_group_lengths: rec_group_lengths.into_boxed_slice(),
-                };
+
+                debug!("Found type section");
+                validator.type_section(&reader)?;
+                self.func_types = reader
+                    .into_iter()
+                    .map(|t| conversion::convert_module_type(t?))
+                    .collect::<Result<Vec<FuncType>>>()?;
             }
-            Payload::GlobalSection(reader) => {
-                check_section("global", !self.globals.is_empty())?;
-                #[cfg(feature = "validate")]
-                if let Some(validator) = validator.as_mut() {
-                    validator.global_section(&reader)?;
+
+            GlobalSection(reader) => {
+                if !self.globals.is_empty() {
+                    return Err(ParseError::DuplicateSection("Global section".into()));
                 }
-                self.globals = convert_module_globals(reader, &mut self.global_types)?;
+
+                debug!("Found global section");
+                validator.global_section(&reader)?;
+                self.globals = conversion::convert_module_globals(reader)?;
             }
-            Payload::TableSection(reader) => {
-                check_section("table", !self.tables.is_empty())?;
-                #[cfg(feature = "validate")]
-                if let Some(validator) = validator.as_mut() {
-                    validator.table_section(&reader)?;
+            TableSection(reader) => {
+                if !self.table_types.is_empty() {
+                    return Err(ParseError::DuplicateSection("Table section".into()));
                 }
-                let mut tables = Vec::with_capacity(reader.count() as usize);
-                for table in reader {
-                    let table = table?;
-                    let element_type = convert_ref_type(table.ty.element_type)?;
-                    let ty = if table.ty.table64 {
-                        TableType::new64(element_type, table.ty.initial, table.ty.maximum)
-                    } else {
-                        TableType::new(element_type, table.ty.initial, table.ty.maximum)
-                    };
-                    let init = match table.init {
-                        wasmparser::TableInit::RefNull => None,
-                        wasmparser::TableInit::Expr(expr) => {
-                            Some(process_const_operators(expr.get_operators_reader(), &self.global_types)?)
-                        }
-                    };
-                    tables.push(TableDefinition { ty, init });
-                }
-                self.tables = tables.into_boxed_slice();
+                debug!("Found table section");
+                validator.table_section(&reader)?;
+                self.table_types = conversion::convert_module_tables(reader)?;
             }
-            Payload::MemorySection(reader) => {
-                check_section("memory", !self.memory_types.is_empty())?;
-                #[cfg(feature = "validate")]
-                if let Some(validator) = validator.as_mut() {
-                    validator.memory_section(&reader)?;
+            MemorySection(reader) => {
+                if !self.memory_types.is_empty() {
+                    return Err(ParseError::DuplicateSection("Memory section".into()));
                 }
-                self.memory_types =
-                    reader.into_iter().map(|memory| Ok(convert_module_memory(memory?))).collect::<Result<_>>()?;
+
+                debug!("Found memory section");
+                validator.memory_section(&reader)?;
+                self.memory_types = conversion::convert_module_memories(reader)?;
             }
-            Payload::TagSection(reader) => {
-                check_section("tag", !self.tags.is_empty())?;
-                #[cfg(feature = "validate")]
-                if let Some(validator) = validator.as_mut() {
-                    validator.tag_section(&reader)?;
-                }
-                let mut tags = Vec::with_capacity(reader.count() as usize);
-                for tag in reader {
-                    let tag = convert_tag_type(tag?);
-                    let ty = self.types.get(tag.type_idx).and_then(SubType::as_func).ok_or_else(|| {
-                        ParseError::Other(format!("tag type index does not reference a function: {}", tag.type_idx))
-                    })?;
-                    if !ty.results().is_empty() {
-                        return Err(ParseError::Other(format!("tag type must not have results: {}", tag.type_idx)));
-                    }
-                    tags.push(tag);
-                }
-                self.tags = tags.into_boxed_slice();
-            }
-            Payload::ElementSection(reader) => {
+            ElementSection(reader) => {
                 debug!("Found element section");
-                #[cfg(feature = "validate")]
-                if let Some(validator) = validator.as_mut() {
-                    validator.element_section(&reader)?;
-                }
-                self.elements = reader
-                    .into_iter()
-                    .map(|element| convert_module_element(element?, &self.global_types))
-                    .collect::<Result<_>>()?;
+                validator.element_section(&reader)?;
+                self.elements = conversion::convert_module_elements(reader)?;
             }
-            Payload::DataSection(reader) => {
-                check_section("data", !self.data.is_empty())?;
-                #[cfg(feature = "validate")]
-                if let Some(validator) = validator.as_mut() {
-                    validator.data_section(&reader)?;
+            DataSection(reader) => {
+                if !self.data.is_empty() {
+                    return Err(ParseError::DuplicateSection("Data section".into()));
                 }
-                self.data = reader
-                    .into_iter()
-                    .map(|data| convert_module_data(data?, &self.global_types))
-                    .collect::<Result<_>>()?;
+
+                debug!("Found data section");
+                validator.data_section(&reader)?;
+                self.data = conversion::convert_module_data_sections(reader)?;
             }
-            Payload::DataCountSection { count, range } => {
+            DataCountSection { count, range } => {
                 debug!("Found data count section");
                 if !self.data.is_empty() {
-                    return Err(ParseError::UnsupportedSection("Data count section after data section".into()));
+                    return Err(ParseError::DuplicateSection("Data count section".into()));
                 }
-                #[cfg(feature = "validate")]
-                if let Some(validator) = validator.as_mut() {
-                    validator.data_count_section(count, &range)?;
-                }
-                #[cfg(not(feature = "validate"))]
-                let _ = (count, range);
+                validator.data_count_section(count, &range)?;
             }
-            Payload::FunctionSection(reader) => {
-                check_section("function", !self.code_type_addrs.is_empty())?;
-                #[cfg(feature = "validate")]
-                if let Some(validator) = validator.as_mut() {
-                    validator.function_section(&reader)?;
+            FunctionSection(reader) => {
+                if !self.code_type_addrs.is_empty() {
+                    return Err(ParseError::DuplicateSection("Function section".into()));
                 }
-                let mut type_addrs = Vec::with_capacity(reader.count() as usize);
-                let mut results = Vec::with_capacity(reader.count() as usize);
-                for ty_idx in reader {
-                    let ty_idx = ty_idx?;
-                    let ty = self.types.get(ty_idx).and_then(SubType::as_func).ok_or_else(|| {
-                        ParseError::Other(format!("function type index does not reference a function: {ty_idx}"))
-                    })?;
-                    type_addrs.push(ty_idx);
-                    results.push(ValueCounts::from_iter(ty.results()));
-                }
-                self.code_type_addrs = type_addrs.into_boxed_slice();
-                self.code_results = results.into_boxed_slice();
+
+                debug!("Found function section");
+                validator.function_section(&reader)?;
+                self.code_type_addrs = reader.into_iter().map(|f| Ok(f?)).collect::<Result<Vec<_>>>()?;
             }
-            Payload::ImportSection(reader) => {
-                check_section("import", !self.imports.is_empty())?;
-                #[cfg(feature = "validate")]
-                if let Some(validator) = validator.as_mut() {
-                    validator.import_section(&reader)?;
+            CodeSectionStart { count, range, .. } => {
+                debug!("Found code section ({} functions)", count);
+                if !self.code.is_empty() {
+                    return Err(ParseError::DuplicateSection("Code section".into()));
                 }
-                let mut imports = Vec::with_capacity(reader.count() as usize);
-                for import in reader.into_imports() {
-                    let import = convert_module_import(import?)?;
-                    match import.kind {
-                        ImportKind::Function(type_idx) => {
-                            if self.types.get(type_idx).and_then(SubType::as_func).is_none() {
-                                return Err(ParseError::Other(format!(
-                                    "function import type index does not reference a function: {type_idx}"
-                                )));
-                            }
-                            self.imported_func_count += 1;
-                        }
-                        ImportKind::Global(ty) => self.global_types.push(ty.ty),
-                        ImportKind::Tag(tag) => {
-                            let ty = self.types.get(tag.type_idx).and_then(SubType::as_func).ok_or_else(|| {
-                                ParseError::Other(format!(
-                                    "tag import type index does not reference a function: {}",
-                                    tag.type_idx
-                                ))
-                            })?;
-                            if !ty.results().is_empty() {
-                                return Err(ParseError::Other(format!(
-                                    "tag import type must not have results: {}",
-                                    tag.type_idx
-                                )));
-                            }
-                        }
-                        _ => {}
-                    }
-                    imports.push(import);
-                }
-                self.imports = imports.into_boxed_slice();
+                self.code.reserve(count as usize);
+                validator.code_section_start(count, &range)?;
             }
-            Payload::ExportSection(reader) => {
-                check_section("export", !self.exports.is_empty())?;
-                #[cfg(feature = "validate")]
-                if let Some(validator) = validator.as_mut() {
-                    validator.export_section(&reader)?;
-                }
-                self.exports = reader.into_iter().map(|e| convert_module_export(e?)).collect::<Result<_>>()?;
+            CodeSectionEntry(function) => {
+                debug!("Found code section entry");
+                let v = validator.code_section_entry(&function)?;
+                let func_validator = v.into_validator(self.func_validator_allocations.take().unwrap_or_default());
+                let (code, allocations) = conversion::convert_module_code(function, func_validator)?;
+                self.code.push(code);
+                self.func_validator_allocations = Some(allocations);
             }
-            Payload::End(offset) => {
+            ImportSection(reader) => {
+                if !self.imports.is_empty() {
+                    return Err(ParseError::DuplicateSection("Import section".into()));
+                }
+
+                debug!("Found import section");
+                validator.import_section(&reader)?;
+                self.imports = conversion::convert_module_imports(reader)?;
+            }
+            ExportSection(reader) => {
+                if !self.exports.is_empty() {
+                    return Err(ParseError::DuplicateSection("Export section".into()));
+                }
+
+                debug!("Found export section");
+                validator.export_section(&reader)?;
+                self.exports =
+                    reader.into_iter().map(|e| conversion::convert_module_export(e?)).collect::<Result<Vec<_>>>()?;
+            }
+            End(offset) => {
                 debug!("Reached end of module");
                 if self.end_reached {
                     return Err(ParseError::DuplicateSection("End section".into()));
                 }
 
-                #[cfg(feature = "validate")]
-                if let Some(validator) = validator.as_mut() {
-                    validator.end(offset)?;
-                }
-                #[cfg(not(feature = "validate"))]
-                let _ = offset;
+                validator.end(offset)?;
                 self.end_reached = true;
             }
-            Payload::CustomSection(_reader) => {
+            CustomSection(reader) => {
                 debug!("Found custom section");
-                debug!("Skipping custom section: {:?}", _reader.name());
+                debug!("Skipping custom section: {:?}", reader.name());
             }
-            Payload::CodeSectionStart { .. } | Payload::CodeSectionEntry(_) => {
-                unreachable!("code section payload handled separately")
-            }
-            Payload::UnknownSection { .. } => return Err(ParseError::UnsupportedSection("Unknown section".into())),
+            UnknownSection { .. } => return Err(ParseError::UnsupportedSection("Unknown section".into())),
             section => return Err(ParseError::UnsupportedSection(format!("Unsupported section: {section:?}"))),
-        }
-
-        Ok(())
-    }
-
-    pub(crate) fn begin_code_section(
-        &mut self,
-        count: u32,
-        range: Range<u64>,
-        size: u32,
-        validator: Option<&mut Validator>,
-        options: &ParserOptions,
-    ) -> Result<bool> {
-        debug!("Found code section ({count} functions)");
-        if self.has_code_section {
-            return Err(ParseError::DuplicateSection("Code section".into()));
-        }
-
-        self.has_code_section = true;
-        self.code.reserve(count as usize);
-        #[cfg(feature = "validate")]
-        if let Some(validator) = validator {
-            validator.code_section_start(&range)?;
-        }
-        #[cfg(not(feature = "validate"))]
-        let _ = (range, validator);
-
-        #[cfg(parallel_parser)]
-        {
-            let defer = crate::parallel::should_use_parallel(options, count as usize, size as usize);
-            if defer {
-                debug!("Queuing {count} functions from {size} byte code section");
-                self.pending_functions = Some(Vec::with_capacity(count as usize));
-            }
-            Ok(defer)
-        }
-
-        #[cfg(not(parallel_parser))]
-        {
-            let _ = (size, options);
-            Ok(false)
-        }
-    }
-
-    pub(crate) fn process_inline_code_section_entry(
-        &mut self,
-        function: wasmparser::FunctionBody<'_>,
-        validator: Option<&mut Validator>,
-        options: &ParserOptions,
-    ) -> Result<()> {
-        debug!("Found code section entry");
-
-        let func_validator_allocs = self.func_validator_allocations.take();
-        let operators_reader_allocs = self.operators_reader_allocations.take().unwrap_or_default();
-
-        #[cfg(feature = "validate")]
-        let func_validator = validator
-            .map(|validator| validator.code_section_entry(&function))
-            .transpose()?
-            .map(|func| func.into_validator(func_validator_allocs.unwrap_or_default()));
-        #[cfg(not(feature = "validate"))]
-        let func_validator = {
-            let _ = (validator, func_validator_allocs);
-            None
         };
 
-        let ordinal = self.code.len();
-        let ty_idx = *self
-            .code_type_addrs
-            .get(ordinal)
-            .ok_or_else(|| ParseError::Other("code entry has no function signature".into()))?;
-        let context = FunctionLoweringContext {
-            ty_idx,
-            self_func_addr: self
-                .imported_func_count
-                .checked_add(ordinal)
-                .and_then(|idx| u32::try_from(idx).ok())
-                .ok_or_else(|| ParseError::Other("function index is too large".into()))?,
-            function_results: self.code_results[ordinal],
-        };
-        let metadata = self.translation_metadata();
-
-        let (code, func_validator_allocs, operators_reader_allocs) =
-            convert_module_code(function, func_validator, operators_reader_allocs, metadata, context, options)?;
-
-        self.code.push(code);
-
-        self.func_validator_allocations = func_validator_allocs;
-        self.operators_reader_allocations = Some(operators_reader_allocs);
         Ok(())
     }
 
-    pub(crate) fn process_borrowed_code_section_entry(
-        &mut self,
-        function: wasmparser::FunctionBody<'a>,
-        validator: Option<&mut Validator>,
-        options: &ParserOptions,
-    ) -> Result<()> {
-        debug!("Found code section entry");
-
-        #[cfg(parallel_parser)]
-        if self.pending_functions.is_some() {
-            #[cfg(feature = "validate")]
-            let func_to_validate = validator.map(|validator| validator.code_section_entry(&function)).transpose()?;
-            #[cfg(not(feature = "validate"))]
-            let func_to_validate = None;
-            return self.queue_function(crate::parallel::FunctionBodyInput::Borrowed(function), func_to_validate);
-        }
-
-        self.process_inline_code_section_entry(function, validator, options)
-    }
-
-    #[cfg(parallel_parser)]
-    pub(crate) fn queue_owned_code_section(
-        &mut self,
-        count: u32,
-        body_offset: u64,
-        section_bytes: Shared<[u8]>,
-        validator: Option<&mut Validator>,
-    ) -> Result<()> {
-        #[cfg(feature = "validate")]
-        let mut validator = validator;
-        #[cfg(not(feature = "validate"))]
-        let _ = validator;
-        let mut reader = wasmparser::BinaryReader::new(&section_bytes, body_offset);
-        for _ in 0..count {
-            let body_reader = reader.read_reader()?;
-            let body_range = body_reader.range();
-            let body_start = (body_range.start - body_offset) as usize;
-            let body_end = (body_range.end - body_offset) as usize;
-            #[cfg(feature = "validate")]
-            let func_to_validate = {
-                let function = wasmparser::FunctionBody::new(body_reader);
-                validator.as_mut().map(|validator| validator.code_section_entry(&function)).transpose()?
-            };
-            #[cfg(not(feature = "validate"))]
-            let func_to_validate = None;
-            self.queue_function(
-                crate::parallel::FunctionBodyInput::Owned(crate::parallel::OwnedFunctionBody {
-                    section_bytes: section_bytes.clone(),
-                    body_range: body_start..body_end,
-                    body_offset: body_range.start,
-                }),
-                func_to_validate,
-            )?;
-        }
-
-        if reader.bytes_remaining() != 0 {
-            return Err(ParseError::ParseError {
-                message: "trailing bytes at end of section".into(),
-                offset: reader.original_position(),
-            });
-        }
-
-        Ok(())
-    }
-
-    #[cfg(parallel_parser)]
-    fn queue_function(
-        &mut self,
-        body: crate::parallel::FunctionBodyInput<'a>,
-        func_to_validate: Option<FuncToValidate<ValidatorResources>>,
-    ) -> Result<()> {
-        let ordinal = self.code.len() + self.pending_functions.as_ref().map_or(0, Vec::len);
-        let results = *self
-            .code_results
-            .get(ordinal)
-            .ok_or_else(|| ParseError::Other("code entry has no function signature".into()))?;
-        let ty_idx = *self
-            .code_type_addrs
-            .get(ordinal)
-            .ok_or_else(|| ParseError::Other("code entry has no function signature".into()))?;
-        let job = crate::parallel::PendingFunction { ordinal, results, func_to_validate, ty_idx, body };
-        self.pending_functions
-            .as_mut()
-            .ok_or_else(|| ParseError::Other("function queued without pending storage".into()))?
-            .push(job);
-        Ok(())
-    }
-
-    #[cfg(parallel_parser)]
-    pub(crate) fn process_pending_functions(&mut self, options: &ParserOptions) -> Result<()> {
-        let Some(pending) = self.pending_functions.take().filter(|pending| !pending.is_empty()) else {
-            return Ok(());
-        };
-
-        let imported_func_count = self.imported_func_count;
-        let metadata = self.translation_metadata();
-        let code = crate::parallel::process_pending(pending, metadata, options, imported_func_count)?;
-        self.code.extend(code);
-        Ok(())
-    }
-
-    #[cfg(not(parallel_parser))]
-    pub(crate) fn process_pending_functions(&mut self, _options: &ParserOptions) -> Result<()> {
-        Ok(())
-    }
-
-    pub(crate) fn into_module(self) -> Result<Module> {
+    #[inline]
+    pub(crate) fn into_module(self) -> Result<TinyWasmModule> {
         if !self.end_reached {
             return Err(ParseError::EndNotReached);
         }
@@ -513,65 +189,40 @@ impl<'a> ModuleReader<'a> {
             return Err(ParseError::Other("Code and code type address count mismatch".to_string()));
         }
 
-        let func_type_idxs = self
-            .imports
-            .iter()
-            .filter_map(|import| match import.kind {
-                ImportKind::Function(type_idx) => Some(type_idx),
-                _ => None,
-            })
-            .chain(self.code_type_addrs.iter().copied())
-            .collect();
-
-        let imported_memory_count =
-            self.imports.iter().filter(|import| matches!(import.kind, ImportKind::Memory(_))).count();
-        let uses_local_memory = self.code.iter().any(|code| code.uses_local_memory);
-        let exports_local_memory = self
-            .exports
-            .iter()
-            .any(|export| export.kind == ExternalKind::Memory && export.index as usize >= imported_memory_count);
-        let initializes_local_memory = self
-            .data
-            .iter()
-            .any(|data| matches!(data.kind, DataKind::Active { mem, .. } if mem as usize >= imported_memory_count));
-        let skip_local_memory_allocation =
-            !self.memory_types.is_empty() && !uses_local_memory && !exports_local_memory && !initializes_local_memory;
-
         let funcs = self
             .code
             .into_iter()
             .zip(self.code_type_addrs)
-            .zip(self.code_results)
-            .map(|((code, ty_idx), results)| -> Result<_> {
-                let ty =
-                    self.types.get(ty_idx).and_then(SubType::as_func).expect("function type was checked while parsing");
-                let params = ValueCounts::from_iter(ty.params());
-
-                Ok(Shared::new(WasmFunction {
-                    instructions: code.instructions.into_boxed_slice(),
-                    data: code.data,
-                    locals: code.locals,
-                    params,
-                    results,
-                }))
+            .map(|((instructions, locals), ty_idx)| {
+                let mut params = ValueCountsSmall::default();
+                let ty = self.func_types.get(ty_idx as usize).expect("No func type for func, this is a bug").clone();
+                for param in &ty.params {
+                    match param {
+                        ValType::I32 | ValType::F32 => params.c32 += 1,
+                        ValType::I64 | ValType::F64 => params.c64 += 1,
+                        ValType::V128 => params.c128 += 1,
+                        ValType::RefExtern | ValType::RefFunc => params.cref += 1,
+                    }
+                }
+                WasmFunction { instructions, locals, params, ty }
             })
-            .collect::<Result<_>>()?;
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
 
-        Ok(ModuleInner {
+        let globals = self.globals;
+        let table_types = self.table_types;
+
+        Ok(TinyWasmModule {
             funcs,
-            types: self.types,
-            func_type_idxs,
-            globals: self.globals,
-            tables: self.tables,
-            imports: self.imports,
+            func_types: self.func_types.into_boxed_slice(),
+            globals: globals.into_boxed_slice(),
+            table_types: table_types.into_boxed_slice(),
+            imports: self.imports.into_boxed_slice(),
             start_func: self.start_func,
-            data: self.data,
-            exports: self.exports,
-            elements: self.elements,
-            memory_types: self.memory_types,
-            skip_local_memory_allocation,
-            tags: self.tags,
-        }
-        .into())
+            data: self.data.into_boxed_slice(),
+            exports: self.exports.into_boxed_slice(),
+            elements: self.elements.into_boxed_slice(),
+            memory_types: self.memory_types.into_boxed_slice(),
+        })
     }
 }

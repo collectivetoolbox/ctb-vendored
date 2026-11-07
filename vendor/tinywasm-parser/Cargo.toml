@@ -10,54 +10,20 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
-edition = "2024"
-rust-version = "1.98"
+edition = "2021"
+rust-version = "1.80"
 name = "tinywasm-parser"
-version = "0.11.0"
-build = "build.rs"
-autolib = false
+version = "0.8.0"
+authors = ["Henry Gressmann <mail@henrygressmann.de>"]
+build = false
 autobins = false
 autoexamples = false
 autotests = false
 autobenches = false
-description = "Parser and lowering pipeline for TinyWasm"
-homepage = "https://tinywasm.dev"
+description = "TinyWasm parser"
 readme = "README.md"
-keywords = [
-    "interpreter",
-    "no-std",
-    "tinywasm",
-    "wasm",
-    "webassembly",
-]
-categories = [
-    "compilers",
-    "embedded",
-    "no-std",
-    "virtualization",
-    "wasm",
-]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/explodingcamera/tinywasm"
-
-[features]
-default = [
-    "log",
-    "parallel",
-    "std",
-    "validate",
-]
-log = ["dep:log"]
-parallel = ["std"]
-portable-atomic = ["tinywasm-types/portable-atomic"]
-std = [
-    "tinywasm-types/std",
-    "wasmparser/std",
-]
-validate = [
-    "wasmparser/features",
-    "wasmparser/validate",
-]
 
 [lib]
 name = "tinywasm_parser"
@@ -68,18 +34,22 @@ version = "0.4"
 optional = true
 
 [dependencies.tinywasm-types]
-version = "0.11.0"
+version = "0.8.0-alpha.0"
 default-features = false
 
 [dependencies.wasmparser]
-version = "0.259"
-features = ["simd"]
+version = "0.216"
+features = ["validate"]
 default-features = false
 
-[lints.cargo]
-unused_dependencies = "allow"
-
-[lints.rust.unexpected_cfgs]
-level = "warn"
-priority = 0
-check-cfg = ["cfg(rust_analyzer)"]
+[features]
+default = [
+    "std",
+    "logging",
+]
+logging = ["log"]
+nightly = []
+std = [
+    "tinywasm-types/std",
+    "wasmparser/std",
+]

@@ -1,237 +1,223 @@
-use super::num_helpers::TinywasmFloatExt;
-use super::stack::{CallFrame, ValueStack};
-use crate::store::Globals;
-use crate::{Error, Result, Store, WasmValue, interpreter::simd::Value128};
-use tinywasm_types::{BinOp, BinOp128, CmpOp, GlobalAddr, LocalAddr, WasmType};
+use crate::Result;
+use tinywasm_types::{LocalAddr, ValType, WasmValue};
+
+use super::stack::{Locals, ValueStack};
 
 pub(crate) type Value32 = u32;
 pub(crate) type Value64 = u64;
+pub(crate) type Value128 = u128;
+pub(crate) type ValueRef = Option<u32>;
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-/// Packed internal representation of a WebAssembly reference.
-///
-/// Unlike the public [`RefValue`], this stores no explicit reference category.
-/// Converting it back therefore requires the value's canonical reference type.
-pub(crate) struct ValueRef(u32);
-
-impl ValueRef {
-    const HOST_ANY_TAG: u32 = 1 << 30;
-    pub(crate) const NULL: Self = Self(0);
-
-    #[inline]
-    pub(crate) const fn from_raw(raw: u32) -> Self {
-        Self(raw)
-    }
-
-    #[inline]
-    pub(crate) const fn from_category_addr(addr: u32) -> Self {
-        let Some(raw) = addr.checked_add(1) else { panic!("reference address does not fit in the runtime encoding") };
-        let Some(raw) = raw.checked_mul(2) else { panic!("reference address does not fit in the runtime encoding") };
-        Self(raw)
-    }
-
-    #[inline]
-    pub(crate) const fn from_i31(value: i32) -> Self {
-        Self(((value as u32) << 1) | 1)
-    }
-
-    #[inline]
-    pub(crate) const fn try_from_host_any(addr: u32) -> Option<Self> {
-        if addr >= Self::HOST_ANY_TAG - 1 {
-            return None;
-        }
-        Some(Self::from_category_addr(addr | Self::HOST_ANY_TAG))
-    }
-
-    pub(crate) const fn is_host_any(self) -> bool {
-        matches!(self.addr(), Some(addr) if addr & Self::HOST_ANY_TAG != 0)
-    }
-
-    #[inline]
-    pub(crate) const fn addr(self) -> Option<u32> {
-        if self.is_null() || self.is_i31() { None } else { Some(self.0 / 2 - 1) }
-    }
-
-    #[inline]
-    pub(crate) const fn is_null(self) -> bool {
-        self.0 == Self::NULL.0
-    }
-
-    #[inline]
-    pub(crate) const fn is_i31(self) -> bool {
-        self.0 & 1 != 0
-    }
-
-    #[inline]
-    pub(crate) const fn i31_s(self) -> Option<i32> {
-        if self.is_i31() { Some((self.0 as i32) >> 1) } else { None }
-    }
-
-    #[inline]
-    pub(crate) const fn i31_u(self) -> Option<u32> {
-        if self.is_i31() { Some(self.0 >> 1) } else { None }
-    }
-
-    #[inline]
-    pub(crate) const fn raw(self) -> u32 {
-        self.0
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// An untyped internal WebAssembly value.
-pub(crate) enum RuntimeValue {
-    /// A 32-bit value.
+#[derive(Debug, Clone, Copy, PartialEq)]
+/// A untyped WebAssembly value
+pub enum TinyWasmValue {
+    /// A 32-bit value
     Value32(Value32),
-    /// A 64-bit value.
+    /// A 64-bit value
     Value64(Value64),
-    /// A 128-bit value.
+    /// A 128-bit value
     Value128(Value128),
-    /// A reference value.
+    /// A reference value
     ValueRef(ValueRef),
 }
 
-impl RuntimeValue {
-    pub(crate) fn into_wasm(self, store: &mut Store, ty: WasmType) -> Result<WasmValue> {
-        Ok(match (self, ty) {
-            (Self::Value32(value), WasmType::I32) => WasmValue::I32(value as i32),
-            (Self::Value32(value), WasmType::F32) => WasmValue::F32(f32::from_bits(value)),
-            (Self::Value64(value), WasmType::I64) => WasmValue::I64(value as i64),
-            (Self::Value64(value), WasmType::F64) => WasmValue::F64(f64::from_bits(value)),
-            (Self::Value128(value), WasmType::V128) => WasmValue::V128(value.0),
-            (Self::ValueRef(value), WasmType::Ref(ty)) => WasmValue::Ref(store.decode_ref(value, ty)?),
-            _ => return Err(Error::other("internal value does not match its WebAssembly type")),
-        })
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct StackLocation {
+    pub(crate) s32: u32,
+    pub(crate) s64: u32,
+    pub(crate) s128: u32,
+    pub(crate) sref: u32,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct StackHeight {
+    pub(crate) s32: u16,
+    pub(crate) s64: u16,
+    pub(crate) s128: u16,
+    pub(crate) sref: u16,
+}
+
+impl From<ValType> for StackHeight {
+    fn from(value: ValType) -> Self {
+        match value {
+            ValType::I32 | ValType::F32 => Self { s32: 1, ..Default::default() },
+            ValType::I64 | ValType::F64 => Self { s64: 1, ..Default::default() },
+            ValType::V128 => Self { s128: 1, ..Default::default() },
+            ValType::RefExtern | ValType::RefFunc => Self { sref: 1, ..Default::default() },
+        }
     }
 }
 
-/// Typed access to values in their physical [`ValueStack`] and [`Globals`] lanes.
-pub(crate) trait InternalValue: Copy + Default {
-    fn stack_push(stack: &mut ValueStack, value: Self) -> Result<(), crate::Trap>;
-    fn stack_pop(stack: &mut ValueStack) -> Self;
-    fn stack_peek(stack: &ValueStack) -> Self;
-    fn stack_update(stack: &mut ValueStack, f: impl FnOnce(Self) -> Self) -> Self;
-    fn stack_select(stack: &mut ValueStack);
-    fn local_get(stack: &ValueStack, frame: &CallFrame, index: LocalAddr) -> Self;
-    fn local_push(stack: &mut ValueStack, frame: &CallFrame, index: LocalAddr) -> Result<(), crate::Trap>;
-    fn local_set(stack: &mut ValueStack, frame: &CallFrame, index: LocalAddr, value: Self);
-    fn local_update(stack: &mut ValueStack, frame: &CallFrame, index: LocalAddr, f: impl FnOnce(Self) -> Self) -> Self;
-    fn local_copy(stack: &mut ValueStack, frame: &CallFrame, from: LocalAddr, to: LocalAddr);
-    fn global_get(globals: &Globals, addr: GlobalAddr) -> Self;
-    fn global_set(globals: &mut Globals, addr: GlobalAddr, value: Self);
-    fn global_update(globals: &mut Globals, addr: GlobalAddr, f: impl FnOnce(Self) -> Self) -> Self;
+impl From<&[ValType]> for StackHeight {
+    fn from(value: &[ValType]) -> Self {
+        let mut s32 = 0;
+        let mut s64 = 0;
+        let mut s128 = 0;
+        let mut sref = 0;
+        for val_type in value {
+            match val_type {
+                ValType::I32 | ValType::F32 => s32 += 1,
+                ValType::I64 | ValType::F64 => s64 += 1,
+                ValType::V128 => s128 += 1,
+                ValType::RefExtern | ValType::RefFunc => sref += 1,
+            }
+        }
+        Self { s32, s64, s128, sref }
+    }
+}
+
+impl TinyWasmValue {
+    /// Asserts that the value is a 32-bit value and returns it (panics if the value is the wrong size)
+    pub fn unwrap_32(&self) -> Value32 {
+        match self {
+            TinyWasmValue::Value32(v) => *v,
+            _ => unreachable!("Expected Value32"),
+        }
+    }
+
+    /// Asserts that the value is a 64-bit value and returns it (panics if the value is the wrong size)
+    pub fn unwrap_64(&self) -> Value64 {
+        match self {
+            TinyWasmValue::Value64(v) => *v,
+            _ => unreachable!("Expected Value64"),
+        }
+    }
+
+    /// Asserts that the value is a 128-bit value and returns it (panics if the value is the wrong size)
+    pub fn unwrap_128(&self) -> Value128 {
+        match self {
+            TinyWasmValue::Value128(v) => *v,
+            _ => unreachable!("Expected Value128"),
+        }
+    }
+
+    /// Asserts that the value is a reference value and returns it (panics if the value is the wrong size)
+    pub fn unwrap_ref(&self) -> ValueRef {
+        match self {
+            TinyWasmValue::ValueRef(v) => *v,
+            _ => unreachable!("Expected ValueRef"),
+        }
+    }
+
+    /// Attaches a type to the value (panics if the size of the value is not the same as the type)
+    pub fn attach_type(&self, ty: ValType) -> WasmValue {
+        match ty {
+            ValType::I32 => WasmValue::I32(self.unwrap_32() as i32),
+            ValType::I64 => WasmValue::I64(self.unwrap_64() as i64),
+            ValType::F32 => WasmValue::F32(f32::from_bits(self.unwrap_32())),
+            ValType::F64 => WasmValue::F64(f64::from_bits(self.unwrap_64())),
+            ValType::V128 => WasmValue::V128(self.unwrap_128()),
+            ValType::RefExtern => match self.unwrap_ref() {
+                Some(v) => WasmValue::RefExtern(v),
+                None => WasmValue::RefNull(ValType::RefExtern),
+            },
+            ValType::RefFunc => match self.unwrap_ref() {
+                Some(v) => WasmValue::RefFunc(v),
+                None => WasmValue::RefNull(ValType::RefFunc),
+            },
+        }
+    }
+}
+
+impl From<&WasmValue> for TinyWasmValue {
+    fn from(value: &WasmValue) -> Self {
+        match value {
+            WasmValue::I32(v) => TinyWasmValue::Value32(*v as u32),
+            WasmValue::I64(v) => TinyWasmValue::Value64(*v as u64),
+            WasmValue::V128(v) => TinyWasmValue::Value128(*v),
+            WasmValue::F32(v) => TinyWasmValue::Value32(v.to_bits()),
+            WasmValue::F64(v) => TinyWasmValue::Value64(v.to_bits()),
+            WasmValue::RefFunc(v) | WasmValue::RefExtern(v) => TinyWasmValue::ValueRef(Some(*v)),
+            WasmValue::RefNull(_) => TinyWasmValue::ValueRef(None),
+        }
+    }
+}
+
+impl From<WasmValue> for TinyWasmValue {
+    fn from(value: WasmValue) -> Self {
+        TinyWasmValue::from(&value)
+    }
+}
+
+mod sealed {
+    #[allow(unreachable_pub)]
+    pub trait Sealed {}
+}
+
+pub(crate) trait InternalValue: sealed::Sealed + Into<TinyWasmValue> {
+    fn stack_push(stack: &mut ValueStack, value: Self);
+    fn replace_top(stack: &mut ValueStack, func: fn(Self) -> Result<Self>) -> Result<()>
+    where
+        Self: Sized;
+    fn stack_calculate(stack: &mut ValueStack, func: fn(Self, Self) -> Result<Self>) -> Result<()>
+    where
+        Self: Sized;
+
+    fn stack_pop(stack: &mut ValueStack) -> Self
+    where
+        Self: Sized;
+    fn stack_peek(stack: &ValueStack) -> Self
+    where
+        Self: Sized;
+    fn local_get(locals: &Locals, index: LocalAddr) -> Self;
+    fn local_set(locals: &mut Locals, index: LocalAddr, value: Self);
 }
 
 macro_rules! impl_internalvalue {
-    (
+    ($( $variant:ident, $stack:ident, $locals:ident, $internal:ty, $outer:ty, $to_internal:expr, $to_outer:expr )*) => {
         $(
-            $stack:ident, $stack_base:ident, $global_get:ident, $global_set:ident, $outer:ty,
-            |$to_stack_v:ident| $to_stack:expr,
-            |$from_stack_v:ident| $from_stack:expr
-        )*
-    ) => {
-        $(
+            impl sealed::Sealed for $outer {}
+
+            impl From<$outer> for TinyWasmValue {
+                #[inline(always)]
+                fn from(value: $outer) -> Self {
+                    TinyWasmValue::$variant($to_internal(value))
+                }
+            }
+
             impl InternalValue for $outer {
                 #[inline(always)]
-                fn local_get(stack: &ValueStack, frame: &CallFrame, index: LocalAddr) -> Self {
-                    let $from_stack_v =
-                        *stack.$stack.get(frame.locals_base.$stack_base as usize + index as usize);
-                    $from_stack
+                fn stack_push(stack: &mut ValueStack, value: Self) {
+                    stack.$stack.push($to_internal(value));
+                }
+                #[inline(always)]
+                fn stack_pop(stack: &mut ValueStack) -> Self {
+                    ($to_outer)(stack.$stack.pop().expect("ValueStack underflow, this is a bug"))
+                }
+                #[inline(always)]
+                fn stack_peek(stack: &ValueStack) -> Self {
+                    ($to_outer)(*stack.$stack.last().expect("ValueStack underflow, this is a bug"))
                 }
 
                 #[inline(always)]
-                fn local_push(stack: &mut ValueStack, frame: &CallFrame, index: LocalAddr) -> Result<(), crate::Trap> {
-                    stack.$stack.push_copy(frame.locals_base.$stack_base as usize + index as usize)
-                }
-
-                #[inline(always)]
-                fn local_set(stack: &mut ValueStack, frame: &CallFrame, index: LocalAddr, value: Self) {
-                    let $to_stack_v = value;
-                    let abs_index = frame.locals_base.$stack_base as usize + index as usize;
-                    stack.$stack.set(abs_index, $to_stack);
-                }
-
-                #[inline(always)]
-                fn local_update(
-                    stack: &mut ValueStack,
-                    frame: &CallFrame,
-                    index: LocalAddr,
-                    f: impl FnOnce(Self) -> Self,
-                ) -> Self {
-                    let abs_index = frame.locals_base.$stack_base as usize + index as usize;
-                    let $from_stack_v = *stack.$stack.get(abs_index);
-                    let value = f($from_stack);
-                    let $to_stack_v = value;
-                    stack.$stack.set(abs_index, $to_stack);
-                    value
-                }
-
-                #[inline(always)]
-                fn local_copy(stack: &mut ValueStack, frame: &CallFrame, from: LocalAddr, to: LocalAddr) {
-                    let from = frame.locals_base.$stack_base as usize + from as usize;
-                    let to = frame.locals_base.$stack_base as usize + to as usize;
-                    stack.$stack.copy(from, to);
-                }
-
-                #[inline(always)]
-                fn global_get(globals: &Globals, addr: GlobalAddr) -> Self {
-                    let $from_stack_v = globals.$global_get(addr);
-                    $from_stack
-                }
-
-                #[inline(always)]
-                fn global_set(globals: &mut Globals, addr: GlobalAddr, value: Self) {
-                    let $to_stack_v = value;
-                    globals.$global_set(addr, $to_stack);
-                }
-
-                #[inline(always)]
-                fn global_update(globals: &mut Globals, addr: GlobalAddr, f: impl FnOnce(Self) -> Self) -> Self {
-                    let $from_stack_v = globals.$global_get(addr);
-                    let value = f($from_stack);
-                    let $to_stack_v = value;
-                    globals.$global_set(addr, $to_stack);
-                    value
-                }
-
-                #[inline(always)]
-                fn stack_push(stack: &mut ValueStack, value: Self) -> Result<(), crate::Trap> {
-                    let $to_stack_v = value;
-                    cold_err!(stack.$stack.push($to_stack))?;
+                fn stack_calculate(stack: &mut ValueStack, func: fn(Self, Self) -> Result<Self>) -> Result<()> {
+                    let v2 = stack.$stack.pop();
+                    let v1 = stack.$stack.last_mut();
+                    if let (Some(v1), Some(v2)) = (v1, v2) {
+                        *v1 = $to_internal(func($to_outer(*v1), $to_outer(v2))?);
+                    } else {
+                        unreachable!("ValueStack underflow, this is a bug");
+                    }
                     Ok(())
                 }
 
                 #[inline(always)]
-                fn stack_pop(stack: &mut ValueStack) -> Self {
-                    let $from_stack_v = stack.$stack.pop();
-                    $from_stack
-                }
-
-                #[inline(always)]
-                fn stack_peek(stack: &ValueStack) -> Self {
-                    let $from_stack_v = *stack.$stack.last();
-                    $from_stack
-                }
-
-                #[inline(always)]
-                fn stack_update(stack: &mut ValueStack, f: impl FnOnce(Self) -> Self) -> Self {
-                    let index = stack.$stack.len() - 1;
-                    let $from_stack_v = *stack.$stack.get(index);
-                    let value = f($from_stack);
-                    let $to_stack_v = value;
-                    stack.$stack.set(index, $to_stack);
-                    value
-                }
-
-                #[inline(always)]
-                fn stack_select(stack: &mut ValueStack) {
-                    let cond = stack.stack_32.pop() as i32;
-                    let val2 = stack.$stack.pop();
-
-                    if cond == 0 {
-                        let val1 = stack.$stack.len() - 1;
-                        stack.$stack.set(val1, val2);
+                fn replace_top(stack: &mut ValueStack, func: fn(Self) -> Result<Self>) -> Result<()> {
+                    if let Some(v) = stack.$stack.last_mut() {
+                        *v = $to_internal(func($to_outer(*v))?);
+                        Ok(())
+                    } else {
+                        unreachable!("ValueStack underflow, this is a bug");
                     }
+                }
+
+                #[inline(always)]
+                fn local_get(locals: &Locals, index: LocalAddr) -> Self {
+                    $to_outer(locals.$locals[index as usize])
+                }
+                #[inline(always)]
+                fn local_set(locals: &mut Locals, index: LocalAddr, value: Self) {
+                    locals.$locals[index as usize] = $to_internal(value);
                 }
             }
         )*
@@ -239,141 +225,12 @@ macro_rules! impl_internalvalue {
 }
 
 impl_internalvalue! {
-    stack_32,  s32,  get_32,  set_32,  u32,      |v| v,               |v| v
-    stack_64,  s64,  get_64,  set_64,  u64,      |v| v,               |v| v
-    stack_32,  s32,  get_32,  set_32,  i32,      |v| v as u32,        |v| v as i32
-    stack_64,  s64,  get_64,  set_64,  i64,      |v| v as u64,        |v| v as i64
-    stack_32,  s32,  get_32,  set_32,  f32,      |v| f32::to_bits(v), |v| f32::from_bits(v)
-    stack_64,  s64,  get_64,  set_64,  f64,      |v| f64::to_bits(v), |v| f64::from_bits(v)
-    stack_32,  s32,  get_32,  set_32,  ValueRef, |v| v.raw(),         |v| ValueRef(v)
-    stack_128, s128, get_128, set_128, Value128, |v| v,               |v| v
-}
-
-pub(crate) trait BinOpExt<T>: Copy {
-    fn exec(self, lhs: T, rhs: T) -> T;
-}
-
-pub(crate) trait CmpOpExt<T>: Copy {
-    fn cmp(self, lhs: T, rhs: T) -> bool;
-}
-
-macro_rules! impl_value_ops {
-    ($unsigned:ty, $signed:ty, $binop:ident, $cmp:ident) => {
-        impl BinOpExt<$unsigned> for BinOp {
-            #[inline(always)]
-            fn exec(self, lhs: $unsigned, rhs: $unsigned) -> $unsigned {
-                $binop(self, lhs, rhs)
-            }
-        }
-
-        impl CmpOpExt<$signed> for CmpOp {
-            #[inline(always)]
-            fn cmp(self, lhs: $signed, rhs: $signed) -> bool {
-                $cmp(self, lhs, rhs)
-            }
-        }
-    };
-}
-
-impl_value_ops!(Value32, i32, exec_binop_32, exec_cmp_32);
-impl_value_ops!(Value64, i64, exec_binop_64, exec_cmp_64);
-
-fn exec_binop_32(op: BinOp, lhs: u32, rhs: u32) -> u32 {
-    match op {
-        BinOp::IAdd => lhs.wrapping_add(rhs),
-        BinOp::ISub => lhs.wrapping_sub(rhs),
-        BinOp::IMul => lhs.wrapping_mul(rhs),
-        BinOp::IAnd => lhs & rhs,
-        BinOp::IOr => lhs | rhs,
-        BinOp::IXor => lhs ^ rhs,
-        BinOp::IShl => (lhs as i32).wrapping_shl(rhs) as u32,
-        BinOp::IShrS => (lhs as i32).wrapping_shr(rhs) as u32,
-        BinOp::IShrU => lhs.wrapping_shr(rhs),
-        BinOp::IRotl => (lhs as i32).rotate_left(rhs) as u32,
-        BinOp::IRotr => (lhs as i32).rotate_right(rhs) as u32,
-        BinOp::FAdd => (f32::from_bits(lhs) + f32::from_bits(rhs)).to_bits(),
-        BinOp::FSub => (f32::from_bits(lhs) - f32::from_bits(rhs)).to_bits(),
-        BinOp::FMul => (f32::from_bits(lhs) * f32::from_bits(rhs)).to_bits(),
-        BinOp::FDiv => (f32::from_bits(lhs) / f32::from_bits(rhs)).to_bits(),
-        BinOp::FMin => f32::from_bits(lhs).tw_minimum(f32::from_bits(rhs)).to_bits(),
-        BinOp::FMax => f32::from_bits(lhs).tw_maximum(f32::from_bits(rhs)).to_bits(),
-        BinOp::FCopysign => f32::from_bits(lhs).copysign(f32::from_bits(rhs)).to_bits(),
-    }
-}
-
-fn exec_binop_64(op: BinOp, lhs: u64, rhs: u64) -> u64 {
-    match op {
-        BinOp::IAdd => lhs.wrapping_add(rhs),
-        BinOp::ISub => lhs.wrapping_sub(rhs),
-        BinOp::IMul => lhs.wrapping_mul(rhs),
-        BinOp::IAnd => lhs & rhs,
-        BinOp::IOr => lhs | rhs,
-        BinOp::IXor => lhs ^ rhs,
-        BinOp::IShl => (lhs as i64).wrapping_shl(rhs as u32) as u64,
-        BinOp::IShrS => (lhs as i64).wrapping_shr(rhs as u32) as u64,
-        BinOp::IShrU => lhs.wrapping_shr(rhs as u32),
-        BinOp::IRotl => (lhs as i64).rotate_left(rhs as u32) as u64,
-        BinOp::IRotr => (lhs as i64).rotate_right(rhs as u32) as u64,
-        BinOp::FAdd => (f64::from_bits(lhs) + f64::from_bits(rhs)).to_bits(),
-        BinOp::FSub => (f64::from_bits(lhs) - f64::from_bits(rhs)).to_bits(),
-        BinOp::FMul => (f64::from_bits(lhs) * f64::from_bits(rhs)).to_bits(),
-        BinOp::FDiv => (f64::from_bits(lhs) / f64::from_bits(rhs)).to_bits(),
-        BinOp::FMin => f64::from_bits(lhs).tw_minimum(f64::from_bits(rhs)).to_bits(),
-        BinOp::FMax => f64::from_bits(lhs).tw_maximum(f64::from_bits(rhs)).to_bits(),
-        BinOp::FCopysign => f64::from_bits(lhs).copysign(f64::from_bits(rhs)).to_bits(),
-    }
-}
-
-fn exec_cmp_32(op: CmpOp, lhs: i32, rhs: i32) -> bool {
-    match op {
-        CmpOp::Eq => lhs == rhs,
-        CmpOp::Ne => lhs != rhs,
-        CmpOp::LtS => lhs < rhs,
-        CmpOp::LtU => (lhs as u32) < (rhs as u32),
-        CmpOp::GtS => lhs > rhs,
-        CmpOp::GtU => (lhs as u32) > (rhs as u32),
-        CmpOp::LeS => lhs <= rhs,
-        CmpOp::LeU => (lhs as u32) <= (rhs as u32),
-        CmpOp::GeS => lhs >= rhs,
-        CmpOp::GeU => (lhs as u32) >= (rhs as u32),
-    }
-}
-
-fn exec_cmp_64(op: CmpOp, lhs: i64, rhs: i64) -> bool {
-    match op {
-        CmpOp::Eq => lhs == rhs,
-        CmpOp::Ne => lhs != rhs,
-        CmpOp::LtS => lhs < rhs,
-        CmpOp::LtU => (lhs as u64) < (rhs as u64),
-        CmpOp::GtS => lhs > rhs,
-        CmpOp::GtU => (lhs as u64) > (rhs as u64),
-        CmpOp::LeS => lhs <= rhs,
-        CmpOp::LeU => (lhs as u64) <= (rhs as u64),
-        CmpOp::GeS => lhs >= rhs,
-        CmpOp::GeU => (lhs as u64) >= (rhs as u64),
-    }
-}
-
-impl BinOpExt<Value128> for BinOp128 {
-    #[inline(always)]
-    fn exec(self, lhs: Value128, rhs: Value128) -> Value128 {
-        match self {
-            BinOp128::And => lhs.v128_and(rhs),
-            BinOp128::AndNot => lhs.v128_andnot(rhs),
-            BinOp128::Or => lhs.v128_or(rhs),
-            BinOp128::Xor => lhs.v128_xor(rhs),
-            BinOp128::I64x2Add => lhs.i64x2_add(rhs),
-            BinOp128::I64x2Mul => lhs.i64x2_mul(rhs),
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::ValueRef;
-
-    #[test]
-    fn value_ref_remains_four_bytes() {
-        assert_eq!(core::mem::size_of::<ValueRef>(), 4);
-    }
+    Value32, stack_32, locals_32, u32, u32, |v| v, |v| v
+    Value64, stack_64, locals_64, u64, u64, |v| v, |v| v
+    Value32, stack_32, locals_32, u32, i32, |v| v as u32, |v: u32| v as i32
+    Value64, stack_64, locals_64, u64, i64, |v| v as u64, |v| v as i64
+    Value32, stack_32, locals_32, u32, f32, f32::to_bits, f32::from_bits
+    Value64, stack_64, locals_64, u64, f64, f64::to_bits, f64::from_bits
+    Value128, stack_128, locals_128, Value128, Value128, |v| v, |v| v
+    ValueRef, stack_ref, locals_ref, ValueRef, ValueRef, |v| v, |v| v
 }

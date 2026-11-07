@@ -1,8 +1,9 @@
-use alloc::string::{String, ToString};
 use core::fmt::{Debug, Display};
+
+use alloc::string::{String, ToString};
 use wasmparser::Encoding;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 /// Errors that can occur when parsing a WebAssembly module
 pub enum ParseError {
     /// An invalid type was encountered
@@ -20,7 +21,7 @@ pub enum ParseError {
         /// The error message
         message: String,
         /// The offset in the module where the error occurred
-        offset: u64,
+        offset: usize,
     },
     /// An invalid encoding was encountered
     InvalidEncoding(Encoding),
@@ -58,10 +59,11 @@ impl Display for ParseError {
     }
 }
 
-impl core::error::Error for ParseError {}
+#[cfg(any(feature = "std", all(not(feature = "std"), feature = "nightly")))]
+impl crate::std::error::Error for ParseError {}
 
-impl From<wasmparser::Error> for ParseError {
-    fn from(value: wasmparser::Error) -> Self {
+impl From<wasmparser::BinaryReaderError> for ParseError {
+    fn from(value: wasmparser::BinaryReaderError) -> Self {
         Self::ParseError { message: value.message().to_string(), offset: value.offset() }
     }
 }
