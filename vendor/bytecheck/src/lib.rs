@@ -24,10 +24,11 @@
 //! use bytecheck::CheckBytes;
 //!
 //! #[derive(CheckBytes, Debug)]
+//! #[repr(C)]
 //! struct Test {
 //!     a: u32,
-//!     b: bool,
-//!     c: char,
+//!     b: char,
+//!     c: bool,
 //! }
 //! #[repr(C, align(16))]
 //! struct Aligned<const N: usize>([u8; N]);
@@ -172,23 +173,23 @@ pub use bytecheck_derive::CheckBytes;
 ///
 /// With the `std` feature, this also supports `std::error::Error`.
 #[cfg(not(feature = "std"))]
-pub trait Error: fmt::Debug + fmt::Display + 'static + Send + Sync {}
+pub trait Error: fmt::Debug + fmt::Display + 'static {}
 
 #[cfg(not(feature = "std"))]
-impl<T: fmt::Debug + fmt::Display + 'static + Send + Sync> Error for T {}
+impl<T: fmt::Debug + fmt::Display + 'static> Error for T {}
 
 /// An error that can be debugged and displayed.
 ///
 /// With the `std` feature, this also supports `std::error::Error`.
 #[cfg(feature = "std")]
-pub trait Error: std::error::Error + 'static + Send + Sync {
+pub trait Error: std::error::Error + 'static {
     /// Gets this error as an `std::error::Error`.
-    fn as_error(&self) -> &(dyn std::error::Error + 'static + Send + Sync);
+    fn as_error(&self) -> &(dyn std::error::Error + 'static);
 }
 
 #[cfg(feature = "std")]
-impl<T: std::error::Error + 'static + Send + Sync> Error for T {
-    fn as_error(&self) -> &(dyn std::error::Error + 'static + Send + Sync) {
+impl<T: std::error::Error + 'static> Error for T {
+    fn as_error(&self) -> &(dyn std::error::Error + 'static) {
         self
     }
 }
@@ -428,7 +429,7 @@ macro_rules! impl_tuple {
             #[allow(clippy::unneeded_wildcard_pattern)]
             unsafe fn check_bytes<'a>(value: *const Self, context: &mut C) -> Result<&'a Self, Self::Error> {
                 let field_bytes = ($(ptr::addr_of!((*value).$index),)+);
-                $($type::check_bytes(field_bytes.$index.cast::<$type>(), context).map_err($error::$type)?;)+
+                impl_tuple!(@check_fields field_bytes, $error, context, $($type $index,)*);
                 Ok(&*value)
             }
         }
@@ -437,7 +438,12 @@ macro_rules! impl_tuple {
             [$($error_rest,)*],
             [$($type $index,)+]
         }
-    }
+    };
+    (@check_fields $field_bytes:ident, $error:ident, $context:ident,) => {};
+    (@check_fields $field_bytes:ident, $error:ident, $context:ident, $type:ident $index:tt, $($type_rest:ident $index_rest:tt,)*) => {
+        impl_tuple!(@check_fields $field_bytes, $error, $context, $($type_rest $index_rest,)*);
+        $type::check_bytes($field_bytes.$index, $context).map_err($error::$type)?;
+    };
 }
 
 impl_tuple! {
@@ -501,7 +507,7 @@ impl<T: fmt::Display> fmt::Display for SliceCheckError<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SliceCheckError::CheckBytes { index, error } => {
-                write!(f, "check failed for slice index {index}: {error}")
+                write!(f, "check failed for slice index {}: {}", index, error)
             }
         }
     }
@@ -545,7 +551,7 @@ impl fmt::Display for StrCheckError {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            StrCheckError::Utf8Error(e) => write!(f, "utf8 error: {e}"),
+            StrCheckError::Utf8Error(e) => write!(f, "utf8 error: {}", e),
         }
     }
 }
@@ -593,7 +599,7 @@ impl fmt::Display for CStrCheckError {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CStrCheckError::Utf8Error(e) => write!(f, "utf8 error: {e}"),
+            CStrCheckError::Utf8Error(e) => write!(f, "utf8 error: {}", e),
             CStrCheckError::MissingNullTerminator => write!(f, "missing null terminator"),
         }
     }
@@ -709,16 +715,18 @@ impl<T: fmt::Display> fmt::Display for EnumCheckError<T> {
                 inner,
             } => write!(
                 f,
-                "check failed for enum struct variant {variant_name}: {inner}"
+                "check failed for enum struct variant {}: {}",
+                variant_name, inner
             ),
             EnumCheckError::InvalidTuple {
                 variant_name,
                 inner,
             } => write!(
                 f,
-                "check failed for enum tuple variant {variant_name}: {inner}"
+                "check failed for enum tuple variant {}: {}",
+                variant_name, inner
             ),
-            EnumCheckError::InvalidTag(tag) => write!(f, "invalid tag for enum: {tag}"),
+            EnumCheckError::InvalidTag(tag) => write!(f, "invalid tag for enum: {}", tag),
         }
     }
 }
